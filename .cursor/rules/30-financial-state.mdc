@@ -1,0 +1,44 @@
+---
+description: Financial ledger, billing, payout and state-machine invariants
+alwaysApply: true
+---
+
+# Financial & State Invariants
+
+## Ledger
+The wallet is ledger-based. Ledger entries are authoritative and immutable in normal operation. Cached balances are projections only.
+
+Required invariants:
+- Every commission has earned_at, available_at, eligible base, amount and commission-rate/rule snapshot.
+- Default commission hold is 15 days per qualifying payment/settlement policy.
+- Held funds are not withdrawable.
+- Only Available funds may be reserved for payout.
+- Payout reservation is atomic and race-safe.
+- Refund/chargeback creates reversal/adjustment records; never rewrite historical ledger entries.
+- If a paid commission is later reversed, preserve the Paid payout and create the corrective negative entry/receivable according to policy.
+- Manual credit/debit requires amount, direction, reason, actor and timestamp.
+- Financial reports derive from authoritative payment/ledger data.
+
+## Payment flow
+Invoice -> processor attempt -> payment settlement -> exactly-once commission calculation -> hold -> entitlement activation/renewal -> notifications.
+Retries must never double-settle or double-create commission.
+
+## Commission snapshots
+A later commission-rate change must never rewrite historical earnings. Effective-date rules apply only to qualifying transactions after their effective timestamp.
+
+## Payout flow
+Requested -> validated -> atomically reserved -> Approved/Rejected/Frozen -> Processing -> Paid. Mark Paid requires required private proof according to platform settings. Paid generates an agency-visible receipt.
+
+## State machines
+Centralize transitions and allowed-next-state rules for Agency, Customer, KYC, Agent, PhoneNumber, Invoice/Payment, Commission and Payout. Reject illegal transitions.
+
+## Risk precedence
+Risk/chargeback restrictions may override normal commercial state. A confirmed chargeback can freeze the customer and disable its agents according to the SRS risk policy. Commission reversal must follow the defined priority and preserve history.
+
+## Concurrency
+For money, reservation, inventory and idempotent webhook handling:
+- use database transactions/appropriate isolation;
+- lock or atomically update authoritative rows where needed;
+- enforce unique idempotency/provider-event constraints;
+- test concurrent requests explicitly;
+- make retry behavior deterministic.
