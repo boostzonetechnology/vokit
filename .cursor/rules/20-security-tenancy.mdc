@@ -1,0 +1,43 @@
+---
+description: Vokit security, RBAC, privacy and tenancy controls
+alwaysApply: true
+---
+
+# Security, Tenancy & Privacy
+
+## Tenant isolation
+Hierarchy is Platform -> Agency -> Customer -> Agent.
+- Customer has exactly one Agency.
+- Every protected query and command must enforce ownership server-side.
+- Never trust tenant IDs, agency IDs, customer IDs, role claims, permissions or resource IDs supplied by the browser.
+- Never use UI filtering as authorization.
+- Foreign resource access must not disclose whether the object exists.
+- Add explicit cross-tenant negative tests for every tenant-owned endpoint/use case.
+
+## Identity and roles
+Platform staff are separate platform users. Tenant users belong to one tenant. Use granular RBAC with distinct platform, agency and customer permission namespaces.
+Sensitive capabilities must be explicit: KYC review, KYC document access, payout approval, wallet adjustment, commission changes, suspension, overrides, impersonation and secret access.
+
+## Secrets
+- No secrets in source, frontend bundles, fixtures, screenshots, test snapshots or logs.
+- Encrypt/secret-manage provider credentials, OAuth refresh tokens and webhook signing secrets.
+- Never expose secrets through serializers, admin resources, debugging endpoints or agent prompts.
+- Redact secrets from logs and error tracking.
+
+## Web security
+- HTTPS/TLS in production.
+- Secure HttpOnly/SameSite cookies or equivalent secure sessions.
+- CSRF protection for browser state-changing requests where applicable.
+- Rate-limit login, OTP/password reset, payout, webhook replay, uploads and expensive endpoints.
+- Validate and normalize URLs, phone numbers, uploaded files, webhook payloads and provider responses.
+- Prevent SSRF for user-supplied URLs; use explicit scheme/host policy and egress controls.
+
+## KYC and sensitive documents
+KYC files are restricted to authorized platform roles and must be segregated from ordinary support/customer views. Preserve version/audit history. Audit sensitive access where feasible.
+Never expose private payout proof to agencies. Agency-visible payout receipts contain only non-sensitive metadata.
+
+## Payment data
+Use processor tokenization/hosted fields where possible. Never accept/store CVV/CVC or full card authentication data. Payment-card verification images may expose only the final four digits; reject non-compliant uploads.
+
+## Privacy
+Apply data minimization, configurable retention, consent/disclosure controls for recording, authorized data export/deletion workflows and legal-retention exceptions. Never claim a jurisdiction is compliant without explicit legal/compliance approval.
