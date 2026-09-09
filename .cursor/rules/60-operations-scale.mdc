@@ -1,0 +1,73 @@
+---
+description: Deployment, observability, incident response and scale governance
+alwaysApply: true
+---
+
+# Production Operations & Scaling
+
+## Environment separation
+Maintain isolated local/development/staging/production configuration and credentials. Never use production secrets in development or commit environment secrets.
+
+## Deployment
+Production deployments must be reproducible, auditable and reversible.
+Required before release:
+- CI green;
+- migration safety reviewed;
+- backup verified;
+- health/readiness checks;
+- smoke tests;
+- provider sandbox/E2E validation where applicable;
+- observability and alerts;
+- rollback procedure.
+
+Prefer backward-compatible schema migrations: expand -> deploy compatible code -> migrate/backfill -> contract -> remove obsolete structures later.
+
+## Realtime deployment
+Treat Asterisk, SIP Edge and Pipecat as operationally distinct components with explicit health checks, capacity limits and failure isolation. Do not let API deploys silently break the media path.
+
+## Observability
+Track at minimum:
+- API latency/error rate;
+- database health/query latency;
+- queue depth/job latency/failure rate;
+- payment success/failure/webhook lag;
+- commission reconciliation mismatches;
+- payout aging/failure;
+- KYC queue aging;
+- number provisioning failures;
+- call setup/answer/completion/failure rates;
+- realtime latency and provider errors;
+- transfer success/failure;
+- knowledge ingestion failures;
+- integration/webhook delivery failures;
+- CPU/memory/network and service saturation.
+
+Use correlation/request IDs across HTTP -> async jobs -> provider calls -> call lifecycle.
+
+## Alerts
+Alert on symptoms and business impact, not only infrastructure. Financial mismatches, duplicate settlement attempts, failed payouts, tenant isolation errors and call-routing failures are high severity.
+
+## Backups & recovery
+Persistent data/configuration requires automated backups and tested restoration. Document RPO/RTO assumptions. A backup that has never been restored is not considered verified.
+
+## Incidents
+For incidents: contain -> preserve evidence -> identify blast radius -> mitigate -> verify recovery -> communicate -> root-cause analysis -> corrective action. Never hide an incident by destructive cleanup.
+
+## Scaling
+Scale horizontally where possible. Separate API, background workers, realtime voice workers and provider-facing workloads when load characteristics differ. Introduce read replicas, caching, partitioning or service extraction only with measured evidence and an ADR.
+
+## Capacity planning
+For every scale change estimate:
+- concurrent calls;
+- calls/minute;
+- audio bandwidth;
+- STT/TTS/LLM request rates;
+- database writes/second;
+- queue throughput;
+- webhook throughput;
+- provider rate limits;
+- storage growth for recordings/transcripts/knowledge;
+- tenant hot-spot risk.
+
+## Post-deployment verification
+After every production deployment verify health, error rates, critical workflows, call routing, payment/webhook processing and queue health before declaring success.
