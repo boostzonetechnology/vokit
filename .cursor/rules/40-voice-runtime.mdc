@@ -1,0 +1,40 @@
+---
+description: Pipecat, Asterisk, SIP Edge and realtime voice engineering rules
+alwaysApply: true
+---
+
+# Realtime Voice Rules
+
+## Boundary
+The realtime voice system consists of Asterisk, SIP Edge and Pipecat. Django remains the source of truth for providers, billing, agents and call records.
+
+## Preserve contracts
+Before modifying telephony/realtime code, inspect existing edge, Asterisk and Pipecat contracts. Do not change wire formats or endpoints casually. Any contract change requires an explicit compatibility/migration plan and integration tests.
+
+## Call lifecycle
+Model call lifecycle explicitly: start, answer, terminal state, artifacts, tools, transfers and billing/usage reconciliation. Provider events may arrive late, duplicated or out of order; handlers must be idempotent and state-aware.
+
+## Realtime performance
+- Never perform slow database/reporting/integration work synchronously in the audio path unless bounded and required.
+- Use short timeouts, bounded retries and safe fallback behavior.
+- Capture STT/TTS/LLM/provider latency metrics where available.
+- Use backpressure and bounded concurrency.
+- Do not rely on process-local tenant state for correctness.
+
+## Agent runtime security
+- Enforce tenant/customer/agent authorization before bootstrap/runtime configuration.
+- Agent tools/actions are explicit allowlists; never allow arbitrary tool execution.
+- Validate action input/output schemas.
+- Never place integration credentials in prompts, transcripts, logs or client messages.
+- Sanitize tool failures; never expose stack traces/secrets to callers.
+- Knowledge retrieval must respect Global/Agency/Customer/Agent scope.
+- Platform safety instructions cannot be overridden by lower-level instructions.
+
+## Media
+Preserve the existing media contract unless explicitly changed by an approved architecture decision. Account for codec/sample-rate boundaries and interruption behavior in tests.
+
+## Failure behavior
+If Django/provider dependencies become unavailable, fail according to the approved call contract and document whether the call should continue, fallback, transfer or terminate. Do not invent a grace period.
+
+## Testing
+Every realtime change should include unit tests plus contract/integration tests for bootstrap, media framing, provider events, call completion, transfer and failure paths where applicable.
