@@ -1,0 +1,17 @@
+# Repo-wide ignores (application/ and packages/vokit-sip-edge/ also have local .gitignore)
+
+# Secrets — never commit real env files (examples like .env.example are OK)
+.env
+**/.env
+!**/.env.example
+.cursor/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Rust (if building from repo root)
+**/target/

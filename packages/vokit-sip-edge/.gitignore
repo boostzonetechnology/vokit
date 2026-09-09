@@ -1,0 +1,16 @@
+# Local secrets (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+
+# Rust build output
+/target/
+**/*.rs.bk
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
