@@ -1,0 +1,41 @@
+---
+description: Testing, QA, code quality and release gates
+alwaysApply: true
+---
+
+# Testing & Quality Rules
+
+## Test pyramid
+Prefer fast domain/unit tests, then application tests, API/contract tests, integration/provider tests and a smaller set of end-to-end tests.
+
+## Mandatory high-risk coverage
+Maintain automated tests for:
+- tenant isolation and cross-tenant denial;
+- RBAC and sensitive permissions;
+- all important state-machine transitions and invalid transitions;
+- commission calculation and snapshotting;
+- 15-day hold and availability;
+- refund/chargeback reversal;
+- payout atomic reservation and race conditions;
+- payment webhook idempotency and replay;
+- phone reservation/purchase reconciliation;
+- webhook signing, verification, retries and replay;
+- agent publish preflight and tool allowlist;
+- knowledge-scope isolation;
+- customer-risk/chargeback agent shutdown;
+- critical call routing and lifecycle.
+
+## Contract testing
+External contracts must have explicit schemas and tests. Test both happy path and malformed/duplicate/out-of-order provider events.
+
+## Regression discipline
+When modifying billing, commission, KYC, payouts, tenancy, permissions, call routing or customer data, run the affected regression suite before completion.
+
+## Static quality
+Use formatter, linter, type checking and dependency/security scanning appropriate to the actual package. Do not weaken checks to make CI green.
+
+## Definition of done
+A feature is not complete because the code runs. It is complete only when requirements, authorization, failure behavior, observability, tests and documentation are addressed.
+
+## Release gate
+Do not recommend production release if critical tests fail, tenant isolation is unverified, financial idempotency is missing, backups have not been restore-tested, or critical observability/alerts are absent.

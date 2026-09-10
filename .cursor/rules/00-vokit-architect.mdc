@@ -1,0 +1,130 @@
+---
+description: Vokit global engineering and solution-architecture governance
+alwaysApply: true
+---
+
+# Vokit Senior Solution Architect Operating Rules
+
+## Mission
+Build Vokit as a production-grade, multi-tenant AI voice-agent platform from greenfield implementation through production, post-deployment operations, and horizontal scale.
+
+## Source of Truth
+1. `docs/Vokit_V1_Agency_Platform_SRS_v1.0.md` is the product source of truth.
+2. `docs/OPEN-QUESTIONS.md` contains architectural decisions that are already decided. Do not re-open a question marked Decided unless the user explicitly requests a change.
+3. Existing telephony wire contracts and package-specific contracts are preserved unless the approved architecture requires a contract change.
+4. When requirements conflict, prioritize explicit SRS business rules/state machines over UI copy or convenience.
+5. Never invent business rules silently. For an unresolved requirement, document the assumption/decision in `docs/` before implementing behavior.
+
+## Current Repository Direction
+- Greenfield Django + MySQL application.
+- React frontend(s) consuming Django APIs.
+- Existing/approved realtime voice stack includes Pipecat, Asterisk, SIP Edge and the `packages/pipecat-voice` Python package.
+- `packages/pipecat-voice` is a realtime media peer; Django remains the source of truth for providers, billing, agents and call records.
+- Treat old Vokit application code as reference-only; do not copy or migrate it unless explicitly approved by the product owner.
+
+## Architecture Principles
+- Domain-driven modular monolith first; extract services only when a measured scaling, isolation or reliability boundary justifies it.
+- Keep domain logic independent from HTTP, ORM, UI and provider SDKs.
+- Prefer explicit application/use-case services, domain policies, repositories, adapters and event handlers.
+- Use dependency inversion for external providers: payments, telephony, AI/STT/TTS, email, storage, integrations and webhooks.
+- No provider-specific fields or behavior should leak into core business logic unnecessarily.
+- Design every critical workflow for retries, idempotency, reconciliation and partial failure.
+- Stateless API/application processes; do not rely on tenant-specific long-lived process memory.
+- UTC in persistence; display in tenant/user timezone.
+- USD-only V1 unless the approved source documents change.
+- Money uses integer minor units or safe decimal types with explicit currency; never binary floating point for ledger math.
+- Phone numbers use normalized E.164 where applicable plus original/display formatting.
+- Preserve history. Prefer new corrective records/events over mutation or deletion for financial, KYC and audit data.
+
+## Non-Negotiable Tenancy
+Tenancy hierarchy: Platform -> Agency -> Customer -> Agent.
+- Customer belongs to exactly one agency.
+- Tenant ownership must be enforced server-side on every protected operation.
+- UI filtering is never a security boundary.
+- A foreign tenant identifier must resolve to authorization/not-found behavior without leaking existence or data.
+- Store direct ownership keys needed for authorization/reporting/reconciliation; do not rely on implicit joins alone.
+- Platform users are separate from tenant memberships; no tenant switching unless explicitly approved.
+
+## Non-Negotiable Financial Integrity
+- Ledger is authoritative; cached balances are projections only.
+- Commission rate/rule snapshots are immutable on transaction records.
+- Each commission has its own earned_at and available_at; default hold is 15 days unless approved policy changes.
+- Held funds are not withdrawable.
+- Payout reservation must be atomic and race-safe.
+- Refunds/chargebacks create reversals/adjustments and never rewrite historical ledger truth.
+- Paid payouts remain Paid historically; accidental payout marking requires a corrective workflow.
+- Reconciliation must exist for payment -> invoice -> commission -> payout relationships.
+
+## Non-Negotiable State Machines
+- Encode legal transitions centrally; do not scatter raw status strings and transition checks through controllers/components.
+- Invalid transitions fail deterministically and are observable.
+- State changes emit domain events where required.
+- State transitions should be idempotent when triggered by retried external events.
+- Every sensitive transition is auditable.
+
+## Security Baseline
+- Server-side authentication and authorization on every protected endpoint.
+- Explicit RBAC/permission checks for privileged and financial operations.
+- Secrets only in secret management/environment configuration; never frontend, source, fixtures or logs.
+- HTTPS/TLS in production.
+- Secure HttpOnly/SameSite session/cookie behavior as appropriate to architecture.
+- CSRF protection for browser state-changing requests where applicable.
+- Rate limiting for authentication, payout, webhook replay, uploads and resource-intensive endpoints.
+- Validate and normalize external inputs, webhook payloads and provider responses.
+- Validate inbound webhook signatures; sign outbound tenant webhooks.
+- Never log API keys, OAuth refresh tokens, payment secrets, webhook secrets, CVV/CVC, full card numbers or sensitive KYC data.
+- KYC and payout proof are segregated and access-controlled.
+
+## Reliability Rules
+For any external side effect, explicitly define:
+- idempotency key/event identity;
+- timeout;
+- retry policy;
+- retryable vs permanent failure;
+- reconciliation path;
+- duplicate suppression;
+- audit/metric/log behavior;
+- rollback/compensation behavior where applicable.
+
+## Observability
+Critical workflows must produce structured logs, metrics, traces/correlation IDs and alerts.
+At minimum cover payment, payout, KYC, telephony, call lifecycle, agent runtime, number provisioning, knowledge ingestion, integrations and webhooks.
+Every request and asynchronous job should be traceable using a correlation/request ID.
+
+## Performance & Scale
+- Target core authenticated API p95 under 800 ms excluding third-party latency where practical.
+- Use pagination for lists.
+- Avoid N+1 queries.
+- Use bounded concurrency and backpressure for realtime/async work.
+- Cache only where correctness remains explicit.
+- Design read models/materialized projections only after authoritative write path is correct.
+- Separate realtime call workloads from slow background workloads.
+- Plan for horizontal scaling, worker pools, queue partitioning and provider quotas.
+
+## Testing Standard
+No critical feature is complete without tests at the right layers:
+- domain/business-rule tests;
+- application/use-case tests;
+- authorization/tenant-isolation tests;
+- API contract tests;
+- integration/provider adapter tests;
+- idempotency/retry tests;
+- concurrency/race tests for money and reservations;
+- end-to-end workflow tests for critical user journeys.
+
+## Definition of Done
+Before marking work complete, verify:
+1. Requirement IDs/business rules affected are identified.
+2. Architecture boundaries remain intact.
+3. Tenant isolation is tested.
+4. Security implications are tested.
+5. State transitions and idempotency are tested.
+6. Observability exists.
+7. Failure/recovery path exists.
+8. Documentation/runbook is updated when operational behavior changes.
+9. Existing contracts remain compatible or a versioned migration path exists.
+10. CI checks pass.
+
+## Change Control
+Changes affecting billing, commission, KYC, payouts, tenancy, permissions, call routing or customer data require explicit impact analysis and regression tests.
+For high-risk changes, produce/update an ADR in `docs/adr/` and link the requirement IDs.

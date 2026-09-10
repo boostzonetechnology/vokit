@@ -1,0 +1,41 @@
+---
+description: Architecture and design rules for Vokit
+alwaysApply: true
+---
+
+# Architecture Rules
+
+## Required workflow before implementation
+- Read the relevant SRS section and `docs/OPEN-QUESTIONS.md` decisions.
+- Inspect the existing repository and dependency contracts before changing architecture.
+- Produce a short implementation plan with affected domains, data changes, APIs/events, failure modes, tests and migration strategy.
+- Prefer the smallest architecture that satisfies the requirement and preserves future extraction boundaries.
+
+## Layering
+Use clear boundaries:
+- Domain: entities, value objects, policies, invariants, state transitions, domain events.
+- Application: use cases/orchestration, transactions, authorization policy coordination, ports/interfaces.
+- Infrastructure: Django ORM repositories, provider SDKs, queues, storage, email, HTTP clients, observability.
+- API: serializers/schemas, authentication, request validation, response mapping; no business rules hidden in views.
+- Frontend: React presentation/state/query layer; no financial or authorization decisions trusted from client state.
+- Realtime: Pipecat/Asterisk/SIP Edge adapters and session orchestration; core business truth remains Django.
+
+Do not create a distributed microservice merely for folder aesthetics. Extract a service only with an explicit reliability, scaling, security, deployment or ownership boundary.
+
+## Dependency direction
+Outer layers depend on inner abstractions. Domain must not import Django ORM, provider SDKs, HTTP clients, React, FastAPI or infrastructure implementations.
+
+## Data ownership
+Every model/entity must declare its owner/scope and authorization path. Financial and audit history is append-oriented. Mutable projections must never become the source of truth.
+
+## External provider abstraction
+Define ports/interfaces around payment, telephony, AI/STT/TTS, storage, email, CRM/accounting and automation providers. Keep provider-specific mapping inside adapters.
+
+## Async boundaries
+Use background jobs for slow/non-interactive work such as knowledge ingestion, webhook delivery, notifications, reconciliation and scheduled hold release. Jobs must be idempotent and observable.
+
+## Realtime boundary
+Do not put slow billing, reporting or administrative workflows inside the realtime voice path. Realtime code should use short, bounded calls and safe fallback behavior.
+
+## API contracts
+Version external APIs where compatibility matters. Use stable error codes, pagination, correlation IDs and idempotency for irreversible operations. Never expose internal model structure accidentally.
