@@ -1,0 +1,41 @@
+---
+description: Vokit modular-monolith and layer boundaries
+globs: **/*.py,**/*.ts,**/*.tsx,**/*.js
+alwaysApply: false
+---
+
+# Domain & Application Architecture
+
+## Target shape
+Start as a modular monolith with explicit bounded contexts:
+- Identity & Access
+- Tenancy & Tenant Provisioning
+- Customers
+- Billing & Payments
+- Commission / Wallet / Payout
+- Agents
+- Knowledge
+- Telephony / Number Inventory
+- Calls / Usage / Artifacts
+- Integrations / Webhooks
+- KYC / Risk
+- Notifications
+- Audit / Compliance
+- Platform Configuration
+
+## Layering
+- Domain: invariants, policies, state machines, value objects.
+- Application: use cases/orchestration, transaction boundaries, authorization context.
+- Infrastructure: ORM repositories, providers, queues, storage, HTTP clients.
+- API: serializers/schemas/controllers/views, validation, pagination, error mapping.
+- Frontend: presentation/state management only; never authoritative business rules.
+
+## Forbidden shortcuts
+- ORM models must not become the only place where business workflows live.
+- Domain/application code must not import provider SDKs directly when an adapter boundary is appropriate.
+- Controllers must not contain financial calculations or complex tenancy routing.
+- React must not decide authorization, pricing, entitlements, or tenant access.
+- Avoid global mutable singleton state that carries tenant identity.
+
+## Repository discipline
+Keep modules cohesive. New cross-context dependencies require an explicit reason and should point toward a domain interface, application service, event or adapter rather than direct database coupling.

@@ -1,0 +1,16 @@
+{
+  "name": "vokit",
+  "private": true,
+  "workspaces": [
+    "apps/web-platform",
+    "apps/web-agency",
+    "apps/web-customer",
+    "packages/web-ui"
+  ],
+  "scripts": {
+    "dev:platform": "npm run dev -w @vokit/web-platform",
+    "dev:agency": "npm run dev -w @vokit/web-agency",
+    "dev:customer": "npm run dev -w @vokit/web-customer",
+    "build:web": "npm run build -w @vokit/web-platform && npm run build -w @vokit/web-agency && npm run build -w @vokit/web-customer"
+  }
+}

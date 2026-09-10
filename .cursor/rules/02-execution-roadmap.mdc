@@ -1,0 +1,27 @@
+---
+description: Vokit execution order, Gate 0, and Cursor workflow binding
+alwaysApply: true
+---
+
+# Execution Roadmap Binding
+
+The product source of truth is `docs/Vokit_V1_Agency_Platform_SRS_v1.0.md`.
+The implementation operating system is `docs/execution/`.
+
+## Before coding
+- Gate 0 is accepted (owner proceed 2026-09-10). Follow `docs/execution/13-DEVELOPMENT-ROADMAP.md` in order.
+- Phase 1 is foundation only. Do not implement tenant routing, recordings, the payment ledger, identity, or React portals until their phase.
+- ADR-001 through ADR-005 are Accepted. Do not reopen them unless the owner asks.
+- Agency KYC is external (Q-015). Do not store KYC document bytes as the system of record.
+- Customer remains under Agency scope (Q-016). Do not implement per-customer DBs or cross-agency customer moves in the initial build.
+- Follow `docs/execution/13-DEVELOPMENT-ROADMAP.md` in order. Do not skip to CRUD or UI chrome.
+
+## Authority
+SRS → OPEN-QUESTIONS Decided → accepted ADRs → existing Pipecat/SIP Edge/Asterisk contracts → `docs/execution/*` → current code.
+
+## Every non-trivial task
+Use the method and Required Task Report in `MASTER-CURSOR-BOOTSTRAP.md` and `docs/execution/14-CURSOR-MASTER-GUIDE.md`.
+Use named workflows in `docs/execution/15-CURSOR-WORKFLOWS.md`.
+
+## Physical tenancy
+Agency is the physical MySQL tenant. Customer is a child scope. The browser never selects a database.

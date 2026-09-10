@@ -1,0 +1,111 @@
+---
+description: Vokit database-per-tenant architecture and remote MySQL isolation
+alwaysApply: true
+---
+
+# Database-per-Tenant Isolation — CRITICAL
+
+## Topology
+Vokit has a control plane plus tenant data planes.
+
+Control plane:
+- platform/global metadata;
+- platform users/RBAC;
+- tenant registry;
+- tenant lifecycle/status;
+- tenant database endpoint metadata and credential references;
+- provider/global configuration;
+- cross-tenant operational indexes that are explicitly approved;
+- audit/security metadata that must survive tenant DB loss.
+
+Tenant data plane:
+- tenant business data and child customer scope;
+- agents, numbers, calls, usage, integrations, knowledge metadata, tenant users and operational records as approved.
+
+## Tenant definition
+Default V1 topology: an Agency is the database tenant boundary; Customer remains a mandatory child authorization scope inside that tenant.
+- Do not create one database per customer unless an ADR explicitly changes this topology.
+- A database tenant MUST have a stable immutable tenant_id and database_id.
+- Never derive database identity from untrusted URL/query/body input.
+
+## Remote MySQL requirement
+Each tenant database may be on a remote MySQL host.
+The platform MUST maintain a tenant database registry containing:
+- tenant_id;
+- database_id/name;
+- host;
+- port;
+- TLS requirements/certificate reference;
+- secret/credential reference;
+- status;
+- schema version;
+- last health check;
+- provisioning state;
+- migration state;
+- region/location metadata if applicable.
+
+Secrets:
+- store only encrypted secret references, never plaintext passwords in business rows;
+- never log DSNs, passwords, auth tokens or private keys;
+- never expose DB connection details to React or tenant users;
+- never serialize DSNs into error responses.
+
+## Connection routing
+- Resolve tenant context before opening tenant DB access.
+- Acquire connection configuration only from trusted server-side tenant registry.
+- Bind connection selection to an authenticated authorization context, not a request parameter alone.
+- Connection pools must be tenant-safe. Never reuse a pooled connection across tenant identities.
+- Prefer short-lived or bounded pools per active tenant and enforce pool/connection limits.
+- Every tenant DB connection must use TLS where supported/required by environment policy.
+- Reject disabled/suspended/unknown tenant database routes.
+- Never fall back to a default/shared tenant DB for a failed tenant lookup.
+
+## Fail-closed rules
+- Missing tenant mapping => deny.
+- Missing credentials => deny.
+- Unhealthy/unknown database => fail closed for writes; read behavior must be explicitly designed.
+- Cross-tenant DB handle => terminate request/job and emit security telemetry.
+- Never query another tenant DB as a fallback.
+- Never "try all databases until a record is found."
+
+## Background jobs
+Every asynchronous job must carry immutable tenant context:
+- tenant_id;
+- customer_id when applicable;
+- actor/system identity;
+- correlation_id;
+- event/job ID.
+
+Workers must reconstruct DB routing from the trusted tenant registry on execution. Do not serialize raw credentials into jobs.
+
+## Migrations
+Tenant schema migrations are not a single global migration command.
+Implement:
+- control-plane migrations;
+- tenant schema version tracking;
+- resumable tenant migration jobs;
+- bounded concurrency;
+- per-tenant migration lock;
+- retry/reconciliation;
+- canary tenant rollout;
+- failure isolation;
+- migration observability.
+
+Never assume all tenant databases are simultaneously online.
+
+## Query rules
+- Tenant repositories must bind to the resolved tenant DB.
+- Customer-scoped records additionally require customer_id authorization.
+- Platform-wide queries may use only approved control-plane projections/indexes or explicit privileged tenant traversal.
+- Never join across tenant databases inside normal request paths.
+
+## Testing
+Required tests include:
+- tenant A cannot read/write tenant B;
+- same object ID in two tenant DBs resolves only in current tenant;
+- forged tenant_id cannot switch DB routing;
+- worker jobs cannot cross tenant boundaries;
+- failed tenant DB resolution fails closed;
+- connection pools cannot leak tenant context;
+- tenant DB outage does not route traffic to another tenant;
+- migration failure isolates one tenant and is observable.
