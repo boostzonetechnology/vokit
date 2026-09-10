@@ -1,0 +1,74 @@
+---
+description: Vokit separate call-recording server, artifact access and retention
+alwaysApply: true
+---
+
+# Separate Recording Data Plane — CRITICAL
+
+## Separation
+Raw call recordings are not part of the application web server filesystem and are not served directly from the Django API.
+
+The application stores metadata and an opaque recording object/reference only:
+- call_id;
+- tenant_id;
+- customer_id;
+- artifact_id;
+- provider recording reference;
+- storage object reference;
+- content type/size;
+- checksum;
+- retention policy/version;
+- created/available/deletion timestamps;
+- status.
+
+## Recording server boundary
+Treat the recording server as a separate security domain.
+- Private network/service-to-service access only where possible.
+- Strong machine/service authentication.
+- TLS for transport.
+- Least-privilege service account.
+- No database credentials from the application may be reused for recording storage.
+- Do not let the recording server query tenant databases directly.
+
+## Access pattern
+Tenant users never receive permanent recording URLs.
+Preferred flow:
+1. authenticate user;
+2. authorize tenant + customer + call + artifact;
+3. create short-lived, single-purpose access token or signed URL;
+4. recording server validates the token/signature;
+5. stream/download directly from recording server;
+6. audit the access.
+
+Never authorize recording access using only an artifact ID or filename.
+
+## Object namespace
+Use non-guessable object identifiers and deterministic tenant partitioning, e.g.:
+`tenant/{tenant_id}/calls/{call_id}/artifacts/{artifact_id}`
+
+Do not expose customer names, phone numbers or PII in object names.
+
+## Integrity
+- Store checksum/hash for uploaded recording objects.
+- Verify object existence and checksum asynchronously.
+- Detect orphan metadata and orphan files.
+- Do not overwrite immutable historical recordings; new versions require a new artifact/object identity.
+
+## Ingestion
+Call completion must not depend on a synchronous upload through the portal/API.
+Use an asynchronous artifact workflow:
+recording available -> fetch/receive -> integrity verify -> persist metadata -> ready -> emit event.
+
+Failed ingestion must be retryable and reconciled.
+
+## Retention/deletion
+Retention is policy-driven and jurisdiction-aware.
+- Calculate deletion eligibility from policy metadata.
+- Apply legal holds/retention exceptions before deletion.
+- Deletion must be auditable.
+- Remove inaccessible metadata references only according to the approved retention workflow.
+- Never implement "delete call" as a simple row delete.
+
+## Privacy
+Never place raw audio, transcript contents or full PII into ordinary application logs, traces or error trackers.
+Sensitive artifact access must be auditable.

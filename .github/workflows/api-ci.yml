@@ -1,0 +1,65 @@
+name: API CI
+
+on:
+  push:
+    paths:
+      - "apps/api/**"
+      - ".github/workflows/api-ci.yml"
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - ".github/workflows/api-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: vokit_ci
+          MYSQL_DATABASE: vokit_control
+          MYSQL_USER: vokit
+          MYSQL_PASSWORD: vokit_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uvokit -pvokit_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Create tenant databases
+        run: python scripts/create_ci_tenant_dbs.py
+        env:
+          MYSQL_ROOT_PASSWORD: vokit_ci
+          TENANT_DB_HOST: 127.0.0.1
+          TENANT_DB_PORT: "3306"
+          TENANT_DB_USER: vokit
+      - name: Lint
+        run: ruff check .
+      - name: Lab readiness
+        run: python manage.py check_production_readiness --lab
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+      - name: Test
+        run: pytest
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          VOKIT_MYSQL_ISOLATION: "1"
+          TENANT_DB_HOST: 127.0.0.1
+          TENANT_DB_PORT: "3306"
+          TENANT_DB_USER: vokit
+          TENANT_DB_PASSWORD: vokit_ci
+          TENANT_DB_PASSWORD_REF: TENANT_DB_PASSWORD
+          TENANT_DB_NAME_A: vokit_tenant_a
+          TENANT_DB_NAME_B: vokit_tenant_b

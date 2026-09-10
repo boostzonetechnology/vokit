@@ -53,4 +53,7 @@ Django Transfer Number for the agent must be **`+15550001002`** (Active + availa
 
 Edge uses **consult INVITE first, REFER+Replaces only after human answers** so the AI leg stays up while `labphone2` rings. See `docs/sip-integration.md` §12 and `docs/lab-inbound-voice.md`.
 
-Full inbound steps: `docs/vmware-lab-inbound.md` Section 7–9.
+Full inbound steps: [docs/vmware-lab-inbound.md](../../../docs/vmware-lab-inbound.md)
+and [docs/execution/27-LAB-VOICE-WIRING.md](../../../docs/execution/27-LAB-VOICE-WIRING.md).
+
+Start helpers on Windows: `.\scripts\dev-stack.ps1` then `.\scripts\dev-voice.ps1`.

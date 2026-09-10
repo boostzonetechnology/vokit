@@ -1,0 +1,56 @@
+---
+description: Vokit production release and post-deploy gates
+alwaysApply: true
+---
+
+# Release & Post-Deploy Gates
+
+## Before merge
+Required for critical changes:
+- requirement traceability;
+- tests;
+- security review;
+- tenant isolation tests;
+- migration safety;
+- observability;
+- rollback plan;
+- updated runbook/ADR.
+
+## Before production
+- CI green;
+- dependency/security checks;
+- backup/recovery verification;
+- control-plane migration reviewed;
+- tenant migration plan reviewed;
+- canary tenant plan;
+- tenant DB connectivity tested;
+- recording server health tested;
+- provider sandbox/E2E checks;
+- readiness/liveness checks;
+- alerting confirmed;
+- rollback verified.
+
+## Deployment sequence
+1. deploy backward-compatible code;
+2. migrate control plane;
+3. migrate canary tenant DBs;
+4. run smoke tests;
+5. roll tenant migrations in bounded batches;
+6. enable feature flag;
+7. verify telemetry;
+8. expand rollout;
+9. contract/remove obsolete schema only after stability.
+
+## Post-deploy
+Validate:
+- authentication;
+- tenant DB routing;
+- one agency/customer workflow;
+- one production-like call;
+- recording artifact authorization;
+- payment/webhook processing;
+- queues;
+- no cross-tenant access;
+- error/latency/saturation.
+
+A deployment is not complete until post-deploy verification passes.

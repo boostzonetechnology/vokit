@@ -24,6 +24,8 @@ If the answer cannot change tenancy, the ERD, a core business/financial flow, or
 | Native CRM/accounting connectors **and** n8n/Zapier/Make **and** signed webhooks are in V1                                                                                                                               | SRS §18                                     |
 | Notifications: in-app **and** email                                                                                                                                                                                      | SRS NOT-001                                 |
 | Existing telephony **wire** contracts stay unless a question below forces a change: Asterisk DID-resolve (`routable`), Edge WS μ-law `/sip/media`, Pipecat bootstrap/events/end/transfer, Django hangup/transfer to Edge | Existing Pipecat / Asterisk / SIP Edge      |
+| Agency KYC is **external**; provider supplies API keys; Vokit stores status + secret refs, not document bytes | Q-015, ADR-005 |
+| Customer remains under **Agency** physical/operational scope; no per-customer DB; no cross-agency customer move in the initial V1 build | Q-016, ADR-001 |
 
 
 Old Vokit (internal admin, prepaid balance, `assigned_admin_id`, no customer portal) is historical context only. Where it conflicts with the SRS, **the SRS wins**.
@@ -286,6 +288,8 @@ Super Admin can reassign/migrate a Customer to another Agency.
 - Future records use the new Agency relationship.
 
 Before closing an Agency, migrating its Customers/data to another Agency is **optional, not mandatory**. The Agency may be closed without requiring migration first.
+
+**Initial V1 build (Q-016):** do not implement the reassignment saga yet. Customers remain under their Agency. Implement Q-006 only when the owner explicitly schedules it.
 
 ---
 
@@ -586,6 +590,69 @@ No old Vokit production data will be migrated. V1 starts with a clean/new databa
 
 
 
+## Q-015 — Agency KYC execution
+
+**Question:**
+Is agency KYC performed as an in-app Vokit document upload + Super Admin review workflow, or delegated to an external KYC provider?
+
+**Why this matters:**
+Changes KYC ERD (files vs provider references), Super Admin SA4 screens, secret management, and inbound webhook contracts. Payout gating (KYC-001) still applies either way.
+
+**Affected areas:**
+KYC, secrets, webhooks, Super Admin / Agency portals, payout eligibility
+
+**Current SRS/context:**
+SRS §6, KYC-001–008, SA4, AG12. OPEN-QUESTIONS previously deferred the vendor and treated manual review as V1.
+
+**Status:** Decided
+
+**Answer:**
+Agency KYC is handled **externally**. The KYC provider supplies API keys.
+
+Vokit stores only encrypted API-key secret references and mapped KYC status plus provider session/inquiry references. Vokit is not the primary KYC document vault or reviewer workbench.
+
+SRS KYC states and payout gating remain in force: payout is blocked until status is Verified. Super Admin may still freeze/override capabilities regardless of provider status.
+
+Customer payment-risk verification (masked card image, chargeback freeze) is **not** replaced by this decision unless a later question says so.
+
+Do not choose a vendor SDK inside the domain. Use a provider adapter.
+
+See ADR-005.
+
+---
+
+
+
+## Q-016 — Customer physical/operational scope for V1
+
+**Question:**
+Does V1 keep Customer as a child scope of Agency, or treat Customer as its own physical tenant / support customer moves in the first build?
+
+**Why this matters:**
+Locks ADR-001 and whether Q-006 reassignment is in the initial delivery.
+
+**Affected areas:**
+Tenancy, ERD, routing, customer directory, Super Admin tools
+
+**Current SRS/context:**
+SRS §3; ADR-001; Q-006 decided Super Admin *can* reassign customers.
+
+**Status:** Decided
+
+**Answer:**
+Customers remain under **Agency scope** for V1.
+
+- Physical database tenant = Agency.
+- Customer is a child authorization and data scope inside that Agency database.
+- Do not create one database per customer.
+- Do **not** implement customer reassignment across agencies in the initial V1 build.
+
+Q-006 remains the product rule *if* reassignment is later scheduled: historical finance stays with the original agency; do not implement that saga now.
+
+---
+
+
+
 # Deferred Decisions
 
 These do **not** block architecture. They will be decided during detailed design or implementation.
@@ -596,7 +663,7 @@ These do **not** block architecture. They will be decided during detailed design
 - Exact API path names, pagination, error JSON envelope
 - Queue/broker product and configuration
 - Email vendor, logging/monitoring/APM products
-- Object-storage vendor and bucket layout (recordings/KYC/proofs clearly need file storage; provider is later)
+- Object-storage vendor and bucket layout (recordings and payout proofs; agency KYC documents stay at the KYC provider)
 - Docker/CI/CD, backup RPO/RTO, availability SLO numbers
 - Qdrant hosting details (existing Pipecat knowledge path stays: Django writes, Pipecat retrieves, payload isolation; extend `group_id` for agency/agent)
 - SIP Edge HTTP auth vs private-network-only (keep current unless security review requires an approved Edge change)
@@ -606,8 +673,8 @@ These do **not** block architecture. They will be decided during detailed design
 - Knowledge ingest details (file types, URL crawl, malware scan)
 - Recording as paid add-on (PRIV-003 note) — plan entitlement flag, not a new bounded context
 - Hold clock calendar vs business days; dunning retry days; min/max payout amounts
-- KYC vendor (manual review is V1; automation deferred in SRS)
-- Card-image OCR vs manual masking review
+- Specific KYC vendor product/SDK (adapter only; API keys in secrets) — Q-015 / ADR-005
+- Card-image OCR vs manual masking review (customer payment-risk module; not agency KYC)
 - Permanently-banned customer matching keys (need a fraud-index; exact keys are legal/design)
 - Webhook HMAC details and per-event payload fields
 - n8n hosting vs customer-hosted automation (generic signed webhooks satisfy AG8-002 unless a later decision says otherwise)
@@ -622,4 +689,4 @@ These do **not** block architecture. They will be decided during detailed design
 
 # Remaining OPEN (awaiting product confirmation)
 
-None. Q-001 through Q-014 are decided.
+None. Q-001 through Q-016 are decided.

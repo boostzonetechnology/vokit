@@ -1,0 +1,57 @@
+---
+description: Vokit observability, SLO, incident and capacity governance
+alwaysApply: true
+---
+
+# Observability & SRE
+
+## Telemetry
+Every HTTP request and asynchronous job carries a correlation/trace ID.
+Critical logs are structured and contain:
+- timestamp;
+- severity;
+- service/module;
+- event name;
+- correlation_id;
+- tenant_id only when safe/authorized for operational telemetry;
+- resource identifiers;
+- outcome/latency.
+
+Never log secrets, raw recordings, transcripts, full payment credentials or sensitive KYC contents.
+
+## Business-impact metrics
+Track:
+- tenant DB routing success/failure;
+- tenant DB connection pool saturation;
+- migration backlog/failure;
+- recording ingestion backlog/failure/orphans;
+- call setup/answer/completion/failure;
+- recording artifact readiness;
+- provider latency/error;
+- API p95/p99;
+- queue depth/age/failure;
+- payment/webhook lag;
+- commission reconciliation mismatch;
+- payout aging/failure;
+- KYC queue aging;
+- webhook retry rate;
+- tenant isolation/security violations.
+
+## Alert priority
+P0/P1:
+- suspected tenant isolation breach;
+- wrong-tenant DB routing;
+- financial inconsistency;
+- call routing outage at scale;
+- recording exposure/access-control failure;
+- widespread payment/webhook failure.
+
+## Incident response
+Contain -> preserve evidence -> identify blast radius -> mitigate -> verify -> communicate -> RCA -> corrective action.
+Never destroy evidence to make dashboards green.
+
+## Capacity
+For every scale change estimate:
+concurrent calls, DB connections per tenant, active tenant count, queue throughput, recording ingest bandwidth, storage growth, webhook rate, provider limits and hotspot tenants.
+
+Avoid multiplying expensive connections by total tenant count. Use bounded pools and active-tenant scheduling.

@@ -1,0 +1,36 @@
+---
+description: Vokit source-of-truth, decision and change-control governance
+alwaysApply: true
+---
+
+# Vokit Source of Truth & Change Control
+
+## Authority order
+1. `docs/Vokit_V1_Agency_Platform_SRS_v1.0.md`
+2. `docs/OPEN-QUESTIONS.md` and its Decided answers
+3. Approved ADRs under `docs/adr/`
+4. Existing package/wire contracts unless explicitly superseded by an approved ADR
+5. Current implementation
+6. Comments/convenience assumptions
+
+## Mandatory behavior
+- Never silently invent or change a business rule.
+- When a requirement is ambiguous and materially changes tenancy, ERD, billing, security, telephony, recording storage or external contracts, stop implementation of that decision and create/update an ADR first.
+- Every material change must identify impacted SRS requirement IDs.
+- Do not re-open decisions marked Decided unless the user explicitly asks to change them.
+- Preserve the repository's approved greenfield direction; treat historical application code as reference only.
+- Prefer explicit, reversible decisions over hidden framework magic.
+
+## Change classification
+LOW: presentation, refactor with no behavior change, tests, documentation.
+MEDIUM: non-sensitive API/module behavior, schema additions, provider adapter changes.
+HIGH: tenancy, remote database routing, recording storage, RBAC, KYC, payments, ledger, payouts, call routing, webhooks, authentication, secrets, data deletion/retention.
+
+HIGH changes require:
+- ADR or ADR update;
+- threat/tenant-impact analysis;
+- migration plan;
+- rollback plan;
+- negative tests;
+- observability plan;
+- deployment/runbook update.

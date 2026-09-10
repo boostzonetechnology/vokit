@@ -1,0 +1,20 @@
+---
+description: Vokit financial ledger, idempotency and concurrency rules
+alwaysApply: false
+---
+
+# Financial Integrity
+
+- Ledger is the source of truth; balances are projections.
+- Monetary values use integer minor units or safe decimal with explicit currency.
+- Never use binary floating point for financial math.
+- Never update historical commission/payout truth in place to "fix" history.
+- Corrections are compensating entries with actor, reason and references.
+- Preserve commission rate/rule snapshots.
+- Commission holds remain independently timestamped.
+- Payout reservation is atomic and race-safe.
+- Refund/chargeback effects follow explicit state transitions.
+- Payment webhook event IDs and idempotency keys are unique and deduplicated.
+- Reconciliation jobs compare payment -> invoice -> commission -> payout.
+- Financial mismatches are high-severity operational events.
+- Sensitive financial actions require explicit permissions and immutable audit entries.
