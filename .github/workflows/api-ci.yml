@@ -22,7 +22,7 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: vokit_ci
           MYSQL_DATABASE: vokit_control
-          MYSQL_USER: vokit_ci
+          MYSQL_USER: root
           MYSQL_PASSWORD: vokit_ci
         ports:
           - 3306:3306
