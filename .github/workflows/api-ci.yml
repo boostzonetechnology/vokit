@@ -44,8 +44,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: vokit_ci
           TENANT_DB_HOST: 127.0.0.1
           TENANT_DB_PORT: "3306"
-          TENANT_DB_USER: root
-          TENANT_DB_PASSWORD: vokit_ci
+          TENANT_DB_USER: vokit
       - name: Lint
         run: ruff check .
       - name: Lab readiness

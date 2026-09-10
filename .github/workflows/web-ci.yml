@@ -1,0 +1,33 @@
+name: Web CI
+
+on:
+  push:
+    paths:
+      - "apps/web-platform/**"
+      - "apps/web-agency/**"
+      - "apps/web-customer/**"
+      - "packages/web-ui/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/web-ci.yml"
+  pull_request:
+    paths:
+      - "apps/web-platform/**"
+      - "apps/web-agency/**"
+      - "apps/web-customer/**"
+      - "packages/web-ui/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/web-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web

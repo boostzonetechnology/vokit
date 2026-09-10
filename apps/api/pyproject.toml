@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vokit-api"
+version = "0.1.0"
+description = "Vokit control-plane / tenant-plane Django API"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.1,<5.3",
+    "djangorestframework>=3.15",
+    "django-cors-headers>=4.6",
+    "PyMySQL>=1.1",
+    "redis>=5.2",
+    "celery>=5.4",
+    "gunicorn>=23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "ruff>=0.8",
+]
+
+[tool.setuptools.packages.find]
+include = ["config*", "shared_kernel*", "control_plane*", "tenant*", "providers*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["mysql: requires two tenant MySQL databases"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["."]
+exclude = [".venv", "venv", "**/migrations/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

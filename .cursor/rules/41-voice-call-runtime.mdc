@@ -1,0 +1,50 @@
+---
+description: Vokit real-time voice path reliability and tenant safety
+alwaysApply: false
+---
+
+# Real-Time Voice Runtime
+
+## Architecture boundary
+Asterisk + SIP Edge + Pipecat are the realtime media path.
+Django is the business/control plane.
+
+Never move slow business workflows into the audio path.
+
+## Call admission
+Before production media is admitted, resolve:
+- tenant/customer/agent;
+- agent publish/active state;
+- phone-number routing;
+- plan/usage eligibility;
+- compliance/recording policy;
+- provider/runtime configuration.
+
+The admission decision must be deterministic and observable.
+
+## Call identity
+Every live call carries:
+- vokit_call_id;
+- provider_call_id;
+- tenant_id;
+- customer_id;
+- agent_id;
+- correlation_id.
+
+No runtime component may infer tenant identity from a caller-controlled header.
+
+## Runtime resilience
+- Bound external provider timeouts.
+- Use safe fallback behavior for integration failures.
+- Keep audio-path operations short and non-blocking.
+- Use bounded concurrency and backpressure.
+- Emit lifecycle events for started/answered/completed/failed and important tool actions.
+- Reconcile provider terminal state with local call state.
+
+## Billing/usage
+Usage must be attributable to one call and one customer tenant scope.
+The realtime worker must not directly invent money/ledger semantics.
+
+## Deployments
+Releasing the Django API must not silently invalidate Asterisk/SIP Edge/Pipecat contracts.
+Media-path rollouts require compatibility verification and rollback strategy.

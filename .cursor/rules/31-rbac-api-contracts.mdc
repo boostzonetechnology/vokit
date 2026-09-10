@@ -1,0 +1,42 @@
+---
+description: Vokit authorization, API contracts and secure external boundaries
+alwaysApply: true
+---
+
+# Authorization & API Contract Rules
+
+## Authorization
+- Authentication proves identity; authorization proves scope.
+- Every protected command/query must evaluate platform role + tenant scope + customer scope + resource ownership + capability/entitlement.
+- Never trust role, tenant, agency, customer or permission identifiers from client state.
+- Return non-disclosing authorization/not-found behavior for foreign resources.
+- Super Admin is the only role allowed cross-tenant operations, and sensitive overrides require explicit permissions plus audit.
+
+## API design
+- Version externally consumed contracts where compatibility matters.
+- Validate input at the API boundary and again at domain/application boundaries where invariants matter.
+- Do not expose ORM entities directly.
+- Use explicit error codes for predictable business failures.
+- Pagination/filtering/sorting must have bounded limits.
+- Idempotency keys/event IDs are mandatory for sensitive retryable commands.
+
+## Webhooks
+Inbound:
+- verify signature before parsing sensitive content;
+- validate event ID;
+- deduplicate before side effects;
+- persist receipt/processing status;
+- retry safe failures;
+- dead-letter poison messages.
+
+Outbound:
+- tenant-specific signing secret;
+- unique event_id + delivery_id;
+- bounded retry/backoff;
+- sanitized response metadata;
+- replay with explicit authorization;
+- no secret-bearing payloads.
+
+## Provider abstraction
+Normalize provider responses into Vokit domain/application models.
+Do not let provider-specific enums, SDK objects or secrets become the core contract.

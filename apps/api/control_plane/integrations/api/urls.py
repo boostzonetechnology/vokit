@@ -1,0 +1,87 @@
+from __future__ import annotations
+
+from django.urls import path
+
+from control_plane.integrations.api.views import (
+    AgencyConnectionCollectionView,
+    AgencyConnectionDisconnectView,
+    AgencyConnectionSettingsView,
+    AgencyConnectionTestView,
+    AgencyWebhookCollectionView,
+    AgencyWebhookDeliveryCollectionView,
+    AgencyWebhookReplayView,
+    AgencyWebhookRotateView,
+    CustomerConnectionCollectionView,
+    CustomerConnectionTestView,
+    PlatformConnectionCollectionView,
+    PlatformConnectionDisableView,
+    PlatformProviderCollectionView,
+)
+
+urlpatterns = [
+    path(
+        "platform/integration-providers",
+        PlatformProviderCollectionView.as_view(),
+        name="platform-integration-providers",
+    ),
+    path(
+        "platform/integrations",
+        PlatformConnectionCollectionView.as_view(),
+        name="platform-integrations",
+    ),
+    path(
+        "platform/integrations/<str:connection_id>/disable",
+        PlatformConnectionDisableView.as_view(),
+        name="platform-integration-disable",
+    ),
+    path(
+        "agency/integrations",
+        AgencyConnectionCollectionView.as_view(),
+        name="agency-integrations",
+    ),
+    path(
+        "agency/integrations/settings",
+        AgencyConnectionSettingsView.as_view(),
+        name="agency-integration-settings",
+    ),
+    path(
+        "agency/integrations/<str:connection_id>/test",
+        AgencyConnectionTestView.as_view(),
+        name="agency-integration-test",
+    ),
+    path(
+        "agency/integrations/<str:connection_id>/disconnect",
+        AgencyConnectionDisconnectView.as_view(),
+        name="agency-integration-disconnect",
+    ),
+    path(
+        "agency/webhooks",
+        AgencyWebhookCollectionView.as_view(),
+        name="agency-webhooks",
+    ),
+    path(
+        "agency/webhooks/deliveries",
+        AgencyWebhookDeliveryCollectionView.as_view(),
+        name="agency-webhook-deliveries",
+    ),
+    path(
+        "agency/webhooks/<str:endpoint_id>/rotate",
+        AgencyWebhookRotateView.as_view(),
+        name="agency-webhook-rotate",
+    ),
+    path(
+        "agency/webhooks/deliveries/<str:delivery_id>/replay",
+        AgencyWebhookReplayView.as_view(),
+        name="agency-webhook-replay",
+    ),
+    path(
+        "customer/integrations",
+        CustomerConnectionCollectionView.as_view(),
+        name="customer-integrations",
+    ),
+    path(
+        "customer/integrations/<str:connection_id>/test",
+        CustomerConnectionTestView.as_view(),
+        name="customer-integration-test",
+    ),
+]
