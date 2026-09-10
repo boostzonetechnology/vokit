@@ -22,12 +22,10 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: vokit_ci
           MYSQL_DATABASE: vokit_control
-          MYSQL_USER: vokit
-          MYSQL_PASSWORD: vokit_ci
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uvokit -pvokit_ci"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pvokit_ci"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
@@ -44,7 +42,8 @@ jobs:
           MYSQL_ROOT_PASSWORD: vokit_ci
           TENANT_DB_HOST: 127.0.0.1
           TENANT_DB_PORT: "3306"
-          TENANT_DB_USER: vokit
+          TENANT_DB_USER: root
+          TENANT_DB_PASSWORD: vokit_ci
       - name: Lint
         run: ruff check .
       - name: Lab readiness
@@ -58,7 +57,7 @@ jobs:
           VOKIT_MYSQL_ISOLATION: "1"
           TENANT_DB_HOST: 127.0.0.1
           TENANT_DB_PORT: "3306"
-          TENANT_DB_USER: vokit
+          TENANT_DB_USER: root
           TENANT_DB_PASSWORD: vokit_ci
           TENANT_DB_PASSWORD_REF: TENANT_DB_PASSWORD
           TENANT_DB_NAME_A: vokit_tenant_a

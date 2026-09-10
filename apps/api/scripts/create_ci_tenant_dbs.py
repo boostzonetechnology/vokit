@@ -25,15 +25,23 @@ def main() -> None:
         os.environ.get("TENANT_DB_NAME_B", "vokit_tenant_b"),
     )
     user = _ident(os.environ.get("TENANT_DB_USER", "vokit"))
+    password = os.environ.get("TENANT_DB_PASSWORD", "vokit_ci")
     with conn.cursor() as cursor:
+        if user != "root":
+            cursor.execute(
+                f"CREATE USER IF NOT EXISTS '{user}'@'%%' IDENTIFIED BY %s",
+                (password,),
+            )
         for raw_name in names:
             name = _ident(raw_name)
             cursor.execute(
                 f"CREATE DATABASE IF NOT EXISTS `{name}` "
                 "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
             )
-            cursor.execute(f"GRANT ALL PRIVILEGES ON `{name}`.* TO '{user}'@'%%'")
-        cursor.execute("FLUSH PRIVILEGES")
+            if user != "root":
+                cursor.execute(f"GRANT ALL PRIVILEGES ON `{name}`.* TO '{user}'@'%%'")
+        if user != "root":
+            cursor.execute("FLUSH PRIVILEGES")
     conn.close()
 
 
