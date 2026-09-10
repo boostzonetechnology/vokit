@@ -1,0 +1,4110 @@
+---
+description: "Universal senior-level React frontend architecture and AI coding rules. Applies to React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui, Lucide, Zustand, Axios, TanStack Query, React Router, and Vitest/React Testing Library."
+globs: "**/*.{ts,tsx,js,jsx}"
+alwaysApply: true
+---
+
+# React Frontend Architecture Rules
+
+## 1. Purpose
+
+This document defines the engineering standards, architecture, coding conventions, AI behavior, and quality rules for scalable React applications.
+
+These rules are designed to work across:
+
+- SaaS applications
+- Admin dashboards
+- CRM systems
+- E-commerce applications
+- Customer portals
+- Internal tools
+- Enterprise applications
+- Public-facing applications
+- Multi-role applications
+- Large and small React projects
+
+The default stack is:
+
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- Lucide
+- Zustand
+- Axios
+- TanStack Query
+- React Router
+- Vitest
+- React Testing Library
+
+These technologies are defaults, not excuses to introduce unnecessary complexity.
+
+---
+
+# 2. Core Engineering Principles
+
+The following principles are mandatory.
+
+## 2.1 SOLID
+
+All production code should follow SOLID principles where they provide real value.
+
+### Single Responsibility Principle
+
+Every module should have one clear responsibility.
+
+Examples:
+
+- Component → UI/presentation
+- Hook → reusable React behavior
+- Service → API communication
+- Store → client-side global state
+- Query hook → server-state access
+- Utility → focused pure helper
+- Validator/schema → validation rules
+- Type → data contract
+- Route → routing composition
+
+Do not create modules with unrelated responsibilities.
+
+Avoid:
+
+- God components
+- God hooks
+- God stores
+- God services
+- Giant utility files
+
+---
+
+## 2.2 Open/Closed Principle
+
+Prefer extending existing behavior over repeatedly rewriting working code.
+
+When adding functionality:
+
+1. Inspect existing implementation.
+2. Determine whether the current abstraction can support it.
+3. Extend only where appropriate.
+4. Avoid breaking unrelated behavior.
+
+Do not rewrite stable files simply because a new feature is being added.
+
+---
+
+## 2.3 Liskov Substitution Principle
+
+Reusable components, hooks, services, and abstractions must maintain predictable contracts.
+
+A replacement implementation must not unexpectedly:
+
+- change expected return types
+- change required props
+- change error behavior
+- change state semantics
+- introduce hidden side effects
+
+---
+
+## 2.4 Interface Segregation Principle
+
+Do not create unnecessarily large interfaces or types.
+
+Prefer:
+
+```ts
+type UserSummary = {
+  id: string;
+  name: string;
+};
+
+type UserDetails = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+};
+```
+
+over one giant type that every component must partially consume.
+
+Components should receive only the data they actually need.
+
+---
+
+## 2.5 Dependency Inversion Principle
+
+High-level feature logic should not become tightly coupled to implementation details unnecessarily.
+
+For example:
+
+```text
+Feature
+  ↓
+Hook
+  ↓
+Service
+  ↓
+API Client
+```
+
+Avoid directly coupling every component to Axios configuration.
+
+---
+
+# 3. DRY — Don't Repeat Yourself
+
+DRY is mandatory.
+
+Before writing new code:
+
+1. Search the existing codebase.
+2. Find similar components.
+3. Find similar hooks.
+4. Find similar utilities.
+5. Find similar API methods.
+6. Find existing UI components.
+7. Reuse existing patterns whenever appropriate.
+
+If existing functionality already solves the problem, reuse it.
+
+Do not duplicate:
+
+- API requests
+- validation logic
+- formatting logic
+- authentication logic
+- permission logic
+- UI patterns
+- query configuration
+- constants
+- reusable calculations
+- business rules
+
+However:
+
+## DRY must not become over-abstraction.
+
+Do NOT create abstractions merely because two pieces of code look slightly similar.
+
+A useful rule:
+
+```text
+Repeated and stable logic
+        ↓
+Consider abstraction
+
+One-time/simple logic
+        ↓
+Keep it simple
+```
+
+Do not extract trivial code into unnecessary:
+
+- factories
+- strategies
+- managers
+- adapters
+- repositories
+- wrappers
+- interfaces
+- helper classes
+
+unless there is a real architectural reason.
+
+---
+
+# 4. YAGNI — You Aren't Gonna Need It
+
+Only build what is required.
+
+Do not implement:
+
+- future features
+- speculative abstractions
+- unused configuration
+- unused hooks
+- unused components
+- unused API methods
+- unused state
+- unnecessary feature flags
+- unnecessary caching
+- unnecessary generic systems
+
+Do not solve hypothetical future problems before they exist.
+
+---
+
+# 5. KISS — Keep It Simple
+
+Prefer the simplest implementation that correctly solves the problem.
+
+If this is sufficient:
+
+```ts
+if (isAuthenticated) {
+  return <Dashboard />;
+}
+```
+
+do not introduce multiple abstraction layers.
+
+Complexity must have a reason.
+
+---
+
+# 6. Existing Codebase First
+
+When working on an existing project, the existing codebase is the primary source of truth.
+
+Before modifying code:
+
+1. Inspect the relevant files.
+2. Understand existing architecture.
+3. Search for related implementations.
+4. Inspect usages.
+5. Inspect types.
+6. Inspect related hooks/services/stores.
+7. Identify established patterns.
+8. Make the smallest appropriate change.
+
+Never assume that a new pattern is better than an existing project pattern without checking the codebase.
+
+---
+
+# 7. AI Coding Guardrails
+
+These rules specifically prevent common AI coding mistakes.
+
+## 7.1 Context Loss
+
+Never treat a related task as an isolated task.
+
+Before implementing a new feature:
+
+```text
+Current request
+      ↓
+Existing feature
+      ↓
+Related components
+      ↓
+Related hooks
+      ↓
+Related services
+      ↓
+Related stores
+      ↓
+Existing conventions
+      ↓
+Implement
+```
+
+If an existing implementation already handles part of the requested behavior, connect to it instead of creating a parallel implementation.
+
+---
+
+## 7.2 Scope Creep
+
+Implement exactly what the user requested.
+
+Do not add unrequested functionality such as:
+
+- search
+- filters
+- pagination
+- sorting
+- bulk actions
+- extra animations
+- extra modals
+- extra fields
+- extra API endpoints
+- extra validation
+- unrelated refactoring
+
+unless explicitly required.
+
+Example:
+
+User asks:
+
+```text
+Show user name and email.
+```
+
+Do not automatically add:
+
+```text
+Search
+Filter
+Pagination
+Sorting
+Edit
+Delete
+Export
+Advanced UI
+```
+
+The requested scope is the boundary.
+
+---
+
+## 7.3 No Over-Engineering
+
+Do not turn simple requirements into complex architecture.
+
+Bad:
+
+```text
+Simple API call
+↓
+Repository
+↓
+Factory
+↓
+Strategy
+↓
+Adapter
+↓
+Manager
+↓
+Service
+↓
+Hook
+```
+
+Preferred:
+
+```text
+Component
+↓
+Query Hook
+↓
+Service
+↓
+API Client
+```
+
+Use additional layers only when the project genuinely needs them.
+
+---
+
+## 7.4 No Unnecessary Dependencies
+
+Before installing a new package:
+
+1. Check existing dependencies.
+2. Check whether native React/TypeScript can solve it.
+3. Check whether an existing project dependency already solves it.
+4. Only then consider a new dependency.
+
+Do not introduce a dependency for a trivial utility.
+
+Examples:
+
+- Do not install a date library for a simple native operation if the project already has no date complexity.
+- Do not install another icon library when Lucide is already used.
+- Do not install another UI library when shadcn/ui already provides the required component.
+- Do not install another state library when Zustand is already established.
+
+New dependencies should require explicit user approval unless the user has already authorized dependency installation.
+
+---
+
+## 7.5 No Duplicate Implementations
+
+Before creating a new function/component/hook/service:
+
+Search for:
+
+```text
+same functionality
+similar functionality
+same API endpoint
+same UI pattern
+same validation
+same transformation
+same business rule
+```
+
+Reuse existing code when appropriate.
+
+Never create:
+
+```text
+useUser()
+useCustomer()
+useUserData()
+useCustomerData()
+```
+
+if they actually represent the same responsibility without a meaningful distinction.
+
+---
+
+## 7.6 No Unnecessary Existing-Code Rewrites
+
+A small change should produce a small change.
+
+Do not:
+
+- rewrite entire files
+- rename unrelated variables
+- reorganize unrelated folders
+- change formatting across unrelated files
+- migrate architecture unnecessarily
+- refactor unrelated functions
+- replace working libraries
+- change APIs without requirement
+
+Rule:
+
+```text
+Requested change
+    ↓
+Smallest safe modification
+    ↓
+Preserve existing behavior
+```
+
+---
+
+## 7.7 Preserve Naming and Structure
+
+Respect existing project conventions.
+
+Do not randomly change:
+
+```text
+userData
+```
+
+into:
+
+```text
+userInfo
+customerDetails
+userPayload
+```
+
+unless there is a real reason.
+
+Existing naming is part of the architecture.
+
+---
+
+## 7.8 Do Not Make Unverified Assumptions
+
+When requirements are ambiguous:
+
+1. Inspect the existing code.
+2. Check existing types.
+3. Check existing API contracts.
+4. Check existing UI patterns.
+5. If ambiguity still materially affects implementation, ask the user.
+
+Do not invent:
+
+- API fields
+- business rules
+- routes
+- permissions
+- validation requirements
+- backend behavior
+- database fields
+- design decisions
+
+---
+
+## 7.9 No Unrequested Validation
+
+Do not invent validation rules.
+
+If the requirement only says:
+
+```text
+Name is required.
+```
+
+do not automatically add:
+
+```text
+minimum 3 characters
+maximum 50 characters
+special-character restriction
+regex
+custom business rules
+```
+
+unless required by an existing contract or explicitly requested.
+
+Client validation must not contradict backend validation.
+
+---
+
+## 7.10 Preserve Context Across Tasks
+
+Treat previous implementation decisions as project constraints.
+
+Before changing an existing feature, check:
+
+- previous patterns
+- existing naming
+- established state ownership
+- existing API layer
+- existing routing pattern
+- existing component structure
+- existing UI conventions
+- existing error handling
+
+Do not revert to generic/default React patterns if the project already established a better convention.
+
+---
+
+# 8. Architecture Strategy
+
+Use a **feature-first architecture with shared infrastructure**.
+
+Recommended:
+
+```text
+src/
+├── app/
+├── assets/
+├── components/
+├── config/
+├── features/
+├── hooks/
+├── layouts/
+├── lib/
+├── routes/
+├── services/
+├── stores/
+├── types/
+├── utils/
+├── App.tsx
+└── main.tsx
+```
+
+The exact structure may be simplified for small applications.
+
+Do not create folders merely to satisfy this document.
+
+---
+
+# 9. Recommended Folder Structure
+
+For a medium/large application:
+
+```text
+src/
+│
+├── app/
+│   ├── providers/
+│   ├── config/
+│   └── App.tsx
+│
+├── assets/
+│   ├── images/
+│   ├── icons/
+│   └── fonts/
+│
+├── components/
+│   ├── ui/
+│   ├── common/
+│   ├── forms/
+│   └── feedback/
+│
+├── config/
+│   ├── env.ts
+│   ├── constants.ts
+│   └── config.ts
+│
+├── features/
+│   ├── auth/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── services/
+│   │   ├── schemas/
+│   │   ├── types/
+│   │   └── index.ts
+│   │
+│   ├── users/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── services/
+│   │   ├── schemas/
+│   │   ├── types/
+│   │   └── index.ts
+│   │
+│   └── ...
+│
+├── hooks/
+│   ├── useDebounce.ts
+│   ├── useMediaQuery.ts
+│   └── ...
+│
+├── layouts/
+│   ├── AppLayout.tsx
+│   ├── AuthLayout.tsx
+│   └── DashboardLayout.tsx
+│
+├── lib/
+│   ├── api/
+│   │   ├── client.ts
+│   │   └── interceptors.ts
+│   ├── query/
+│   │   └── queryClient.ts
+│   └── utils/
+│
+├── routes/
+│   ├── index.tsx
+│   ├── protected-routes.tsx
+│   ├── public-routes.tsx
+│   └── route-config.ts
+│
+├── services/
+│   └── ...
+│
+├── stores/
+│   ├── auth.store.ts
+│   ├── ui.store.ts
+│   └── ...
+│
+├── types/
+│   ├── api.ts
+│   ├── common.ts
+│   └── ...
+│
+├── utils/
+│   ├── format.ts
+│   ├── validation.ts
+│   └── ...
+│
+├── App.tsx
+└── main.tsx
+```
+
+---
+
+# 10. Feature-Based Architecture
+
+Business/domain functionality should live inside `features`.
+
+Example:
+
+```text
+features/
+└── products/
+    ├── components/
+    │   ├── ProductCard.tsx
+    │   ├── ProductForm.tsx
+    │   └── ProductTable.tsx
+    │
+    ├── hooks/
+    │   ├── useProducts.ts
+    │   └── useCreateProduct.ts
+    │
+    ├── services/
+    │   └── product.service.ts
+    │
+    ├── schemas/
+    │   └── product.schema.ts
+    │
+    ├── types/
+    │   └── product.types.ts
+    │
+    └── index.ts
+```
+
+Keep feature-specific code close to the feature.
+
+Do not put every feature's code into global folders.
+
+---
+
+# 11. Shared vs Feature-Specific Code
+
+Use this decision:
+
+```text
+Used by one feature
+        ↓
+Keep inside feature
+
+Used by multiple unrelated features
+        ↓
+Move to shared location
+
+Generic UI
+        ↓
+components/ui
+
+Generic behavior
+        ↓
+hooks
+
+Generic utility
+        ↓
+utils
+
+Infrastructure
+        ↓
+lib
+```
+
+Do not move code into global folders prematurely.
+
+---
+
+# 12. Component Architecture
+
+Components should have clear responsibilities.
+
+## 12.1 UI Components
+
+UI components should focus on presentation.
+
+Examples:
+
+```text
+Button
+Input
+Dialog
+Card
+Badge
+Table
+Dropdown
+```
+
+Use shadcn/ui components when appropriate.
+
+Do not recreate existing shadcn/ui components unnecessarily.
+
+---
+
+## 12.2 Feature Components
+
+Feature components represent business-specific UI.
+
+Examples:
+
+```text
+UserForm
+OrderSummary
+ProductCard
+InvoiceTable
+```
+
+These may understand feature-specific types and behavior.
+
+---
+
+## 12.3 Page Components
+
+Pages compose features and layouts.
+
+Pages should not become giant business-logic containers.
+
+Preferred:
+
+```text
+Page
+ ↓
+Feature components
+ ↓
+Hooks
+ ↓
+Services/API
+```
+
+---
+
+## 12.4 Layout Components
+
+Layouts manage structural UI:
+
+- Header
+- Sidebar
+- Navigation
+- Main content
+- Footer
+- Responsive shell
+
+Layouts should not contain unrelated business logic.
+
+---
+
+# 13. Component Size
+
+Do not enforce an arbitrary line count.
+
+Instead, look for responsibility complexity.
+
+Extract a component when:
+
+- it has a distinct responsibility
+- it is reused
+- it has its own meaningful state/behavior
+- it makes the parent substantially easier to understand
+- it represents a meaningful UI section
+
+Do not extract tiny JSX fragments just because they occupy several lines.
+
+---
+
+# 14. Props
+
+Props should be explicit and minimal.
+
+Avoid passing giant objects when only a few values are needed.
+
+Prefer:
+
+```tsx
+<UserCard
+  name={user.name}
+  email={user.email}
+/>
+```
+
+when the component only needs those fields.
+
+Avoid unnecessary prop drilling.
+
+If many levels require the same data, evaluate:
+
+- composition
+- context
+- Zustand
+- query cache
+
+Do not automatically make everything global.
+
+---
+
+# 15. State Management
+
+React applications have different types of state.
+
+Use the correct state system.
+
+## 15.1 Local UI State
+
+Use React state for:
+
+- modal open/close
+- tabs
+- temporary form state
+- dropdown state
+- hover/interaction state
+- component-specific UI state
+
+Example:
+
+```text
+useState
+useReducer
+```
+
+---
+
+## 15.2 Global Client State
+
+Use Zustand only when state genuinely needs to be shared across distant components/features.
+
+Good examples:
+
+- authenticated user session metadata
+- global UI preferences
+- application-wide client state
+- persistent client workflows
+- cross-feature state
+
+Do not put every piece of state into Zustand.
+
+---
+
+## 15.3 Server State
+
+API/server data should normally be handled by TanStack Query.
+
+Examples:
+
+- users
+- products
+- orders
+- dashboard data
+- notifications
+- API resources
+
+Do not copy server data into Zustand simply because it is accessible there.
+
+Preferred:
+
+```text
+API
+ ↓
+TanStack Query
+ ↓
+Components
+```
+
+---
+
+# 16. State Decision Rule
+
+Use this decision tree:
+
+```text
+Does only one component need it?
+        ↓
+Local React state
+
+Do multiple distant components need client state?
+        ↓
+Zustand
+
+Does the data come from an API/server?
+        ↓
+TanStack Query
+
+Is it derived from existing state?
+        ↓
+Compute it instead of storing duplicate state
+```
+
+Avoid duplicate sources of truth.
+
+---
+
+# 17. Derived State
+
+Do not store values that can be calculated.
+
+Bad:
+
+```text
+items
+totalItems
+```
+
+when `totalItems` can be calculated from `items`.
+
+Prefer derived values.
+
+This prevents synchronization bugs.
+
+---
+
+# 18. API Architecture
+
+Use a centralized Axios client.
+
+Preferred flow:
+
+```text
+Component
+    ↓
+Feature Hook
+    ↓
+Feature Service
+    ↓
+Axios API Client
+    ↓
+Backend API
+```
+
+Example:
+
+```text
+features/users/hooks/useUsers.ts
+        ↓
+features/users/services/user.service.ts
+        ↓
+lib/api/client.ts
+```
+
+Components should not contain scattered raw Axios requests.
+
+Avoid:
+
+```tsx
+axios.get(...)
+```
+
+throughout components.
+
+---
+
+# 19. Axios Client
+
+Create one centralized API client.
+
+It should own infrastructure-level concerns such as:
+
+- base URL
+- default headers
+- request configuration
+- response handling
+- authentication integration
+- common error normalization
+
+Do not duplicate Axios configuration in every service.
+
+---
+
+# 20. Service Layer
+
+Services should handle API communication.
+
+Example responsibility:
+
+```text
+user.service.ts
+
+getUsers()
+getUser()
+createUser()
+updateUser()
+deleteUser()
+```
+
+Services should not contain React component logic.
+
+Avoid:
+
+```text
+Service
+  ↓
+setState()
+  ↓
+render UI
+```
+
+Services should remain framework-light where practical.
+
+---
+
+# 21. TanStack Query
+
+Use TanStack Query for server state.
+
+Use it for:
+
+- fetching
+- caching
+- mutations
+- invalidation
+- refetching
+- background synchronization
+- query lifecycle
+
+Keep query logic organized around features.
+
+Example:
+
+```text
+features/
+└── users/
+    └── hooks/
+        ├── useUsers.ts
+        ├── useUser.ts
+        ├── useCreateUser.ts
+        └── useUpdateUser.ts
+```
+
+Do not create a generic `useFetchEverything()` hook that becomes responsible for unrelated APIs.
+
+---
+
+# 22. Query Keys
+
+Query keys must be predictable and centralized where complexity warrants it.
+
+Example:
+
+```ts
+const userKeys = {
+  all: ["users"] as const,
+  lists: () => [...userKeys.all, "list"] as const,
+  list: (filters: UserFilters) =>
+    [...userKeys.lists(), filters] as const,
+  details: () => [...userKeys.all, "detail"] as const,
+  detail: (id: string) =>
+    [...userKeys.details(), id] as const,
+};
+```
+
+Avoid manually duplicating string keys across files.
+
+---
+
+# 23. Mutations
+
+After mutations:
+
+1. Update/invalidate relevant queries.
+2. Avoid unnecessary full-page reloads.
+3. Keep server state consistent.
+4. Show appropriate loading/error feedback.
+
+Do not invalidate every query after every mutation.
+
+Invalidate only affected data.
+
+---
+
+# 24. API Types
+
+API contracts should have explicit TypeScript types.
+
+Avoid:
+
+```ts
+any
+```
+
+unless there is a documented unavoidable reason.
+
+Prefer:
+
+```ts
+type User = {
+  id: string;
+  name: string;
+  email: string;
+};
+```
+
+Keep API/domain types close to their feature when they are feature-specific.
+
+Shared types belong in shared locations only when genuinely shared.
+
+---
+
+# 25. API Error Handling
+
+Handle errors consistently.
+
+At minimum distinguish:
+
+```text
+400 → validation/request problem
+401 → authentication problem
+403 → authorization problem
+404 → resource not found
+409 → conflict
+422 → validation/business validation
+429 → rate limit
+5xx → server problem
+network error → connectivity problem
+```
+
+Do not duplicate error interpretation across dozens of components.
+
+Normalize common API errors centrally.
+
+---
+
+# 26. Loading States
+
+API-driven UI must handle loading states.
+
+Use appropriate UI:
+
+- skeleton
+- spinner
+- disabled button
+- loading indicator
+- placeholder
+
+Do not leave users with an apparently frozen interface.
+
+---
+
+# 27. Empty States
+
+Differentiate:
+
+```text
+Loading
+Error
+Empty
+Success
+```
+
+An empty result is not an error.
+
+Example:
+
+```text
+Loading → skeleton
+Error → error state
+Empty → empty-state UI
+Data → content
+```
+
+---
+
+# 28. Routing Architecture
+
+Use React Router.
+
+Separate route composition from page implementation.
+
+Recommended:
+
+```text
+routes/
+├── index.tsx
+├── public-routes.tsx
+├── protected-routes.tsx
+└── route-config.ts
+```
+
+Use nested routes and layouts where appropriate.
+
+Example:
+
+```text
+/dashboard
+    /dashboard
+    /dashboard/settings
+    /dashboard/profile
+```
+
+---
+
+# 29. Route Protection
+
+Authentication and authorization should be separated conceptually.
+
+```text
+Authentication
+→ Is the user logged in?
+
+Authorization
+→ Is the user allowed to access this resource?
+```
+
+Do not rely solely on hiding frontend routes for security.
+
+The backend remains the final authority for authorization.
+
+Frontend route guards are for:
+
+- UX
+- navigation control
+- preventing unauthorized UI access
+
+They are not a security boundary.
+
+---
+
+# 30. Lazy Routes
+
+Large applications should lazy-load route-level pages when beneficial.
+
+Example:
+
+```tsx
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+```
+
+Do not lazy-load every tiny component without a measurable benefit.
+
+---
+
+# 31. Authentication Architecture
+
+Authentication logic should be centralized.
+
+Avoid implementing login/session logic independently in multiple components.
+
+Preferred:
+
+```text
+Auth API
+   ↓
+Auth Service
+   ↓
+Auth State / Session
+   ↓
+Protected Routes
+   ↓
+Application
+```
+
+Authentication-related logic should not be duplicated.
+
+---
+
+# 32. Forms
+
+Forms should have a consistent architecture.
+
+Recommended:
+
+```text
+Form Component
+    ↓
+Schema / Validation
+    ↓
+Mutation Hook
+    ↓
+Service
+    ↓
+API
+```
+
+Keep form UI separate from API implementation.
+
+Do not place large API workflows directly inside JSX event handlers.
+
+---
+
+# 33. Validation
+
+Validation should be:
+
+- explicit
+- predictable
+- reusable where appropriate
+- consistent with backend contracts
+
+Do not duplicate the same complex validation rule across multiple components.
+
+If a validation schema already exists, reuse it.
+
+Never assume frontend validation replaces backend validation.
+
+---
+
+# 34. Tailwind CSS
+
+Use Tailwind CSS consistently.
+
+Prefer:
+
+```tsx
+<div className="flex items-center gap-4">
+```
+
+Use shared design tokens/components when styles repeat.
+
+Avoid giant repeated class strings when a reusable component or appropriate abstraction genuinely improves maintainability.
+
+Do not create a new CSS abstraction for every repeated class combination.
+
+---
+
+# 35. shadcn/ui
+
+Use shadcn/ui as the default shared UI foundation.
+
+Before creating a new component:
+
+1. Check existing shadcn/ui components.
+2. Check existing project components.
+3. Extend an existing component if appropriate.
+4. Create a new component only when needed.
+
+Do not install another UI library for a component already available through the existing design system.
+
+---
+
+# 36. Lucide Icons
+
+Use Lucide consistently.
+
+Do not mix multiple icon libraries unless there is a documented requirement.
+
+Do not manually recreate common icons with SVG when an appropriate Lucide icon exists.
+
+---
+
+# 37. Design System
+
+The frontend should use consistent:
+
+- typography
+- spacing
+- border radius
+- shadows
+- colors
+- states
+- interaction patterns
+- responsive behavior
+
+Prefer design tokens over arbitrary values when the project has a design system.
+
+Do not invent new visual patterns when an existing component already solves the problem.
+
+---
+
+# 38. Accessibility
+
+Accessibility is part of implementation, not an optional final step.
+
+Follow:
+
+- semantic HTML
+- proper labels
+- keyboard navigation
+- visible focus states
+- accessible buttons
+- accessible dialogs
+- appropriate ARIA attributes
+- meaningful alt text
+- sufficient color contrast
+
+Do not use ARIA when semantic HTML already provides the correct behavior.
+
+---
+
+# 39. Responsive Design
+
+Build responsive interfaces intentionally.
+
+Support the application's required viewport sizes.
+
+Do not assume desktop-only layouts unless explicitly required.
+
+Prefer existing Tailwind breakpoints and project conventions.
+
+Do not invent arbitrary breakpoints for isolated components without a real reason.
+
+---
+
+# 40. Performance
+
+Performance is important, but optimization must be purposeful.
+
+Use when appropriate:
+
+- route-level lazy loading
+- code splitting
+- image optimization
+- memoization
+- virtualization
+- debouncing
+- throttling
+- TanStack Query caching
+- request deduplication
+
+Do not blindly add:
+
+```text
+React.memo
+useMemo
+useCallback
+```
+
+everywhere.
+
+Optimize when:
+
+- rendering is expensive
+- props cause meaningful unnecessary renders
+- computations are expensive
+- profiling shows a problem
+- large lists require virtualization
+
+Do not sacrifice readability for hypothetical performance.
+
+---
+
+# 41. Large Lists
+
+For large datasets, consider virtualization.
+
+Possible libraries may include:
+
+```text
+react-window
+TanStack Virtual
+```
+
+But do not install a virtualization library for small lists.
+
+Use the existing project dependency if available.
+
+---
+
+# 42. Debouncing and Throttling
+
+Use debouncing for actions such as:
+
+- search input
+- autocomplete
+- API-driven filtering
+
+Use throttling for high-frequency events such as:
+
+- scroll
+- resize
+- pointer/mouse events
+
+Do not debounce every input or event without a reason.
+
+---
+
+# 43. Image Handling
+
+Images should be handled intentionally.
+
+Rules:
+
+- use appropriate dimensions
+- avoid unnecessarily huge assets
+- use modern formats when appropriate
+- provide alt text
+- lazy-load non-critical images when appropriate
+- avoid loading large images above the fold unnecessarily
+
+Do not add image optimization libraries without need.
+
+---
+
+# 44. Hooks Architecture
+
+Hooks should have one clear responsibility.
+
+Good:
+
+```text
+useAuth()
+useDebounce()
+useMediaQuery()
+useUsers()
+useCreateUser()
+```
+
+Avoid:
+
+```text
+useApplicationEverything()
+```
+
+A hook should not simultaneously manage:
+
+- authentication
+- API requests
+- modals
+- notifications
+- unrelated forms
+- navigation
+- multiple unrelated features
+
+---
+
+# 45. Hook Placement
+
+Use:
+
+```text
+src/hooks/
+```
+
+for genuinely shared hooks.
+
+Use:
+
+```text
+features/<feature>/hooks/
+```
+
+for feature-specific hooks.
+
+Do not put feature-specific hooks into the global hooks folder just because they are hooks.
+
+---
+
+# 46. Utility Architecture
+
+Utilities should be:
+
+- small
+- focused
+- preferably pure
+- reusable
+- framework-independent when possible
+
+Examples:
+
+```text
+formatCurrency()
+formatDate()
+cn()
+debounce()
+parseApiError()
+```
+
+Do not create:
+
+```text
+utils.ts
+```
+
+containing hundreds of unrelated functions.
+
+Prefer focused files:
+
+```text
+utils/
+├── format.ts
+├── date.ts
+├── validation.ts
+└── object.ts
+```
+
+---
+
+# 47. Constants
+
+Avoid magic strings/numbers when they represent meaningful shared concepts.
+
+Examples:
+
+```text
+ROUTES
+QUERY_KEYS
+STATUS_VALUES
+DEFAULT_PAGE_SIZE
+```
+
+But do not turn every literal into a constant.
+
+A constant should improve:
+
+- readability
+- reuse
+- maintainability
+- consistency
+
+---
+
+# 48. Environment Variables
+
+Never expose secrets in frontend code.
+
+Frontend environment variables are public at runtime/build time.
+
+Never put:
+
+- private API secrets
+- database credentials
+- private keys
+- service credentials
+- server-only secrets
+
+into frontend environment variables.
+
+Use environment variables only for values that are safe to expose to the client.
+
+Centralize environment configuration where practical.
+
+---
+
+# 49. Security
+
+Never trust frontend validation for security.
+
+The backend must enforce:
+
+- authentication
+- authorization
+- permissions
+- ownership
+- sensitive operations
+
+Frontend code must still avoid obvious security issues.
+
+Be especially careful with:
+
+```text
+dangerouslySetInnerHTML
+```
+
+and user-controlled HTML.
+
+Sanitize untrusted HTML using the project's approved sanitization mechanism.
+
+Do not introduce HTML rendering simply to make UI easier.
+
+---
+
+# 50. Sensitive Data
+
+Do not unnecessarily store sensitive data in:
+
+```text
+localStorage
+sessionStorage
+URL parameters
+client-side global state
+```
+
+Use the project's established authentication architecture.
+
+Never log:
+
+- passwords
+- authentication tokens
+- private credentials
+- sensitive personal information
+- secret API keys
+
+---
+
+# 51. Error Boundaries
+
+Use React Error Boundaries at appropriate application boundaries.
+
+They should prevent a component failure from unnecessarily crashing the entire application.
+
+Use boundaries where meaningful:
+
+```text
+Application
+    ↓
+Layout
+    ↓
+Feature/Page
+```
+
+Do not create dozens of boundaries without a reason.
+
+---
+
+# 52. Logging
+
+Logging should be intentional.
+
+Avoid:
+
+```ts
+console.log(user);
+console.log(token);
+console.log(response);
+```
+
+in production code.
+
+Remove temporary debugging logs before completing a task.
+
+If the project uses a logging/monitoring service, follow the established integration.
+
+Do not add Sentry, LogRocket, New Relic, or another monitoring dependency without project approval.
+
+---
+
+# 53. TypeScript Rules
+
+TypeScript should provide real type safety.
+
+Prefer:
+
+```text
+explicit types at boundaries
+narrow types
+union types
+type guards
+generics where useful
+```
+
+Avoid unnecessary:
+
+```text
+any
+unknown without narrowing
+type assertions
+non-null assertions
+```
+
+Do not use `as SomeType` simply to silence a TypeScript error.
+
+Fix the underlying type problem where possible.
+
+---
+
+# 54. Avoid `any`
+
+`any` should not be used as a shortcut.
+
+Bad:
+
+```ts
+const data: any = response.data;
+```
+
+Prefer defining the API response type.
+
+If `any` is genuinely unavoidable, keep its usage isolated and document why.
+
+---
+
+# 55. Type Organization
+
+Keep types close to the domain they belong to.
+
+Example:
+
+```text
+features/orders/types/order.types.ts
+```
+
+Shared application types:
+
+```text
+src/types/
+```
+
+Do not create a giant:
+
+```text
+types.ts
+```
+
+containing every type in the application.
+
+---
+
+# 56. Naming Conventions
+
+Use consistent naming.
+
+## Components
+
+```text
+PascalCase
+```
+
+Example:
+
+```text
+UserProfile.tsx
+OrderTable.tsx
+LoginForm.tsx
+```
+
+## Hooks
+
+```text
+useCamelCase
+```
+
+Example:
+
+```text
+useAuth.ts
+useUsers.ts
+useDebounce.ts
+```
+
+## Functions
+
+```text
+camelCase
+```
+
+Example:
+
+```text
+getUsers()
+createOrder()
+formatCurrency()
+```
+
+## Variables
+
+```text
+camelCase
+```
+
+## Constants
+
+Use:
+
+```text
+UPPER_SNAKE_CASE
+```
+
+when they represent true constants.
+
+## Types
+
+Use:
+
+```text
+PascalCase
+```
+
+Example:
+
+```text
+User
+UserResponse
+CreateUserPayload
+```
+
+---
+
+# 57. File Naming
+
+Files should use consistent naming.
+
+Recommended:
+
+```text
+UserProfile.tsx
+useUsers.ts
+user.service.ts
+user.types.ts
+user.schema.ts
+user.store.ts
+```
+
+Do not randomly mix conventions.
+
+If an existing project has an established convention, preserve it.
+
+---
+
+# 58. Imports
+
+Keep imports clean and predictable.
+
+Prefer path aliases where configured:
+
+```text
+@/features/users
+@/components/ui
+@/lib/api
+```
+
+Avoid excessive relative traversal:
+
+```text
+../../../../../../components
+```
+
+Do not introduce a new alias system if the project already has one.
+
+Remove unused imports.
+
+---
+
+# 59. Circular Dependencies
+
+Avoid circular imports.
+
+Especially avoid:
+
+```text
+feature A
+  ↓
+feature B
+  ↓
+feature A
+```
+
+Shared abstractions should live at an appropriate lower-level boundary.
+
+Do not solve circular dependencies by blindly moving files around. Understand the dependency graph first.
+
+---
+
+# 60. Dependency Direction
+
+Prefer predictable dependency direction:
+
+```text
+Pages
+ ↓
+Feature Components
+ ↓
+Feature Hooks
+ ↓
+Feature Services
+ ↓
+Shared API Infrastructure
+```
+
+Shared infrastructure should not depend on feature-specific UI.
+
+Avoid:
+
+```text
+utils → feature
+shared component → business feature
+API client → page
+```
+
+when the dependency can be avoided.
+
+---
+
+# 61. Feature Public API
+
+When feature boundaries become complex, expose intended public APIs through:
+
+```text
+features/<feature>/index.ts
+```
+
+Avoid importing deeply into another feature's internal files unless necessary.
+
+Prefer:
+
+```ts
+import { UserCard } from "@/features/users";
+```
+
+over:
+
+```ts
+import { UserCard } from "@/features/users/components/internal/UserCard";
+```
+
+Do not create barrel files everywhere merely for the sake of abstraction.
+
+Use them where they improve boundaries and discoverability.
+
+---
+
+# 62. Business Logic
+
+Business logic should not be scattered throughout JSX.
+
+Bad:
+
+```tsx
+<Button
+  disabled={
+    user.status === "active" &&
+    order.total > 100 &&
+    permissions.includes("admin") &&
+    ...
+  }
+/>
+```
+
+When logic becomes meaningful or reusable, move it to:
+
+- a hook
+- a utility
+- a feature function
+- a selector
+- a domain-specific helper
+
+Keep simple presentation conditions inside the component.
+
+---
+
+# 63. No Business Logic in Generic UI Components
+
+Generic components should remain generic.
+
+For example:
+
+```text
+Button
+Dialog
+Input
+Card
+Table
+```
+
+should not know about:
+
+```text
+orders
+users
+permissions
+authentication
+payments
+```
+
+Feature-specific behavior belongs to feature components.
+
+---
+
+# 64. No API Logic in Generic UI Components
+
+A generic:
+
+```text
+Button
+Modal
+Select
+DataTable
+```
+
+should not directly call APIs.
+
+Keep infrastructure and feature behavior outside reusable UI primitives.
+
+---
+
+# 65. Data Flow
+
+Default data flow:
+
+```text
+User Interaction
+       ↓
+Component
+       ↓
+Hook
+       ↓
+Service
+       ↓
+Axios Client
+       ↓
+API
+       ↓
+TanStack Query Cache
+       ↓
+Component
+```
+
+For global client state:
+
+```text
+Component
+   ↓
+Zustand Store
+   ↓
+Component
+```
+
+Keep data flow predictable.
+
+---
+
+# 66. Single Source of Truth
+
+Do not maintain the same data in multiple state systems without a clear reason.
+
+Bad:
+
+```text
+API data
+ ↓
+TanStack Query
+
+same API data
+ ↓
+Zustand
+
+same API data
+ ↓
+local useState
+```
+
+This creates synchronization problems.
+
+Prefer one authoritative source.
+
+---
+
+# 67. Avoid Prop Drilling
+
+Prop drilling is not automatically bad.
+
+For one or two levels, props are often the simplest solution.
+
+Do not introduce Context/Zustand merely because a value passes through a parent.
+
+Use shared state only when the data genuinely needs broader ownership.
+
+---
+
+# 68. React Context
+
+Context is appropriate for relatively stable cross-tree concerns such as:
+
+- theme
+- application configuration
+- specific provider-level dependencies
+
+Do not use Context as a replacement for all application state.
+
+If the project uses Zustand for global client state, do not create competing Context stores without a reason.
+
+---
+
+# 69. Rendering
+
+Keep render logic readable.
+
+Avoid giant inline expressions.
+
+Bad:
+
+```tsx
+{condition1 && condition2 && condition3 && ...}
+```
+
+If the logic becomes difficult to understand, extract a meaningful variable or helper.
+
+Do not abstract simple JSX unnecessarily.
+
+---
+
+# 70. Effects
+
+Use `useEffect` only for synchronization with external systems.
+
+Examples:
+
+- subscriptions
+- browser APIs
+- event listeners
+- timers
+- external libraries
+
+Do not use effects merely to derive state that could be calculated during render.
+
+Avoid effect chains such as:
+
+```text
+state A
+ ↓ useEffect
+state B
+ ↓ useEffect
+state C
+ ↓ useEffect
+API call
+```
+
+Prefer direct event/query-driven logic where possible.
+
+---
+
+# 71. Forms and Effects
+
+Do not use `useEffect` to synchronize every form field.
+
+Prefer the form/state system's normal mechanisms.
+
+Keep form state predictable.
+
+---
+
+# 72. Async Operations
+
+Async operations should have clear lifecycle handling:
+
+```text
+Idle
+ ↓
+Loading
+ ↓
+Success
+ ↓
+Error
+```
+
+Do not allow duplicate submissions.
+
+Disable or otherwise protect actions while required mutations are in progress.
+
+---
+
+# 73. UI Feedback
+
+User actions that trigger meaningful asynchronous work should provide feedback.
+
+Examples:
+
+```text
+Save → loading state
+Delete → confirmation + loading state
+Upload → progress/loading state
+Login → submitting state
+```
+
+Do not show unnecessary loading indicators for trivial synchronous actions.
+
+---
+
+# 74. Modals and Dialogs
+
+Use a consistent dialog implementation.
+
+Dialogs should handle:
+
+- open/close
+- focus
+- keyboard interaction
+- loading state
+- errors
+- cancellation
+
+Do not create multiple incompatible modal systems.
+
+---
+
+# 75. Tables
+
+Use a shared table/data-table foundation when multiple features require similar behavior.
+
+Do not implement a complete new table system inside every feature.
+
+However, do not add advanced features to every table by default.
+
+Only implement:
+
+- pagination
+- filtering
+- sorting
+- selection
+- bulk actions
+
+when required.
+
+---
+
+# 76. Search
+
+Search behavior should be intentional.
+
+For API search:
+
+```text
+Input
+ ↓
+Debounce
+ ↓
+Query
+ ↓
+TanStack Query
+```
+
+Do not send an API request for every keystroke unless explicitly required.
+
+---
+
+# 77. Pagination
+
+Do not automatically add pagination.
+
+When required, keep pagination state and query parameters predictable.
+
+Do not duplicate pagination logic across multiple features if a reusable abstraction genuinely makes sense.
+
+---
+
+# 78. File Uploads
+
+When implementing uploads:
+
+- validate file type when required
+- validate size when required
+- show upload state
+- handle failure
+- avoid exposing sensitive server details
+- reuse existing upload infrastructure
+
+Do not invent upload rules without a requirement.
+
+---
+
+# 79. Accessibility in Forms
+
+Every meaningful form field should have an accessible label.
+
+Errors should be associated with the relevant input where practical.
+
+Do not rely only on color to communicate validation errors.
+
+---
+
+# 80. Testing Philosophy
+
+Testing should focus on behavior rather than implementation details.
+
+Test:
+
+```text
+What the user can do
+What the user sees
+How the system behaves
+```
+
+Avoid testing internal implementation details unless necessary.
+
+---
+
+# 81. Unit Tests
+
+Use Vitest for focused unit tests.
+
+Good candidates:
+
+- utilities
+- pure functions
+- transformations
+- business rules
+- validation logic
+
+Do not write tests for trivial framework behavior.
+
+---
+
+# 82. React Testing Library
+
+Use React Testing Library for component behavior.
+
+Prefer queries based on:
+
+```text
+role
+label
+text
+accessible name
+```
+
+Avoid relying heavily on implementation-specific selectors.
+
+---
+
+# 83. Integration Tests
+
+Use integration tests for important flows involving multiple pieces.
+
+Examples:
+
+```text
+Form
+ ↓
+Mutation
+ ↓
+Success/Error UI
+```
+
+or:
+
+```text
+Route
+ ↓
+Authentication
+ ↓
+Page
+```
+
+---
+
+# 84. E2E Testing
+
+For large applications, use an E2E framework such as:
+
+```text
+Playwright
+```
+
+or an already-approved project equivalent.
+
+Do not introduce another testing framework when one already exists without a reason.
+
+---
+
+# 85. Test File Placement
+
+Tests may be colocated with their implementation when practical:
+
+```text
+UserCard.tsx
+UserCard.test.tsx
+```
+
+or organized under:
+
+```text
+__tests__/
+```
+
+Follow the existing project convention.
+
+Do not maintain two competing test structures.
+
+---
+
+# 86. Test Quality
+
+A test should fail when actual behavior breaks.
+
+Avoid tests that only prove:
+
+```text
+component renders
+```
+
+when meaningful user behavior can be tested instead.
+
+Test important:
+
+- success paths
+- failure paths
+- validation
+- permissions
+- loading
+- empty states
+- critical interactions
+
+---
+
+# 87. Build and Quality Checks
+
+Before considering a significant change complete, code should be checked for:
+
+- TypeScript errors
+- lint errors
+- formatting issues
+- test failures
+- build failures
+- unused imports
+- unused variables
+- obvious runtime errors
+
+Use the project's configured scripts.
+
+Do not invent commands when `package.json` already defines them.
+
+---
+
+# 88. CI/CD
+
+Production projects should have automated quality checks where appropriate.
+
+Typical pipeline:
+
+```text
+Push / Pull Request
+       ↓
+Install dependencies
+       ↓
+Lint
+       ↓
+Type Check
+       ↓
+Tests
+       ↓
+Build
+       ↓
+Deploy
+```
+
+Do not introduce CI/CD infrastructure unless the project requires it or the user requests it.
+
+---
+
+# 89. Environment Configuration
+
+Use environment-specific configuration appropriately.
+
+Typical:
+
+```text
+.env
+.env.local
+.env.development
+.env.production
+```
+
+Do not commit secrets.
+
+Do not hardcode environment-specific URLs throughout the codebase.
+
+Centralize configuration.
+
+---
+
+# 90. Monorepo
+
+For genuinely large ecosystems, a monorepo may use:
+
+```text
+pnpm workspaces
+Turborepo
+Nx
+```
+
+Possible structure:
+
+```text
+apps/
+├── web/
+├── admin/
+└── mobile/
+
+packages/
+├── ui/
+├── config/
+├── types/
+└── utils/
+```
+
+Do not introduce a monorepo for a normal single application.
+
+Use it when multiple applications/packages genuinely benefit from shared infrastructure.
+
+---
+
+# 91. Package Management
+
+Use the project's existing package manager.
+
+Do not switch:
+
+```text
+npm → pnpm
+yarn → npm
+pnpm → yarn
+```
+
+without explicit approval.
+
+Do not modify lockfiles manually.
+
+---
+
+# 92. Dependency Upgrades
+
+Do not upgrade packages simply because newer versions exist.
+
+A dependency upgrade is a separate change unless required to solve the current task.
+
+Avoid unrelated dependency updates.
+
+---
+
+# 93. No Random Refactoring
+
+Never combine:
+
+```text
+Feature request
++
+Architecture migration
++
+Dependency upgrade
++
+Formatting rewrite
++
+Naming cleanup
+```
+
+unless explicitly requested.
+
+Keep changes focused.
+
+---
+
+# 94. Minimal Diff Principle
+
+Prefer the smallest change that fully solves the requirement.
+
+Before editing ask:
+
+```text
+What is the minimum code that must change?
+```
+
+After editing ask:
+
+```text
+Did I change anything unrelated?
+```
+
+If yes, revert unrelated changes.
+
+---
+
+# 95. Preserve Existing Behavior
+
+When changing an existing feature:
+
+```text
+Existing behavior
+       +
+Requested change
+       =
+Expected result
+```
+
+Do not accidentally change:
+
+- API contracts
+- navigation
+- state behavior
+- validation
+- permissions
+- UI behavior
+- loading behavior
+
+unless the task requires it.
+
+---
+
+# 96. File Creation Rules
+
+Do not create a new file unless it provides a real architectural benefit.
+
+Before creating a file ask:
+
+```text
+Can this logically belong in an existing file?
+```
+
+If yes, keep it there unless the file is becoming genuinely too complex.
+
+Avoid:
+
+```text
+helper.ts
+helper2.ts
+helper3.ts
+```
+
+for trivial functionality.
+
+---
+
+# 97. Refactoring Rules
+
+Refactoring is allowed when:
+
+- required for the feature
+- required to fix a bug
+- required for maintainability
+- required to remove genuine duplication
+- required to establish a necessary architecture boundary
+
+Refactoring is not allowed merely because the AI prefers another style.
+
+When refactoring:
+
+1. Preserve behavior.
+2. Keep scope controlled.
+3. Explain meaningful architectural changes.
+4. Avoid unrelated cleanup.
+
+---
+
+# 98. Naming Before Abstraction
+
+Do not create abstractions with vague names.
+
+Avoid:
+
+```text
+Manager
+Helper
+Handler
+Processor
+Utils
+Common
+DataManager
+ServiceManager
+```
+
+unless the responsibility is genuinely clear.
+
+Prefer specific names:
+
+```text
+UserService
+OrderCalculator
+DateFormatter
+PermissionGuard
+```
+
+---
+
+# 99. Comments
+
+Do not comment obvious code.
+
+Bad:
+
+```ts
+// Set the user's name
+setName(name);
+```
+
+Useful comments explain:
+
+- why
+- non-obvious constraints
+- workarounds
+- architectural decisions
+- unusual browser behavior
+- important business constraints
+
+Comments should not compensate for unclear code.
+
+---
+
+# 100. TODOs
+
+Do not add speculative TODOs.
+
+A TODO should represent a known real task.
+
+Bad:
+
+```text
+// TODO: Improve this someday
+```
+
+Good:
+
+```text
+// TODO: Replace temporary endpoint after API v2 migration
+```
+
+---
+
+# 101. Dead Code
+
+Do not leave:
+
+- unused components
+- unused hooks
+- unused imports
+- unused functions
+- commented-out implementations
+- obsolete API methods
+
+Remove dead code when it is directly related to the current change.
+
+Do not perform unrelated cleanup across the application.
+
+---
+
+# 102. Duplicate Sources of Configuration
+
+Do not define the same configuration in multiple places.
+
+Examples:
+
+```text
+API URL
+route paths
+query keys
+permissions
+status values
+feature configuration
+```
+
+When duplication creates a real consistency risk, centralize it.
+
+---
+
+# 103. Permission Architecture
+
+Permissions should have one clear source of truth.
+
+Frontend permission checks are for UI behavior:
+
+```text
+show/hide
+enable/disable
+route access
+```
+
+Backend authorization remains authoritative.
+
+Do not duplicate permission logic in dozens of components.
+
+Prefer a centralized permission utility/hook when the application needs it.
+
+---
+
+# 104. Role-Based UI
+
+When roles exist, avoid hardcoding role checks everywhere.
+
+Bad:
+
+```tsx
+if (user.role === "admin") ...
+```
+
+repeated across many files.
+
+Prefer a centralized authorization abstraction when the application has meaningful role complexity.
+
+However, do not build a complete permission framework if the application only has one or two simple checks.
+
+---
+
+# 105. Internationalization
+
+If i18n is required, user-facing text should be handled through the project's approved i18n solution.
+
+Do not introduce an i18n library unless required.
+
+Do not build an i18n abstraction for an application that only has one language.
+
+---
+
+# 106. Dates, Currency and Formatting
+
+Formatting logic should be consistent.
+
+Do not format the same data differently across unrelated components.
+
+Prefer shared formatting utilities when formatting becomes repeated.
+
+Do not introduce a large library for a simple formatting requirement unless justified.
+
+---
+
+# 107. URL State
+
+Use URL state when the state should survive:
+
+- refresh
+- sharing
+- browser navigation
+- bookmarking
+
+Examples:
+
+```text
+search
+filters
+page
+sort
+tab
+```
+
+Do not put all UI state into URL parameters.
+
+Use the appropriate state mechanism for each piece of state.
+
+---
+
+# 108. Browser Storage
+
+Use browser storage intentionally.
+
+Before using:
+
+```text
+localStorage
+sessionStorage
+IndexedDB
+```
+
+determine whether persistence is actually required.
+
+Do not store everything in localStorage.
+
+Do not store sensitive secrets unnecessarily.
+
+---
+
+# 109. Accessibility and Keyboard Behavior
+
+Interactive elements must remain usable by keyboard.
+
+Do not implement clickable `<div>` elements when a semantic `<button>` or `<a>` is appropriate.
+
+Prefer semantic HTML before adding ARIA.
+
+---
+
+# 110. Responsive Components
+
+Reusable components should not make assumptions about a specific page unless they are explicitly feature-specific.
+
+Avoid hardcoded:
+
+```text
+desktop-only width
+fixed viewport assumptions
+page-specific spacing
+```
+
+inside generic components.
+
+---
+
+# 111. UI State Consistency
+
+Shared UI patterns should behave consistently.
+
+For example:
+
+```text
+Loading buttons
+Error messages
+Toast notifications
+Dialogs
+Form errors
+Empty states
+Skeletons
+```
+
+Do not create a different implementation for each feature when a shared system already exists.
+
+---
+
+# 112. API Request Cancellation
+
+For long-running or rapidly changing requests, consider cancellation.
+
+Especially useful for:
+
+- search
+- autocomplete
+- rapidly changing filters
+
+Use the existing Axios/TanStack Query mechanisms.
+
+Do not add custom cancellation infrastructure unnecessarily.
+
+---
+
+# 113. Race Conditions
+
+Be careful with asynchronous requests where newer data can be overwritten by older responses.
+
+TanStack Query should handle server-state concerns where applicable.
+
+For custom async behavior, ensure stale results cannot incorrectly overwrite current state.
+
+---
+
+# 114. Optimistic Updates
+
+Use optimistic updates only when:
+
+- UX benefits meaningfully
+- rollback behavior is reliable
+- mutation semantics are well understood
+
+Do not use optimistic updates for every mutation.
+
+---
+
+# 115. Caching
+
+Use TanStack Query caching for server state.
+
+Do not create a second custom caching system unless there is a real requirement.
+
+Avoid excessive cache complexity.
+
+---
+
+# 116. API Data Transformation
+
+Transform API data at a clear boundary.
+
+Prefer:
+
+```text
+API Response
+ ↓
+Service / mapper when required
+ ↓
+Application model
+ ↓
+UI
+```
+
+Do not scatter API-specific transformations throughout JSX.
+
+Only introduce mapping layers when the API/application models genuinely differ.
+
+---
+
+# 117. Feature Boundaries
+
+Features should not deeply depend on each other's internals.
+
+Prefer:
+
+```text
+Feature A
+   ↓
+Feature B public API
+```
+
+instead of:
+
+```text
+Feature A
+   ↓
+Feature B internal file
+```
+
+If two features constantly depend on each other, reconsider the boundary.
+
+---
+
+# 118. Shared Component Rules
+
+A component should become shared only when:
+
+- multiple features genuinely need it
+- behavior is stable
+- API is clear
+- abstraction reduces duplication
+
+Do not make a component global because it might be reused someday.
+
+---
+
+# 119. Generic Components
+
+Generic components must not contain hidden business assumptions.
+
+For example:
+
+```text
+DataTable
+```
+
+should not automatically know about:
+
+```text
+Users
+Orders
+Products
+Invoices
+```
+
+Feature code provides the data and behavior.
+
+---
+
+# 120. Architecture Decision Rule
+
+When choosing between two valid solutions:
+
+Prefer, in this order:
+
+```text
+Existing project pattern
+        ↓
+Simple solution
+        ↓
+Reusable solution
+        ↓
+Scalable solution
+        ↓
+Complex abstraction
+```
+
+Do not jump directly to the most sophisticated architecture.
+
+---
+
+# 121. New Architecture Approval
+
+If a task would require introducing a fundamentally new architectural pattern, stop and explain the change before implementing it.
+
+Examples:
+
+- new state management system
+- new API architecture
+- new routing architecture
+- new UI framework
+- new design system
+- monorepo migration
+- repository pattern
+- event bus
+- complex dependency injection
+- major folder restructuring
+
+Do not silently redesign the application.
+
+---
+
+# 122. Existing Library First
+
+Before adding:
+
+```text
+library
+framework
+utility
+component
+abstraction
+```
+
+check what already exists.
+
+Priority:
+
+```text
+Existing project code
+        ↓
+Existing dependency
+        ↓
+Native platform/React
+        ↓
+New dependency
+```
+
+---
+
+# 123. Task Execution Workflow
+
+For every non-trivial task:
+
+### Step 1 — Understand
+
+Read the request carefully.
+
+Identify:
+
+- requested behavior
+- affected feature
+- expected UI
+- constraints
+- explicit exclusions
+
+### Step 2 — Inspect
+
+Search existing code.
+
+Check:
+
+- components
+- hooks
+- services
+- stores
+- routes
+- types
+- utilities
+- API patterns
+
+### Step 3 — Plan
+
+Determine:
+
+- files to change
+- files to create
+- existing code to reuse
+- state ownership
+- API flow
+
+Keep the plan proportional to task complexity.
+
+### Step 4 — Implement
+
+Make focused changes.
+
+### Step 5 — Verify
+
+Check:
+
+- TypeScript
+- lint
+- tests where applicable
+- build where appropriate
+- obvious runtime issues
+
+### Step 6 — Review
+
+Ask:
+
+```text
+Did I add unnecessary code?
+Did I duplicate existing logic?
+Did I change unrelated code?
+Did I introduce unnecessary dependencies?
+Did I change existing naming?
+Did I assume anything not specified?
+```
+
+---
+
+# 124. Before Coding Checklist
+
+Before writing code, verify:
+
+```text
+[ ] I understand the requested task.
+[ ] I know the affected feature.
+[ ] I searched for existing related code.
+[ ] I checked existing components.
+[ ] I checked existing hooks.
+[ ] I checked existing services.
+[ ] I checked existing stores.
+[ ] I checked existing types.
+[ ] I checked existing dependencies.
+[ ] I know where the new code belongs.
+[ ] I am not duplicating existing functionality.
+[ ] I am not expanding the scope.
+```
+
+---
+
+# 125. Before Finishing Checklist
+
+Before finishing:
+
+```text
+[ ] Requested functionality is implemented.
+[ ] Existing functionality is preserved.
+[ ] No unrelated refactoring was performed.
+[ ] No duplicate implementation was introduced.
+[ ] No unnecessary dependency was added.
+[ ] Naming conventions are preserved.
+[ ] TypeScript types are correct.
+[ ] Loading state is handled where required.
+[ ] Error state is handled where required.
+[ ] Empty state is handled where required.
+[ ] Accessibility is considered.
+[ ] Responsive behavior is considered.
+[ ] No debug logs remain.
+[ ] No dead code was introduced.
+[ ] Relevant tests/checks were considered.
+```
+
+---
+
+# 126. User Requirement Priority
+
+When requirements conflict, follow this priority:
+
+```text
+1. Explicit user requirement
+2. Existing project behavior/architecture
+3. Existing API/backend contract
+4. These architecture rules
+5. General best practices
+6. AI preference
+```
+
+AI preference is always the lowest priority.
+
+Do not replace an explicit user requirement with a preferred architecture.
+
+---
+
+# 127. Ambiguity Rule
+
+Not every ambiguity requires a question.
+
+Use this decision:
+
+```text
+Can existing code answer it?
+        ↓
+YES → inspect and follow existing behavior
+
+Can the requirement be safely implemented without guessing?
+        ↓
+YES → implement the simplest solution
+
+Would different interpretations materially change the result?
+        ↓
+YES → ask the user
+```
+
+Do not ask unnecessary questions when the answer is already clear from the codebase.
+
+---
+
+# 128. Scope Boundary Rule
+
+Every task has a boundary.
+
+If the task is:
+
+```text
+Fix login button loading state.
+```
+
+The scope is:
+
+```text
+Login button loading behavior.
+```
+
+It is NOT automatically:
+
+```text
+Authentication refactor
+Form redesign
+API redesign
+Toast redesign
+Routing redesign
+Global state migration
+```
+
+Stay within scope.
+
+---
+
+# 129. Bug Fix Rule
+
+When fixing a bug:
+
+1. Reproduce/understand the current behavior.
+2. Identify the actual cause.
+3. Fix the root cause.
+4. Avoid unrelated refactoring.
+5. Preserve surrounding behavior.
+6. Check affected paths.
+
+Do not mask a bug with arbitrary UI/state changes.
+
+---
+
+# 130. Regression Awareness
+
+When modifying shared code, consider all usages.
+
+Before changing:
+
+```text
+shared component
+shared hook
+shared utility
+API client
+auth state
+route guard
+design token
+```
+
+search for its consumers.
+
+A shared change can have a wide impact.
+
+---
+
+# 131. No Blind File Replacement
+
+Do not replace an entire file when only a small section needs changing.
+
+Preserve:
+
+- existing imports
+- unrelated functions
+- comments
+- configuration
+- established patterns
+
+unless replacement is genuinely necessary.
+
+---
+
+# 132. No Blind Rename
+
+Do not rename files, variables, components, routes, or APIs simply for stylistic preference.
+
+Rename only when:
+
+- requested
+- required for correctness
+- required to remove a real ambiguity
+- part of an explicitly requested refactor
+
+---
+
+# 133. No Hidden Behavior
+
+Reusable abstractions should behave predictably.
+
+Avoid components/hooks that silently:
+
+- mutate global state
+- trigger unrelated API requests
+- navigate users
+- show notifications
+- modify storage
+
+unless that behavior is explicitly part of their responsibility.
+
+---
+
+# 134. Separation of Concerns
+
+Maintain clear boundaries:
+
+```text
+UI
+↓
+Presentation behavior
+↓
+Feature logic
+↓
+Server communication
+↓
+Infrastructure
+```
+
+Do not collapse everything into one file.
+
+But also do not create unnecessary layers for trivial features.
+
+---
+
+# 135. Recommended Architecture Diagram
+
+```text
+                    ┌──────────────────────┐
+                    │        Routes        │
+                    │ React Router         │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │        Pages         │
+                    │ Route-level UI       │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+              ┌─────────────────────────────────┐
+              │          Feature Layer           │
+              │ Components / Hooks / Services    │
+              └───────────────┬─────────────────┘
+                              │
+                  ┌───────────┴───────────┐
+                  │                       │
+                  ▼                       ▼
+        ┌─────────────────┐     ┌─────────────────┐
+        │ TanStack Query  │     │ Zustand         │
+        │ Server State    │     │ Client State    │
+        └────────┬────────┘     └─────────────────┘
+                 │
+                 ▼
+        ┌─────────────────┐
+        │ Service Layer   │
+        │ API Operations  │
+        └────────┬────────┘
+                 │
+                 ▼
+        ┌─────────────────┐
+        │ Axios Client    │
+        │ API Infrastructure│
+        └────────┬────────┘
+                 │
+                 ▼
+        ┌─────────────────┐
+        │ Backend API     │
+        └─────────────────┘
+```
+
+---
+
+# 136. Data Flow
+
+Default server-data flow:
+
+```text
+Component
+    ↓
+TanStack Query Hook
+    ↓
+Feature Service
+    ↓
+Axios Client
+    ↓
+API
+    ↓
+TanStack Query Cache
+    ↓
+Component
+```
+
+Default client-state flow:
+
+```text
+Component
+    ↓
+Zustand Store
+    ↓
+Subscribed Components
+```
+
+Default local-state flow:
+
+```text
+Component
+    ↓
+useState / useReducer
+```
+
+---
+
+# 137. Complete Feature Blueprint
+
+A mature feature may look like:
+
+```text
+features/
+└── orders/
+    │
+    ├── components/
+    │   ├── OrderCard.tsx
+    │   ├── OrderTable.tsx
+    │   ├── OrderForm.tsx
+    │   └── OrderStatusBadge.tsx
+    │
+    ├── hooks/
+    │   ├── useOrders.ts
+    │   ├── useOrder.ts
+    │   ├── useCreateOrder.ts
+    │   └── useUpdateOrder.ts
+    │
+    ├── services/
+    │   └── order.service.ts
+    │
+    ├── schemas/
+    │   └── order.schema.ts
+    │
+    ├── types/
+    │   └── order.types.ts
+    │
+    ├── constants/
+    │   └── order.constants.ts
+    │
+    └── index.ts
+```
+
+Do not create every directory automatically.
+
+Only create directories that the feature actually needs.
+
+---
+
+# 138. Small Feature Rule
+
+A small feature can remain small.
+
+For example:
+
+```text
+features/
+└── settings/
+    └── Settings.tsx
+```
+
+is acceptable if that is genuinely all the feature needs.
+
+Do not create:
+
+```text
+components/
+hooks/
+services/
+schemas/
+types/
+constants/
+utils/
+```
+
+just to make the folder look architectural.
+
+---
+
+# 139. Medium Feature Rule
+
+As complexity grows:
+
+```text
+Feature
+├── components
+├── hooks
+├── services
+└── types
+```
+
+Add:
+
+```text
+schemas
+constants
+utils
+```
+
+only when needed.
+
+---
+
+# 140. Large Feature Rule
+
+For complex domains, use stronger boundaries:
+
+```text
+Feature
+├── components
+├── hooks
+├── services
+├── schemas
+├── types
+├── constants
+├── utils
+└── index.ts
+```
+
+Even large features should remain understandable.
+
+---
+
+# 141. Global Folder Rule
+
+Global folders are for genuinely shared concerns.
+
+Do not use:
+
+```text
+components/
+hooks/
+services/
+utils/
+```
+
+as dumping grounds.
+
+If something belongs to one feature, keep it in that feature.
+
+---
+
+# 142. Architecture Evolution
+
+Architecture should evolve with application complexity.
+
+```text
+Small App
+   ↓
+Simple structure
+
+Growing App
+   ↓
+Feature organization
+
+Large App
+   ↓
+Strong feature boundaries
+
+Enterprise / Multi-App
+   ↓
+Potential monorepo/shared packages
+```
+
+Do not start with enterprise complexity when the application does not need it.
+
+---
+
+# 143. Refactor Trigger
+
+Refactor when there is a concrete problem:
+
+- duplication
+- excessive complexity
+- unclear responsibility
+- difficult testing
+- tight coupling
+- repeated bugs
+- poor discoverability
+- performance issue
+
+Do not refactor merely because a different structure looks cleaner.
+
+---
+
+# 144. Code Review Questions
+
+Before finalizing significant code, evaluate:
+
+### Architecture
+
+```text
+Is responsibility in the correct layer?
+```
+
+### SOLID
+
+```text
+Does each module have a clear responsibility?
+```
+
+### DRY
+
+```text
+Did I duplicate existing logic?
+```
+
+### Simplicity
+
+```text
+Is this more complex than necessary?
+```
+
+### Scope
+
+```text
+Did I implement anything the user didn't request?
+```
+
+### Context
+
+```text
+Did I preserve existing project patterns?
+```
+
+### Dependencies
+
+```text
+Did I add anything unnecessary?
+```
+
+### Types
+
+```text
+Did I preserve type safety?
+```
+
+### UX
+
+```text
+Are loading/error/empty states handled appropriately?
+```
+
+### Regression
+
+```text
+Could this change break another consumer?
+```
+
+---
+
+# 145. Absolute Rules for AI
+
+The following rules are mandatory and must not be ignored for convenience.
+
+1. **Do not guess when existing code can answer the question.**
+2. **Do not create duplicate functionality.**
+3. **Do not expand the task scope.**
+4. **Do not rewrite working code unnecessarily.**
+5. **Do not introduce unnecessary dependencies.**
+6. **Do not change established naming without a reason.**
+7. **Do not over-engineer simple requirements.**
+8. **Do not create abstractions for hypothetical future requirements.**
+9. **Do not move feature code into shared folders prematurely.**
+10. **Do not introduce a new architecture without justification.**
+11. **Do not silently change APIs or contracts.**
+12. **Do not silently change authentication behavior.**
+13. **Do not silently change routing behavior.**
+14. **Do not duplicate server state into client state without a reason.**
+15. **Do not use `any` as a shortcut for type errors.**
+16. **Do not add validation rules that were not required.**
+17. **Do not modify unrelated files.**
+18. **Do not remove existing behavior unless requested or required for correctness.**
+19. **Do not hide architectural changes inside an ordinary feature task.**
+20. **When a requirement is materially ambiguous, ask before making a consequential assumption.**
+
+---
+
+# 146. Golden Rule
+
+When unsure, follow this process:
+
+```text
+STOP
+ ↓
+Inspect existing code
+ ↓
+Search for similar implementation
+ ↓
+Understand current architecture
+ ↓
+Identify simplest correct solution
+ ↓
+Check scope
+ ↓
+Implement minimal change
+ ↓
+Verify
+```
+
+Never follow:
+
+```text
+User asks
+ ↓
+AI immediately invents architecture
+ ↓
+AI creates new files
+ ↓
+AI installs packages
+ ↓
+AI rewrites existing code
+ ↓
+AI adds extra features
+```
+
+---
+
+# 147. Final Engineering Philosophy
+
+The goal is not to produce the most sophisticated React code.
+
+The goal is to produce code that is:
+
+- Correct
+- Simple
+- Typed
+- Reusable
+- Maintainable
+- Testable
+- Performant
+- Accessible
+- Secure
+- Predictable
+- Scalable
+
+The architecture should help developers move faster without creating unnecessary complexity.
+
+Use:
+
+```text
+SOLID
++
+DRY
++
+KISS
++
+YAGNI
++
+Feature-Based Architecture
++
+Clear Data Flow
++
+Strong Type Safety
++
+Minimal Changes
++
+Context Preservation
+```
+
+The preferred mindset is:
+
+```text
+Understand first.
+Reuse second.
+Implement third.
+Refactor only when justified.
+Verify before finishing.
+```
+
+---
+
+# 148. Final Architecture Summary
+
+```text
+React Application
+│
+├── Routes
+│     └── React Router
+│
+├── Pages
+│     └── Route-level composition
+│
+├── Features
+│     ├── Components
+│     ├── Hooks
+│     ├── Services
+│     ├── Types
+│     ├── Schemas
+│     └── Constants
+│
+├── Shared Components
+│     ├── shadcn/ui
+│     └── Common UI
+│
+├── State
+│     ├── Local → React State
+│     ├── Client Global → Zustand
+│     └── Server → TanStack Query
+│
+├── API
+│     ├── Feature Services
+│     └── Axios Client
+│
+├── Infrastructure
+│     ├── Config
+│     ├── Query Client
+│     └── Utilities
+│
+└── Quality
+      ├── TypeScript
+      ├── ESLint
+      ├── Vitest
+      ├── React Testing Library
+      └── CI/CD
+```
+
+## Default Data Flow
+
+```text
+UI
+ ↓
+Feature Hook
+ ↓
+Service
+ ↓
+Axios
+ ↓
+API
+ ↓
+TanStack Query
+ ↓
+UI
+```
+
+## Default State Flow
+
+```text
+Local UI State
+    → React State
+
+Shared Client State
+    → Zustand
+
+Server/API State
+    → TanStack Query
+```
+
+## Default Architecture Rule
+
+```text
+Feature-specific → Feature folder
+
+Genuinely reusable → Shared folder
+
+Server data → TanStack Query
+
+Global client state → Zustand
+
+API communication → Service + Axios
+
+UI primitives → shadcn/ui
+
+Icons → Lucide
+
+Simple problem → Simple solution
+
+Existing solution → Reuse it
+
+New abstraction → Only when justified
+
+New dependency → Only when necessary + approved
+
+Unrequested change → Do not implement
+```

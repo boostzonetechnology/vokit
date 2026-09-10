@@ -80,10 +80,10 @@ export function DashboardScreen({
   }, [portal, period, timezone, since, until, agencyId]);
 
   return (
-    <section className="stack">
-      <div className="toolbar">
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <h2>Dashboard</h2>
-        <label className="inline" htmlFor="period">
+        <label className="flex flex-wrap items-center gap-3 font-semibold" htmlFor="period">
           Period
           <select
             id="period"
@@ -97,7 +97,7 @@ export function DashboardScreen({
             <option value="custom">Custom</option>
           </select>
         </label>
-        <label className="inline" htmlFor="timezone">
+        <label className="flex flex-wrap items-center gap-3 font-semibold" htmlFor="timezone">
           Timezone
           <select
             id="timezone"
@@ -112,7 +112,7 @@ export function DashboardScreen({
         </label>
         {period === "custom" ? (
           <>
-            <label className="inline" htmlFor="since">
+            <label className="flex flex-wrap items-center gap-3 font-semibold" htmlFor="since">
               Since
               <input
                 id="since"
@@ -121,7 +121,7 @@ export function DashboardScreen({
                 onChange={(event) => setSince(event.target.value)}
               />
             </label>
-            <label className="inline" htmlFor="until">
+            <label className="flex flex-wrap items-center gap-3 font-semibold" htmlFor="until">
               Until
               <input
                 id="until"
@@ -133,7 +133,7 @@ export function DashboardScreen({
           </>
         ) : null}
         {portal === "platform" ? (
-          <label className="inline" htmlFor="agency-filter">
+          <label className="flex flex-wrap items-center gap-3 font-semibold" htmlFor="agency-filter">
             Agency filter
             <input
               id="agency-filter"
@@ -145,34 +145,34 @@ export function DashboardScreen({
         ) : null}
       </div>
       {error ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       ) : null}
       {data ? (
         <>
-          <p className="hint">
+          <p className="text-text-secondary">
             Source {data.source}. Timezone {data.period.timezone}. Values come from
             ledger and control-plane projections, not the browser.
           </p>
-          <div className="kpi-grid">
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]">
             {data.kpis.map((card) => (
               <button
                 key={card.key}
                 type="button"
-                className="kpi"
+                className="grid cursor-pointer gap-2 rounded-lg border border-border-default bg-surface p-5 text-left"
                 aria-label={`${card.label}: ${cell(card.value)}`}
                 onClick={() => onNavigate(`#${card.href}`)}
               >
-                <span>{card.label}</span>
+                <span className="text-sm text-text-secondary">{card.label}</span>
                 <strong>{cell(card.value)}</strong>
               </button>
             ))}
           </div>
           {data.financial ? (
-            <article className="card">
+            <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
               <h3>Financial summary</h3>
-              <dl className="dense">
+              <dl className="grid gap-2">
                 {Object.entries(data.financial).map(([key, value]) => (
                   <div key={key}>
                     <dt>{key}</dt>
@@ -183,9 +183,9 @@ export function DashboardScreen({
             </article>
           ) : null}
           {data.alerts ? (
-            <article className="card">
+            <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
               <h3>Alerts</h3>
-              <dl className="dense">
+              <dl className="grid gap-2">
                 {Object.entries(data.alerts).map(([key, value]) => (
                   <div key={key}>
                     <dt>{key}</dt>
@@ -196,12 +196,12 @@ export function DashboardScreen({
             </article>
           ) : null}
           {typeof data.failed_calls === "number" ? (
-            <p className="hint">Failed calls in period: {data.failed_calls}</p>
+            <p className="text-text-secondary">Failed calls in period: {data.failed_calls}</p>
           ) : null}
           {data.recent_calls && data.recent_calls.length > 0 ? (
-            <article className="card">
+            <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
               <h3>Recent calls</h3>
-              <div className="table-wrap">
+              <div className="overflow-auto rounded-lg border border-border-default bg-surface">
                 <table>
                   <caption>Recent calls</caption>
                   <thead>
@@ -282,7 +282,7 @@ export function ResourceScreen({
   const columns = rows[0] ? Object.keys(rows[0]).slice(0, 6) : [];
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>{title}</h2>
       {portal === "agency" && route === "integrations" ? (
         <label htmlFor="customer-id">
@@ -296,12 +296,12 @@ export function ResourceScreen({
         </label>
       ) : null}
       {error ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           {error}
         </p>
       ) : null}
       <ActionForms portal={portal} route={route} onDone={() => setReload((n) => n + 1)} />
-      <div className="table-wrap">
+      <div className="overflow-auto rounded-lg border border-border-default bg-surface">
         <table>
           <caption>{title} records</caption>
           <thead>
@@ -323,7 +323,7 @@ export function ResourceScreen({
             ))}
           </tbody>
         </table>
-        {rows.length === 0 ? <p className="hint">No rows in this scope.</p> : null}
+        {rows.length === 0 ? <p className="text-text-secondary">No rows in this scope.</p> : null}
       </div>
     </section>
   );
@@ -370,9 +370,9 @@ function ActionForms({
 
   if (portal === "platform" && route === "agencies") {
     return (
-      <article className="card">
+      <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
         <h3>Create agency</h3>
-        <p className="hint">
+        <p className="text-text-secondary">
           The browser never selects a tenant database. Host metadata is sent to the
           control-plane registry only.
         </p>
@@ -380,50 +380,50 @@ function ActionForms({
           onMessage={setMessage}
           onDone={onDone}
         />
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </article>
     );
   }
   if (portal === "platform" && route === "customers") {
     return (
       <form
-        className="card form-grid"
+        className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
         onSubmit={(event) => void submit(event, "/api/v1/platform/customers", "POST")}
       >
         <h3>Create customer under agency</h3>
         <input name="display_name" placeholder="Customer name" required />
         <input name="agency_id" placeholder="Agency id" required />
         <button type="submit">Create</button>
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </form>
     );
   }
   if (portal === "agency" && route === "customers") {
     return (
       <form
-        className="card form-grid"
+        className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
         onSubmit={(event) => void submit(event, "/api/v1/agency/customers", "POST")}
       >
         <h3>Create customer</h3>
         <input name="display_name" placeholder="Customer name" required />
         <button type="submit">Create</button>
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </form>
     );
   }
   if (portal === "agency" && route === "payouts") {
     return (
-      <form className="card form-grid" onSubmit={(event) => void submit(event, "/api/v1/agency/payouts", "POST")}>
+      <form className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(event) => void submit(event, "/api/v1/agency/payouts", "POST")}>
         <h3>Request payout</h3>
         <button type="submit">Request available balance</button>
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </form>
     );
   }
   if (portal === "customer" && route === "usage") {
     return (
       <form
-        className="card form-grid"
+        className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
         onSubmit={async (event) => {
           event.preventDefault();
           try {
@@ -442,16 +442,16 @@ function ActionForms({
       >
         <h3>Buy top-up</h3>
         <button type="submit">Purchase plan top-up</button>
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </form>
     );
   }
   if (portal === "agency" && route === "kyc") {
     return (
-      <form className="card form-grid" onSubmit={(event) => void submit(event, "/api/v1/agency/kyc/session", "POST")}>
+      <form className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(event) => void submit(event, "/api/v1/agency/kyc/session", "POST")}>
         <h3>Start external KYC</h3>
         <button type="submit">Open hosted session</button>
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </form>
     );
   }
@@ -467,7 +467,7 @@ function ActionForms({
   if (portal === "platform" && route === "settings") {
     return (
       <form
-        className="card form-grid"
+        className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
         onSubmit={(event) => void submit(event, "/api/v1/platform/settings", "PATCH")}
       >
         <h3>Update setting</h3>
@@ -475,20 +475,20 @@ function ActionForms({
         <input name="value" placeholder="15" required />
         <input name="reason" placeholder="Reason" required />
         <button type="submit">Save</button>
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </form>
     );
   }
   if (route === "team" || (portal === "platform" && route === "users")) {
     const path = portal === "platform" ? "/api/v1/platform/users" : `/api/v1/${portal}/team`;
     return (
-      <form className="card form-grid" onSubmit={(event) => void submit(event, path, "POST")}>
+      <form className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(event) => void submit(event, path, "POST")}>
         <h3>Invite</h3>
         <input name="email" type="email" placeholder="Email" required />
         <input name="role" placeholder={portal === "platform" ? "super_admin" : `${portal}_admin`} required />
         {portal === "platform" ? <input name="principal_type" placeholder="platform" required /> : null}
         <button type="submit">Invite</button>
-        {message ? <p className="hint">{message}</p> : null}
+        {message ? <p className="text-text-secondary">{message}</p> : null}
       </form>
     );
   }
@@ -519,7 +519,7 @@ function AgencyCreateForm({
     }
   }
   return (
-    <form className="form-grid" onSubmit={(event) => void onSubmit(event)}>
+    <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(event) => void onSubmit(event)}>
       <input name="display_name" placeholder="Display name" required />
       <input name="legal_name" placeholder="Legal name" required />
       <input name="owner_email" type="email" placeholder="Owner email" required />
@@ -532,7 +532,7 @@ function AgencyCreateForm({
         placeholder="Commission bps"
         required
       />
-      <p className="hint">
+      <p className="text-text-secondary">
         MySQL database host, name, and credentials are allocated from server settings —
         never entered in the browser.
       </p>
@@ -553,7 +553,7 @@ function NotificationActions({
   const [notificationId, setNotificationId] = useState("");
   return (
     <form
-      className="card form-grid"
+      className="grid items-end gap-3 rounded-lg border border-border-default bg-surface p-5 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
       onSubmit={async (event) => {
         event.preventDefault();
         try {
@@ -572,7 +572,7 @@ function NotificationActions({
         required
       />
       <button type="submit">Mark read</button>
-      {message ? <p className="hint">{message}</p> : null}
+      {message ? <p className="text-text-secondary">{message}</p> : null}
     </form>
   );
 }
