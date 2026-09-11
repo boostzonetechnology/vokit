@@ -15,6 +15,7 @@ from control_plane.identity.models import User
 from control_plane.risk.models import RiskCase, VerificationSubmission
 from shared_kernel.hmac import sign_hmac_sha256
 from shared_kernel.ids import new_uuid7
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 STRIPE_REF = "STRIPE_WEBHOOK_SECRET"
@@ -68,8 +69,6 @@ def _login(client: Client, email: str) -> None:
 
 def _create_agency(client: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    from tests.tenant_db_fixtures import tenant_db_payload
-
     response = _post(
         client,
         "/api/v1/platform/agencies",
@@ -128,7 +127,7 @@ def _bootstrap():
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Cust Risk", "agency_id": str(agency_id)},
+        platform_customer_body(agency_id, "Cust Risk"),
     )
     assert customer.status_code == 201
     customer_id = uuid.UUID(customer.json()["data"]["id"])
@@ -265,11 +264,11 @@ def test_chargeback_disables_agents_and_reverses_commission() -> None:
     denied = _post(
         ctx["platform"],
         "/api/v1/platform/customers",
-        {
-            "display_name": "Replay",
-            "agency_id": other.json()["data"]["id"],
-            "owner_email": "cust-risk@vokit.test",
-        },
+        platform_customer_body(
+            other.json()["data"]["id"],
+            "Replay",
+            owner_email="cust-risk@vokit.test",
+        ),
     )
     assert denied.status_code == 409
     assert denied.json()["error"]["code"] == "customer_ineligible"

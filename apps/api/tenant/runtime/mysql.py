@@ -448,11 +448,17 @@ class MysqlRuntime:
                 """
                 INSERT INTO customers (
                     customer_id, tenant_id, display_name, status,
+                    legal_name, owner_email, phone, country, timezone,
                     created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     display_name = VALUES(display_name),
                     status = VALUES(status),
+                    legal_name = VALUES(legal_name),
+                    owner_email = VALUES(owner_email),
+                    phone = VALUES(phone),
+                    country = VALUES(country),
+                    timezone = VALUES(timezone),
                     updated_at = VALUES(updated_at)
                 """,
                 (
@@ -460,6 +466,11 @@ class MysqlRuntime:
                     str(mysql.tenant_id),
                     customer.display_name,
                     customer.status.value,
+                    customer.legal_name,
+                    customer.owner_email,
+                    customer.phone,
+                    customer.country,
+                    customer.timezone,
                     created,
                     now,
                 ),
@@ -473,6 +484,7 @@ class MysqlRuntime:
             cursor.execute(
                 """
                 SELECT customer_id, tenant_id, display_name, status,
+                       legal_name, owner_email, phone, country, timezone,
                        created_at, updated_at
                 FROM customers
                 WHERE customer_id = %s AND tenant_id = %s
@@ -490,8 +502,13 @@ class MysqlRuntime:
             tenant_id=tenant_id,
             display_name=str(row[2]),
             status=CustomerStatus(str(row[3])),
-            created_at=row[4],
-            updated_at=row[5],
+            legal_name=str(row[4] or ""),
+            owner_email=str(row[5] or ""),
+            phone=str(row[6] or ""),
+            country=str(row[7] or ""),
+            timezone=str(row[8] or ""),
+            created_at=row[9],
+            updated_at=row[10],
         )
 
     def list_customers(self, connection: TenantConnection) -> list[TenantCustomer]:
@@ -500,6 +517,7 @@ class MysqlRuntime:
             cursor.execute(
                 """
                 SELECT customer_id, tenant_id, display_name, status,
+                       legal_name, owner_email, phone, country, timezone,
                        created_at, updated_at
                 FROM customers
                 WHERE tenant_id = %s
@@ -519,8 +537,13 @@ class MysqlRuntime:
                     tenant_id=tenant_id,
                     display_name=str(row[2]),
                     status=CustomerStatus(str(row[3])),
-                    created_at=row[4],
-                    updated_at=row[5],
+                    legal_name=str(row[4] or ""),
+                    owner_email=str(row[5] or ""),
+                    phone=str(row[6] or ""),
+                    country=str(row[7] or ""),
+                    timezone=str(row[8] or ""),
+                    created_at=row[9],
+                    updated_at=row[10],
                 )
             )
         return customers

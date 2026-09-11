@@ -125,6 +125,33 @@ class DjangoDeliveryRepository:
             created_at=record.created_at,
         )
 
+    def get(self, delivery_id: uuid.UUID) -> DeliveryRecord | None:
+        row = NotificationDelivery.objects.filter(id=delivery_id).first()
+        if row is None:
+            return None
+        return DeliveryRecord(
+            id=row.id,
+            user_id=row.user_id,
+            recipient_email=row.recipient_email,
+            channel=NotificationChannel(row.channel),
+            event_type=row.event_type,
+            status=DeliveryStatus(row.status),
+            error=row.error,
+            created_at=row.created_at,
+        )
+
+    def update_status(
+        self,
+        delivery_id: uuid.UUID,
+        *,
+        status: DeliveryStatus,
+        error: str = "",
+    ) -> None:
+        NotificationDelivery.objects.filter(id=delivery_id).update(
+            status=status.value,
+            error=error[:255],
+        )
+
     def list_all(self) -> list[DeliveryRecord]:
         rows = NotificationDelivery.objects.order_by("-created_at")
         return [

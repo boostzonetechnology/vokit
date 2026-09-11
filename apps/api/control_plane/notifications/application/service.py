@@ -10,7 +10,6 @@ from control_plane.notifications.application.ports import (
     DeliveryRepository,
     InAppRecord,
     InboxRepository,
-    Mailer,
     PreferenceRecord,
     PreferenceRepository,
     Recipient,
@@ -34,6 +33,7 @@ from control_plane.notifications.domain.types import (
     PreferenceScope,
 )
 from shared_kernel.errors import DomainError
+from shared_kernel.http.correlation import get_correlation_id
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
 
@@ -58,14 +58,12 @@ class NotificationControl:
         inbox: InboxRepository,
         deliveries: DeliveryRepository,
         preferences: PreferenceRepository,
-        mailer: Mailer,
         clock: SystemClock,
     ) -> None:
         self._templates = templates
         self._inbox = inbox
         self._deliveries = deliveries
         self._preferences = preferences
-        self._mailer = mailer
         self._clock = clock
 
     def ensure_defaults(self) -> None:
@@ -344,6 +342,10 @@ class NotificationControl:
         recipient: Recipient,
         variables: dict[str, str],
     ) -> None:
+        from django.conf import settings
+
+        from control_plane.notifications.tasks import send_email_task
+
         template = self._templates.get(event_type, NotificationChannel.EMAIL)
         now = self._clock.now()
         if template is None:
@@ -362,32 +364,45 @@ class NotificationControl:
             return
         subject = render_template(template.subject, variables, event_type)
         body = render_template(template.body, variables, event_type)
-        try:
-            self._mailer.send(to=recipient.email, subject=subject, body=body)
-            status = DeliveryStatus.SENT
-            error = ""
-        except Exception as exc:  # noqa: BLE001
-            status = DeliveryStatus.FAILED
-            error = str(exc)[:255]
-            log_event(
-                logger,
-                "notification.email.failed",
-                severity="warning",
-                outcome="failure",
-                event_type=event_type,
-            )
+        delivery_id = new_uuid7()
         self._deliveries.create(
             DeliveryRecord(
-                id=new_uuid7(),
+                id=delivery_id,
                 user_id=recipient.user_id,
                 recipient_email=recipient.email,
                 channel=NotificationChannel.EMAIL,
                 event_type=event_type,
-                status=status,
-                error=error,
+                status=DeliveryStatus.QUEUED,
+                error="",
                 created_at=now,
             )
         )
+        task_args = (
+            str(delivery_id),
+            recipient.email,
+            subject,
+            body,
+            get_correlation_id() or "",
+        )
+        try:
+            if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+                send_email_task.apply(args=task_args)
+            else:
+                send_email_task.delay(*task_args)
+        except Exception as exc:  # noqa: BLE001
+            self._deliveries.update_status(
+                delivery_id,
+                status=DeliveryStatus.FAILED,
+                error=str(exc)[:255],
+            )
+            log_event(
+                logger,
+                "notification.email.enqueue_failed",
+                severity="warning",
+                outcome="failure",
+                event_type=event_type,
+                delivery_id=str(delivery_id),
+            )
 
     def _inbox_payload(self, row: InAppRecord) -> dict[str, object]:
         return {

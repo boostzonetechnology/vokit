@@ -17,7 +17,7 @@ from control_plane.integrations.infrastructure.container import (
 from control_plane.telephony.infrastructure.container import reset_sip_edge
 from shared_kernel.hmac import sign_hmac_raw
 from shared_kernel.ids import new_uuid7
-from tests.tenant_db_fixtures import tenant_db_payload
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 TEL_TOKEN = "test-internal-telephony-token"
@@ -104,12 +104,12 @@ def _ready_pair() -> dict:
     customer_a = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Cust A", "agency_id": str(agency_id)},
+        platform_customer_body(agency_id, "Cust A"),
     )
     customer_b = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Cust B", "agency_id": str(agency_id)},
+        platform_customer_body(agency_id, "Cust B"),
     )
     customer_a_id = uuid.UUID(customer_a.json()["data"]["id"])
     customer_b_id = uuid.UUID(customer_b.json()["data"]["id"])
@@ -238,6 +238,12 @@ def test_tool_gateway_and_webhooks_stay_customer_scoped() -> None:
             {"plan_version_id": version_id},
         )
         assert assigned.status_code == 201
+    activated = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_a_id']}/status",
+        {"action": "activate"},
+    )
+    assert activated.status_code == 200
     created = _post(
         ctx["agency_client"],
         "/api/v1/agency/agents",

@@ -162,7 +162,7 @@ Internal recording plane (`X-Vokit-Internal-Token` = `VOKIT_INTERNAL_RECORDING_T
 - `POST /api/v1/{platform|agency|customer}/calls/{call_id}/artifacts/{artifact_id}/access`
 - Agency/platform hold + delete after retention; `reconcile_recordings` for orphans
 
-Tenant schema current version: `0010_integrations`.
+Tenant schema current version: `0011_customer_profile`.
 
 Integrations (Q-009 / Q-010):
 

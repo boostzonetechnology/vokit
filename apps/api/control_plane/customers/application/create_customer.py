@@ -20,6 +20,7 @@ from control_plane.identity.application.invite_user import InviteUser, InviteUse
 from control_plane.identity.application.ports import MembershipRecord
 from control_plane.identity.domain.policies import MembershipBinding
 from control_plane.identity.domain.types import PrincipalType
+from control_plane.notifications.application.hooks import deliver_invitation
 from control_plane.tenancy.application.ports import Clock, TenantRepository
 from control_plane.tenancy.domain.lifecycle import assert_agency_may_create_customer
 from shared_kernel.errors import DomainError
@@ -37,15 +38,18 @@ class CreateCustomerCommand:
     agency_tenant_id: uuid.UUID
     actor: MembershipRecord
     privileged: bool
-    owner_email: str = ""
+    owner_email: str
     customer_id: uuid.UUID | None = None
     ban_keys: tuple[BanKey, ...] = ()
+    legal_name: str = ""
+    phone: str = ""
+    country: str = ""
+    timezone: str = ""
 
 
 @dataclass(frozen=True, slots=True)
 class CreatedCustomer:
     customer: TenantCustomer
-    invitation_token: str | None
 
 
 class CreateCustomer:
@@ -69,6 +73,9 @@ class CreateCustomer:
         name = command.display_name.strip()
         if not name:
             raise DomainError("validation_error", "display_name is required.")
+        owner_email = command.owner_email.strip()
+        if not owner_email:
+            raise DomainError("validation_error", "owner_email is required.")
         tenant = self._tenants.get(command.agency_tenant_id)
         if tenant is None:
             raise DomainError("not_found", "Resource not found.", http_status=404)
@@ -78,9 +85,7 @@ class CreateCustomer:
             privileged=command.privileged,
         )
         keys = list(command.ban_keys)
-        owner_email = command.owner_email.strip()
-        if owner_email:
-            keys.append(BanKey(kind="email", value=owner_email))
+        keys.append(BanKey(kind="email", value=owner_email))
         if self._bans.is_banned(keys):
             raise ineligible_customer()
         customer_id = command.customer_id or new_uuid7()
@@ -88,11 +93,17 @@ class CreateCustomer:
         if existing is not None:
             raise reassignment_forbidden()
         now = self._clock.now()
+        legal_name = (command.legal_name or "").strip() or name
         row = TenantCustomer(
             customer_id=customer_id,
             tenant_id=tenant.id,
             display_name=name,
-            status=CustomerStatus.ACTIVE,
+            status=CustomerStatus.INVITED,
+            legal_name=legal_name,
+            owner_email=owner_email,
+            phone=(command.phone or "").strip(),
+            country=(command.country or "").strip(),
+            timezone=(command.timezone or "").strip(),
             created_at=now,
             updated_at=now,
         )
@@ -102,11 +113,39 @@ class CreateCustomer:
                 id=customer_id,
                 tenant_id=tenant.id,
                 display_name=name,
-                status=CustomerStatus.ACTIVE,
+                status=CustomerStatus.INVITED,
                 created_at=now,
             )
         )
-        token = self._invite_owner(command, tenant.id, customer_id)
+        try:
+            self._invite_owner(command, tenant.id, customer_id, owner_email)
+        except DomainError:
+            self._lifecycle.put_customer(
+                tenant.id,
+                TenantCustomer(
+                    customer_id=stored.customer_id,
+                    tenant_id=stored.tenant_id,
+                    display_name=stored.display_name,
+                    status=CustomerStatus.CLOSED,
+                    legal_name=stored.legal_name,
+                    owner_email=stored.owner_email,
+                    phone=stored.phone,
+                    country=stored.country,
+                    timezone=stored.timezone,
+                    created_at=stored.created_at,
+                    updated_at=self._clock.now(),
+                ),
+            )
+            self._index.update(
+                CustomerIndexRecord(
+                    id=customer_id,
+                    tenant_id=tenant.id,
+                    display_name=name,
+                    status=CustomerStatus.CLOSED,
+                    created_at=now,
+                )
+            )
+            raise
         log_event(
             logger,
             "customer.created",
@@ -118,21 +157,20 @@ class CreateCustomer:
             indexed_tenant_id=tenant.id,
             route_tenant_id=stored.tenant_id,
         )
-        return CreatedCustomer(customer=stored, invitation_token=token)
+        saved = self._lifecycle.get_customer(tenant.id, customer_id) or stored
+        return CreatedCustomer(customer=saved)
 
     def _invite_owner(
         self,
         command: CreateCustomerCommand,
         tenant_id: uuid.UUID,
         customer_id: uuid.UUID,
-    ) -> str | None:
-        email = command.owner_email.strip()
-        if not email:
-            return None
+        owner_email: str,
+    ) -> None:
         try:
-            _record, token = self._invites.execute(
+            record, token = self._invites.execute(
                 InviteUserCommand(
-                    email=email,
+                    email=owner_email,
                     binding=MembershipBinding(
                         principal_type=PrincipalType.CUSTOMER,
                         role="customer_owner",
@@ -143,8 +181,21 @@ class CreateCustomer:
                     actor_membership=command.actor,
                 )
             )
-            return token
         except DomainError as exc:
             if exc.code == "membership_conflict":
-                return None
+                raise DomainError(
+                    "owner_conflict",
+                    "Owner email already has a membership.",
+                    http_status=409,
+                ) from exc
             raise
+        deliver_invitation(
+            email=record.email,
+            role=record.role,
+            principal_type=record.principal_type,
+            tenant_id=record.tenant_id,
+            customer_id=record.customer_id,
+            token=token,
+            actor_id=command.actor.user_id,
+            actor_role=command.actor.role,
+        )
