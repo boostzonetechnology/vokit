@@ -36,6 +36,8 @@ Accept: `POST /api/v1/auth/invitations/accept` → membership + Invited→Active
 
 Privileged platform `POST .../status` with `action=activate` can also promote Invited→Active (tests / ops).
 
+Invite email is queued (`notifications.send_email` via Celery/Redis). Configure SMTP in `.env` (`EMAIL_*`). Local default `CELERY_TASK_ALWAYS_EAGER=true` sends inline; set to `0` and run a Celery worker for a real queue. See `apps/api/control_plane/notifications/README.md`.
+
 ### Minutes adjustment
 
 ```text

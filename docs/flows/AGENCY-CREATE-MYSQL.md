@@ -104,8 +104,9 @@ Admin is used only for create/grant. Schema apply and later runtime use the per-
 - Agency status set to **`invited`** (not `active`).
 - Agency profile written into the tenant lifecycle store.
 - Owner invitation created (`agency_owner` membership binding).
-- `deliver_invitation` sends `invitation.agency` email with a one-time token.
+- `deliver_invitation` queues `invitation.agency` email (Celery → SMTP) with a one-time token.
 - Create response does **not** include the invitation token or DB password.
+- SMTP: set `EMAIL_*` in `.env`. See `apps/api/control_plane/notifications/README.md`.
 
 ### 6. Owner accepts invitation (separate call)
 

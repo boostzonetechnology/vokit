@@ -88,6 +88,14 @@ class InboxRepository(Protocol):
 
 class DeliveryRepository(Protocol):
     def create(self, record: DeliveryRecord) -> None: ...
+    def get(self, delivery_id: uuid.UUID) -> DeliveryRecord | None: ...
+    def update_status(
+        self,
+        delivery_id: uuid.UUID,
+        *,
+        status: DeliveryStatus,
+        error: str = "",
+    ) -> None: ...
     def list_all(self) -> list[DeliveryRecord]: ...
 
 

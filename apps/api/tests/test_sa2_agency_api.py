@@ -89,7 +89,9 @@ def test_agency_create_is_invited_and_delivers_email() -> None:
     assert body["status"] == "invited"
     assert "owner_invitation_token" not in body
     assert NotificationDelivery.objects.filter(
-        event_type="invitation.agency", recipient_email="owner-invite@vokit.test"
+        event_type="invitation.agency",
+        recipient_email="owner-invite@vokit.test",
+        status="sent",
     ).exists()
     assert len(mail.outbox) >= 1
 
