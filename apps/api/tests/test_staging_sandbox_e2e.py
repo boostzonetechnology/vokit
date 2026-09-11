@@ -18,9 +18,9 @@ from control_plane.tenancy.infrastructure.container import (
     restore_tenant,
 )
 from shared_kernel.hmac import sign_hmac_sha256
-from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 from shared_kernel.ids import new_uuid7
 from tenant.schema import CURRENT_VERSION
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 STRIPE_REF = "STRIPE_WEBHOOK_SECRET"
