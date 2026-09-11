@@ -21,6 +21,7 @@ from control_plane.billing.infrastructure.container import (
     billing_settings,
     create_plan,
     create_topup,
+    get_customer_subscription,
     invoice_index,
     pay_invoice,
     payment_processor,
@@ -218,6 +219,28 @@ class PlatformPlanArchiveView(CsrfAPIView):
 
 
 class PlatformCustomerSubscriptionView(CsrfAPIView):
+    def get(self, request: Request, customer_id: str) -> Response:
+        _require_platform_perm(request, "customers.view")
+        view = get_customer_subscription().execute(
+            parse_uuid(customer_id, field="customer_id")
+        )
+        if view is None:
+            return success(None)
+        return success(
+            {
+                "id": str(view.subscription.subscription_id),
+                "customer_id": str(view.subscription.customer_id),
+                "agency_id": str(view.subscription.tenant_id),
+                "plan_id": str(view.subscription.plan_id),
+                "plan_version_id": str(view.subscription.plan_version_id),
+                "plan_name": view.plan_name,
+                "plan_version": view.plan_version,
+                "status": view.subscription.status.value,
+                "cycle": view.subscription.cycle,
+                "included_minutes": view.included_minutes,
+            }
+        )
+
     def post(self, request: Request, customer_id: str) -> Response:
         _require_platform_perm(request, "customers.create")
         invoice = assign_subscription().execute(

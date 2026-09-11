@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from control_plane.audit.infrastructure.container import record_audit
 from control_plane.customers.application.change_customer import ChangeCustomerStatus
 from control_plane.customers.application.create_customer import CreateCustomer
 from control_plane.customers.infrastructure.repositories import (
@@ -36,4 +37,5 @@ def change_customer_status() -> ChangeCustomerStatus:
         customer_index(),
         lifecycle(),
         SystemClock(),
+        record_audit(),
     )

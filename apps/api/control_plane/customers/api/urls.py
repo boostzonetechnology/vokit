@@ -10,7 +10,9 @@ from control_plane.customers.api.views import (
     PlatformBanKeyView,
     PlatformCustomerCollectionView,
     PlatformCustomerDetailView,
+    PlatformCustomerMinutesAdjustmentView,
     PlatformCustomerStatusView,
+    PlatformCustomerUsageView,
 )
 
 urlpatterns = [
@@ -28,6 +30,16 @@ urlpatterns = [
         "platform/customers/<str:customer_id>/status",
         PlatformCustomerStatusView.as_view(),
         name="platform-customer-status",
+    ),
+    path(
+        "platform/customers/<str:customer_id>/usage",
+        PlatformCustomerUsageView.as_view(),
+        name="platform-customer-usage",
+    ),
+    path(
+        "platform/customers/<str:customer_id>/minutes-adjustment",
+        PlatformCustomerMinutesAdjustmentView.as_view(),
+        name="platform-customer-minutes-adjustment",
     ),
     path(
         "platform/risk/ban-keys",

@@ -77,6 +77,19 @@ def test_customer_status_agency_cannot_close() -> None:
     assert exc.value.code == "forbidden"
 
 
+def test_customer_invited_activates_only_when_privileged() -> None:
+    assert (
+        apply_customer_status_action(
+            CustomerStatus.INVITED, "activate", privileged=True
+        )
+        is CustomerStatus.ACTIVE
+    )
+    with pytest.raises(DomainError):
+        apply_customer_status_action(
+            CustomerStatus.INVITED, "activate", privileged=False
+        )
+
+
 def test_ban_key_hash_is_stable() -> None:
     first = hash_ban_key(BanKey(kind="email", value="A@B.test"))
     second = hash_ban_key(BanKey(kind="email", value="a@b.test"))

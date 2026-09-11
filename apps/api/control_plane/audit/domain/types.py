@@ -21,6 +21,8 @@ HIGH_RISK_ACTIONS = frozenset(
         "user.disabled",
         "agency.suspended",
         "payout.decided",
+        "customer.status.changed",
+        "customer.minutes.adjusted",
     }
 )
 
@@ -35,5 +37,6 @@ OVERRIDE_ACTIONS = frozenset(
         "settings.flag_changed",
         "agency.suspended",
         "payout.decided",
+        "customer.minutes.adjusted",
     }
 )

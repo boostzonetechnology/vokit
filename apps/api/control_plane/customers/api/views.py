@@ -3,6 +3,12 @@ from __future__ import annotations
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from control_plane.billing.application.adjust_minutes import AdjustCustomerMinutesCommand
+from control_plane.billing.infrastructure.container import (
+    adjust_customer_minutes,
+    get_customer_subscription,
+    get_customer_usage,
+)
 from control_plane.customers.application.create_customer import CreateCustomerCommand
 from control_plane.customers.domain.policies import BanKey, customer_not_found
 from control_plane.customers.domain.types import CustomerStatus
@@ -51,6 +57,13 @@ def _customer_payload(row: TenantCustomer) -> dict[str, object]:
         "agency_id": str(row.tenant_id),
         "display_name": row.display_name,
         "status": row.status.value,
+        "legal_name": row.legal_name,
+        "owner_email": row.owner_email,
+        "phone": row.phone,
+        "country": row.country,
+        "timezone": row.timezone,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
 
@@ -60,6 +73,7 @@ def _index_payload(row) -> dict[str, object]:
         "agency_id": str(row.tenant_id),
         "display_name": row.display_name,
         "status": row.status.value,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
 
@@ -101,12 +115,13 @@ class PlatformCustomerCollectionView(CsrfAPIView):
                     request.data.get("customer_id"), field="customer_id"
                 ),
                 ban_keys=_ban_keys(request.data),
+                legal_name=str(request.data.get("legal_name") or ""),
+                phone=str(request.data.get("phone") or ""),
+                country=str(request.data.get("country") or ""),
+                timezone=str(request.data.get("timezone") or ""),
             )
         )
-        payload = _customer_payload(created.customer)
-        if created.invitation_token:
-            payload["owner_invitation_token"] = created.invitation_token
-        return success(payload, status=201)
+        return success(_customer_payload(created.customer), status=201)
 
 
 class PlatformCustomerDetailView(CsrfAPIView):
@@ -119,12 +134,28 @@ class PlatformCustomerDetailView(CsrfAPIView):
         row = lifecycle().get_customer(indexed.tenant_id, identifier)
         if row is None:
             return success(_index_payload(indexed))
-        return success(_customer_payload(row))
+        payload = _customer_payload(row)
+        usage = get_customer_usage().execute(identifier)
+        payload["remaining_minutes"] = usage.remaining_minutes
+        subscription = get_customer_subscription().execute(identifier)
+        if subscription is not None:
+            payload["subscription"] = {
+                "id": str(subscription.subscription.subscription_id),
+                "plan_id": str(subscription.subscription.plan_id),
+                "plan_version_id": str(subscription.subscription.plan_version_id),
+                "plan_name": subscription.plan_name,
+                "plan_version": subscription.plan_version,
+                "status": subscription.subscription.status.value,
+                "included_minutes": subscription.included_minutes,
+            }
+        else:
+            payload["subscription"] = None
+        return success(payload)
 
 
 class PlatformCustomerStatusView(CsrfAPIView):
     def post(self, request: Request, customer_id: str) -> Response:
-        _require_platform_perm(request, "customers.create")
+        context = _require_platform_perm(request, "customers.create")
         identifier = parse_uuid(customer_id, field="customer_id")
         indexed = customer_index().get(identifier)
         if indexed is None:
@@ -134,8 +165,67 @@ class PlatformCustomerStatusView(CsrfAPIView):
             tenant_id=indexed.tenant_id,
             action=str(request.data.get("action") or ""),
             privileged=True,
+            reason=str(request.data.get("reason") or ""),
+            actor_id=context.user.id,
+            actor_role=context.membership.role,
         )
         return success(_customer_payload(row))
+
+
+class PlatformCustomerUsageView(CsrfAPIView):
+    def get(self, request: Request, customer_id: str) -> Response:
+        _require_platform_perm(request, "customers.view")
+        snapshot = get_customer_usage().execute(
+            parse_uuid(customer_id, field="customer_id")
+        )
+        return success(
+            {
+                "remaining_minutes": snapshot.remaining_minutes,
+                "lots": [
+                    {
+                        "id": str(lot.lot_id),
+                        "kind": lot.kind.value,
+                        "granted_minutes": lot.granted_minutes,
+                        "remaining_minutes": lot.remaining_minutes,
+                    }
+                    for lot in snapshot.lots
+                ],
+            }
+        )
+
+
+class PlatformCustomerMinutesAdjustmentView(CsrfAPIView):
+    def post(self, request: Request, customer_id: str) -> Response:
+        context = _require_platform_perm(request, "customers.create")
+        raw_minutes = request.data.get("minutes")
+        try:
+            minutes = int(raw_minutes)
+        except (TypeError, ValueError) as exc:
+            raise DomainError("validation_error", "minutes must be a non-zero integer.") from exc
+        snapshot = adjust_customer_minutes().execute(
+            AdjustCustomerMinutesCommand(
+                customer_id=parse_uuid(customer_id, field="customer_id"),
+                minutes=minutes,
+                reason=str(request.data.get("reason") or ""),
+                actor_id=context.user.id,
+                actor_role=context.membership.role,
+            )
+        )
+        return success(
+            {
+                "remaining_minutes": snapshot.remaining_minutes,
+                "lots": [
+                    {
+                        "id": str(lot.lot_id),
+                        "kind": lot.kind.value,
+                        "granted_minutes": lot.granted_minutes,
+                        "remaining_minutes": lot.remaining_minutes,
+                    }
+                    for lot in snapshot.lots
+                ],
+            },
+            status=201,
+        )
 
 
 class AgencyCustomerCollectionView(CsrfAPIView):
@@ -171,12 +261,13 @@ class AgencyCustomerCollectionView(CsrfAPIView):
                 owner_email=str(request.data.get("owner_email") or ""),
                 customer_id=None,
                 ban_keys=_ban_keys(request.data),
+                legal_name=str(request.data.get("legal_name") or ""),
+                phone=str(request.data.get("phone") or ""),
+                country=str(request.data.get("country") or ""),
+                timezone=str(request.data.get("timezone") or ""),
             )
         )
-        payload = _customer_payload(created.customer)
-        if created.invitation_token:
-            payload["owner_invitation_token"] = created.invitation_token
-        return success(payload, status=201)
+        return success(_customer_payload(created.customer), status=201)
 
 
 class AgencyCustomerDetailView(CsrfAPIView):
@@ -209,6 +300,9 @@ class AgencyCustomerStatusView(CsrfAPIView):
             tenant_id=tenant_id,
             action=str(request.data.get("action") or ""),
             privileged=False,
+            reason=str(request.data.get("reason") or ""),
+            actor_id=context.user.id,
+            actor_role=context.membership.role,
         )
         return success(_customer_payload(row))
 

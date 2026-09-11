@@ -14,7 +14,7 @@ from control_plane.identity.infrastructure.repositories import DjangoMembershipR
 from control_plane.identity.models import User
 from control_plane.notifications.models import NotificationDelivery
 from shared_kernel.ids import new_uuid7
-from tests.tenant_db_fixtures import tenant_db_payload
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 
@@ -89,7 +89,9 @@ def test_agency_create_is_invited_and_delivers_email() -> None:
     assert body["status"] == "invited"
     assert "owner_invitation_token" not in body
     assert NotificationDelivery.objects.filter(
-        event_type="invitation.agency", recipient_email="owner-invite@vokit.test"
+        event_type="invitation.agency",
+        recipient_email="owner-invite@vokit.test",
+        status="sent",
     ).exists()
     assert len(mail.outbox) >= 1
 
@@ -241,7 +243,7 @@ def test_create_agents_capability_blocks_agency_actor() -> None:
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Cust", "agency_id": agency_id},
+        platform_customer_body(agency_id, "Cust"),
     )
     customer_id = customer.json()["data"]["id"]
     _user(

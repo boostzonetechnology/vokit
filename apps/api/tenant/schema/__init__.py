@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-CURRENT_VERSION = "0010_integrations"
+CURRENT_VERSION = "0011_customer_profile"
 
 SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
     "0001_isolation": (
@@ -389,6 +389,16 @@ SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
         )
         """,
     ),
+    "0011_customer_profile": (
+        """
+        ALTER TABLE customers
+            ADD COLUMN legal_name VARCHAR(255) NOT NULL DEFAULT '',
+            ADD COLUMN owner_email VARCHAR(255) NOT NULL DEFAULT '',
+            ADD COLUMN phone VARCHAR(64) NOT NULL DEFAULT '',
+            ADD COLUMN country VARCHAR(64) NOT NULL DEFAULT '',
+            ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT ''
+        """,
+    ),
 }
 
 VERSION_ORDER = (
@@ -402,4 +412,5 @@ VERSION_ORDER = (
     "0008_media",
     "0009_recordings",
     "0010_integrations",
+    "0011_customer_profile",
 )

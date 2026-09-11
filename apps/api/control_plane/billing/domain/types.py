@@ -40,6 +40,7 @@ class LineKind(StrEnum):
 class LotKind(StrEnum):
     INCLUDED = "included"
     TOPUP = "topup"
+    ADJUSTMENT = "adjustment"
     OVERAGE = "overage"
 
 
@@ -55,7 +56,12 @@ class ProcessorEventStatus(StrEnum):
     DUPLICATE = "duplicate"
 
 
-DRAIN_ORDER: tuple[LotKind, ...] = (LotKind.INCLUDED, LotKind.TOPUP, LotKind.OVERAGE)
+DRAIN_ORDER: tuple[LotKind, ...] = (
+    LotKind.INCLUDED,
+    LotKind.TOPUP,
+    LotKind.ADJUSTMENT,
+    LotKind.OVERAGE,
+)
 
 COMMISSIONABLE_BY_DEFAULT: frozenset[LineKind] = frozenset(
     {LineKind.SUBSCRIPTION, LineKind.TOPUP, LineKind.OVERAGE}

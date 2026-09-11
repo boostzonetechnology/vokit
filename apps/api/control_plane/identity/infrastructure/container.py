@@ -38,12 +38,25 @@ def invite_user() -> InviteUser:
 
 
 def accept_invitation() -> AcceptInvitation:
+    from control_plane.customers.application.change_customer import (
+        ActivateCustomerOnInviteAccept,
+    )
+    from control_plane.customers.infrastructure.repositories import (
+        DjangoCustomerIndexRepository,
+    )
+    from control_plane.tenancy.infrastructure.container import lifecycle
+
     return AcceptInvitation(
         users(),
         memberships(),
         invitations(),
         DjangoPasswordHasher(),
         SystemClock(),
+        ActivateCustomerOnInviteAccept(
+            DjangoCustomerIndexRepository(),
+            lifecycle(),
+            SystemClock(),
+        ),
     )
 
 

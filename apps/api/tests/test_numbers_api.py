@@ -15,6 +15,7 @@ from control_plane.identity.models import User
 from control_plane.telephony.domain.types import ReservationStatus
 from control_plane.telephony.models import PhoneNumberReservation
 from shared_kernel.ids import new_uuid7
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 
@@ -67,8 +68,6 @@ def _login(client: Client, email: str) -> None:
 
 def _create_agency(client: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    from tests.tenant_db_fixtures import tenant_db_payload
-
     response = _post(
         client,
         "/api/v1/platform/agencies",
@@ -98,9 +97,16 @@ def _ready_agency(platform: Client, suffix: str):
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": f"Cust {suffix}", "agency_id": str(agency_id)},
+        platform_customer_body(agency_id, f"Cust {suffix}"),
     )
+    assert customer.status_code == 201
     customer_id = uuid.UUID(customer.json()["data"]["id"])
+    activated = _post(
+        platform,
+        f"/api/v1/platform/customers/{customer_id}/status",
+        {"action": "activate"},
+    )
+    assert activated.status_code == 200
     plan = _post(
         platform,
         "/api/v1/platform/plans",

@@ -124,6 +124,35 @@ def settle_payment() -> SettlePayment:
     )
 
 
+def get_customer_subscription():
+    from control_plane.billing.application.get_subscription import GetCustomerSubscription
+
+    return GetCustomerSubscription(
+        customer_index(),
+        tenant_billing(),
+        plans(),
+        plan_versions(),
+    )
+
+
+def get_customer_usage():
+    from control_plane.billing.application.adjust_minutes import GetCustomerUsage
+
+    return GetCustomerUsage(customer_index(), tenant_billing())
+
+
+def adjust_customer_minutes():
+    from control_plane.audit.infrastructure.container import record_audit
+    from control_plane.billing.application.adjust_minutes import AdjustCustomerMinutes
+
+    return AdjustCustomerMinutes(
+        customer_index(),
+        tenant_billing(),
+        SystemClock(),
+        record_audit(),
+    )
+
+
 def payment_processor(slug: str) -> StripePaymentAdapter | BraintreePaymentAdapter:
     if slug == "stripe":
         return StripePaymentAdapter()

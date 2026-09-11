@@ -8,3 +8,4 @@ The SRS remains the product source of truth. If a gap file and the SRS conflict,
 |---|---|---|
 | [SA2 Agencies backend](SA2-AGENCIES-BACKEND-GAPS.md) | Super Admin §7.2 Agencies (`SA2-*`) | Django API |
 | [Tenant DB per-agency user](TENANT-DB-PER-AGENCY-USER.md) | SA2-001 / tenancy — dedicated MySQL user per agency | Backend Phase B done; Super Admin UI later |
+| [SA3 Customers backend](SA3-CUSTOMERS-BACKEND-GAPS.md) | Super Admin §7.3 Customers (`SA3-*`) | Django API — plan slice done; deferred items remain open |

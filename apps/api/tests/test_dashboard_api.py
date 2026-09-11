@@ -12,6 +12,7 @@ from control_plane.identity.infrastructure.repositories import DjangoMembershipR
 from control_plane.identity.models import User
 from shared_kernel.hmac import sign_hmac_sha256
 from shared_kernel.ids import new_uuid7
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 STRIPE_REF = "STRIPE_WEBHOOK_SECRET"
@@ -65,8 +66,6 @@ def _login(client: Client, email: str) -> None:
 
 def _agency(platform: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    from tests.tenant_db_fixtures import tenant_db_payload
-
     return _post(
         platform,
         "/api/v1/platform/agencies",
@@ -95,7 +94,7 @@ def test_dashboards_are_portal_scoped_and_use_ledger_revenue() -> None:
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Dash Cust", "agency_id": str(agency_a)},
+        platform_customer_body(agency_a, "Dash Cust"),
     )
     customer_id = uuid.UUID(customer.json()["data"]["id"])
     plan = _post(

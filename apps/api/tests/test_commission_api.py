@@ -19,6 +19,7 @@ from control_plane.kyc.infrastructure.hmac import sign_kyc_body
 from control_plane.tenancy.infrastructure.container import tenant_repo
 from shared_kernel.hmac import sign_hmac_sha256
 from shared_kernel.ids import new_uuid7
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 STRIPE_REF = "STRIPE_WEBHOOK_SECRET"
@@ -81,8 +82,6 @@ def _login(client: Client, email: str) -> None:
 
 def _create_agency(client: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    from tests.tenant_db_fixtures import tenant_db_payload
-
     response = _post(
         client,
         "/api/v1/platform/agencies",
@@ -151,7 +150,7 @@ def _ready_paid_agency():
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Cust A", "agency_id": str(agency_id)},
+        platform_customer_body(agency_id, "Cust A"),
     )
     customer_id = uuid.UUID(customer.json()["data"]["id"])
     plan = _post(

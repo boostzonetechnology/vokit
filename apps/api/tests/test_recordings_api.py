@@ -25,7 +25,7 @@ from control_plane.telephony.infrastructure.container import reset_sip_edge
 from control_plane.tenancy.infrastructure.container import router, runtime
 from shared_kernel.ids import new_uuid7
 from tenant.media.service import TenantMediaService
-from tests.tenant_db_fixtures import tenant_db_payload
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 TEL_TOKEN = "test-internal-telephony-token"
@@ -116,9 +116,16 @@ def _ready_call(*, tag: str, e164: str, hours: list | None = None) -> dict:
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": f"Rec Cust {tag}", "agency_id": str(agency_id)},
+        platform_customer_body(agency_id, f"Rec Cust {tag}"),
     )
+    assert customer.status_code == 201
     customer_id = uuid.UUID(customer.json()["data"]["id"])
+    customer_activated = _post(
+        platform,
+        f"/api/v1/platform/customers/{customer_id}/status",
+        {"action": "activate"},
+    )
+    assert customer_activated.status_code == 200
     plan = _post(
         platform,
         "/api/v1/platform/plans",
@@ -350,7 +357,7 @@ def test_recording_negative_matrix() -> None:
     other = _post(
         ctx_a["platform"],
         "/api/v1/platform/customers",
-        {"display_name": "Other Cust", "agency_id": str(ctx_a["agency_id"])},
+        platform_customer_body(ctx_a["agency_id"], "Other Cust"),
     )
     other_id = uuid.UUID(other.json()["data"]["id"])
     _user(
