@@ -45,14 +45,14 @@ export function DashboardHeader({
         <button
           type="button"
           className="rounded-lg border border-border-default bg-surface px-3 py-2 text-body font-semibold text-text-primary"
-          onClick={() => onNavigate("#/agents")}
+          onClick={() => onNavigate("/agents")}
         >
           Test agent
         </button>
         <button
           type="button"
           className="rounded-lg bg-brand px-3 py-2 text-body font-semibold text-text-inverse"
-          onClick={() => onNavigate("#/agents")}
+          onClick={() => onNavigate("/agents")}
         >
           Create agent
         </button>

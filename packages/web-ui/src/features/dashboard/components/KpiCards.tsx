@@ -69,7 +69,7 @@ export function KpiCards({
       value: formatCount(calls ?? 0),
       hint: "In selected period",
       accent: "brand" as const,
-      href: "#/calls",
+      href: "/calls",
     },
     {
       key: "minutes",
@@ -77,7 +77,7 @@ export function KpiCards({
       value: formatCount(minutes ?? 0),
       hint: "Billed minutes",
       accent: "success" as const,
-      href: "#/calls",
+      href: "/calls",
     },
     {
       key: "active_agencies",
@@ -85,7 +85,7 @@ export function KpiCards({
       value: formatCount(activeAgencies ?? 0),
       hint: "Currently active",
       accent: "info" as const,
-      href: "#/agencies",
+      href: "/agencies",
     },
     {
       key: "balance",
@@ -101,7 +101,7 @@ export function KpiCards({
           ? `Period revenue ${formatMoneyMinor(revenue, currency)}`
           : "Ledger projection",
       accent: "warning" as const,
-      href: "#/payouts",
+      href: "/payouts",
     },
   ];
 

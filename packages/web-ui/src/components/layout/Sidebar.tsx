@@ -1,4 +1,5 @@
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { NavLink } from "react-router-dom";
 
 import type { Portal, SessionPayload } from "@/api";
 import { cn } from "@/lib/utils";
@@ -88,15 +89,15 @@ export function Sidebar({
             )}
             <ul className="m-0 list-none p-0">
               {group.items.map((item) => {
-                const itemRoute = item.href.replace("#/", "");
-                const isActive = itemRoute === route;
+                const itemRoute = item.href.replace(/^\/+/, "");
+                const isActive = itemRoute === route || route.startsWith(`${itemRoute}/`);
                 const Icon = item.icon;
                 const label = item.label;
 
                 return (
                   <li key={item.href} className="relative mb-0.5">
-                    <a
-                      href={item.href}
+                    <NavLink
+                      to={item.href}
                       title={collapsed ? label : undefined}
                       className={cn(
                         "group relative flex items-center rounded-lg text-body no-underline transition-colors",
@@ -118,7 +119,7 @@ export function Sidebar({
                           {label}
                         </span>
                       ) : null}
-                    </a>
+                    </NavLink>
                   </li>
                 );
               })}

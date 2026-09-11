@@ -61,7 +61,7 @@ export function LiveAssistants({
       <button
         type="button"
         className="mt-4 bg-transparent p-0 text-body font-semibold text-text-brand"
-        onClick={() => onNavigate("#/agents")}
+        onClick={() => onNavigate("/agents")}
       >
         Manage agents →
       </button>

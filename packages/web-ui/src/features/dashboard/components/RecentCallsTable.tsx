@@ -45,7 +45,7 @@ export function RecentCallsTable({
         <button
           type="button"
           className="bg-transparent p-0 text-body font-semibold text-text-brand"
-          onClick={() => onNavigate("#/calls")}
+          onClick={() => onNavigate("/calls")}
         >
           View call log →
         </button>
@@ -73,7 +73,7 @@ export function RecentCallsTable({
                   <tr
                     key={call.id}
                     className="cursor-pointer hover:bg-brand-subtle/40"
-                    onClick={() => onNavigate("#/calls")}
+                    onClick={() => onNavigate("/calls")}
                   >
                     <td className="px-2 py-3 font-medium text-text-primary">
                       {call.remote_e164 || call.e164 || call.id.slice(0, 8)}

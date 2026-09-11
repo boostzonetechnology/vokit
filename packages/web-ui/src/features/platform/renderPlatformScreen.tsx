@@ -1,10 +1,10 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 
+import { isAgenciesRoute } from "@/features/agencies/lib/routes";
+import { renderAgencyRoutes } from "@/features/agencies/renderAgencyRoutes";
+
 const PlatformAgentsScreen = lazy(() =>
   import("@/features/agents/PlatformAgentsScreen").then((m) => ({ default: m.PlatformAgentsScreen })),
-);
-const PlatformAgenciesScreen = lazy(() =>
-  import("@/features/agencies/PlatformAgenciesScreen").then((m) => ({ default: m.PlatformAgenciesScreen })),
 );
 const PlatformCustomersScreen = lazy(() =>
   import("@/features/customers/PlatformCustomersScreen").then((m) => ({
@@ -90,17 +90,15 @@ function Lazy({ children }: { children: ReactNode }) {
 
 /** Platform-only product routes — code-split per module. */
 export function renderPlatformProductScreen(route: string): ReactNode | null {
+  if (isAgenciesRoute(route)) {
+    return renderAgencyRoutes(route);
+  }
+
   switch (route) {
     case "agents":
       return (
         <Lazy>
           <PlatformAgentsScreen />
-        </Lazy>
-      );
-    case "agencies":
-      return (
-        <Lazy>
-          <PlatformAgenciesScreen />
         </Lazy>
       );
     case "customers":

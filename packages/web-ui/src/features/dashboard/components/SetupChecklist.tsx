@@ -22,25 +22,25 @@ export function SetupChecklist({
       id: "agency",
       label: "Create your first agency",
       done: agencies > 0,
-      href: "#/agencies",
+      href: "/agencies",
     },
     {
       id: "number",
       label: "Choose a phone number",
       done: numbers > 0,
-      href: "#/numbers",
+      href: "/numbers",
     },
     {
       id: "customer",
       label: "Add your first customer",
       done: customers > 0,
-      href: "#/customers",
+      href: "/customers",
     },
     {
       id: "call",
       label: "Place a test call",
       done: calls > 0,
-      href: "#/calls",
+      href: "/calls",
     },
   ];
 

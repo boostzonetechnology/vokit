@@ -1,4 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import {
   ApiError,
@@ -14,20 +22,47 @@ import { LoginScreen } from "@/features/auth/components/LoginScreen";
 import { AgencyDashboard } from "@/features/dashboard/AgencyDashboard";
 import { CustomerDashboard } from "@/features/dashboard/CustomerDashboard";
 import { PlatformDashboard } from "@/features/dashboard/PlatformDashboard";
-import { currentRoute, portalNav } from "@/nav";
+import { portalNav, routeFromPathname, toAppPath } from "@/nav";
 import { renderProductScreen } from "@/productScreens";
 
 type View = "loading" | "login" | "home" | "unauthenticated" | "forbidden";
 
+/** One-time migration for bookmarks that still use hash URLs. */
+function LegacyHashRedirect() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.startsWith("#/")) return;
+    navigate(toAppPath(hash), { replace: true });
+  }, [navigate]);
+
+  return null;
+}
+
 export function PortalApp({ portal, title }: { portal: Portal; title: string }) {
+  return (
+    <BrowserRouter>
+      <LegacyHashRedirect />
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/*" element={<PortalAppContent portal={portal} title={title} />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function PortalAppContent({ portal, title }: { portal: Portal; title: string }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [view, setView] = useState<View>("loading");
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [route, setRoute] = useState(currentRoute);
   const nav = useMemo(() => portalNav(portal), [portal]);
+  const route = routeFromPathname(location.pathname);
 
   async function refresh() {
     setError("");
@@ -51,15 +86,6 @@ export function PortalApp({ portal, title }: { portal: Portal; title: string }) 
   useEffect(() => {
     void refresh();
   }, [portal]);
-
-  useEffect(() => {
-    const onHash = () => setRoute(currentRoute());
-    window.addEventListener("hashchange", onHash);
-    if (!window.location.hash) {
-      window.location.hash = "#/dashboard";
-    }
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -89,9 +115,14 @@ export function PortalApp({ portal, title }: { portal: Portal; title: string }) 
     setView("login");
   }
 
-  const active = nav.find((item) => item.href === `#/${route}`) ?? nav[0];
-  const navigate = (href: string) => {
-    window.location.hash = href.startsWith("#") ? href : `#${href}`;
+  const active =
+    nav.find((item) => {
+      const itemRoute = item.href.replace(/^\/+/, "");
+      return itemRoute === route || route.startsWith(`${itemRoute}/`);
+    }) ?? nav[0];
+
+  const go = (to: string) => {
+    navigate(toAppPath(to));
   };
 
   if (view === "loading") {
@@ -152,11 +183,11 @@ export function PortalApp({ portal, title }: { portal: Portal; title: string }) 
     >
       {route === "dashboard" ? (
         portal === "platform" ? (
-          <PlatformDashboard onNavigate={navigate} />
+          <PlatformDashboard onNavigate={go} />
         ) : portal === "agency" ? (
-          <AgencyDashboard onNavigate={navigate} />
+          <AgencyDashboard onNavigate={go} />
         ) : (
-          <CustomerDashboard onNavigate={navigate} />
+          <CustomerDashboard onNavigate={go} />
         )
       ) : (
         renderProductScreen(portal, route, active.path, active.label)
