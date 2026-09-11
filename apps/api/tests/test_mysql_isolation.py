@@ -22,6 +22,19 @@ pytestmark = [
 ]
 
 
+def _configure_ci_admin() -> None:
+    """Map legacy CI TENANT_DB_* login onto Phase B admin + vault stubs."""
+    os.environ.setdefault(
+        "TENANT_DB_PASSWORD", os.environ.get("TENANT_DB_PASSWORD", "vokit_ci")
+    )
+    os.environ.setdefault(
+        "TENANT_DB_ADMIN_USER", os.environ.get("TENANT_DB_USER", "root")
+    )
+    if not (os.environ.get("TENANT_DB_ADMIN_PASSWORD") or "").strip():
+        os.environ["TENANT_DB_ADMIN_PASSWORD"] = os.environ["TENANT_DB_PASSWORD"]
+    os.environ.setdefault("TENANT_DB_ADMIN_PASSWORD_REF", "TENANT_DB_ADMIN_PASSWORD")
+
+
 def _target(tenant_id: uuid.UUID, name: str) -> ConnectionTarget:
     return ConnectionTarget(
         tenant_id=tenant_id,
@@ -45,16 +58,14 @@ class _EnvVault:
 
 
 def test_mysql_same_object_id_stays_on_current_tenant_db() -> None:
-    os.environ.setdefault("TENANT_DB_PASSWORD", os.environ.get("TENANT_DB_PASSWORD", "vokit_ci"))
+    _configure_ci_admin()
     runtime = MysqlRuntime(
-        admin_user=os.environ.get("TENANT_DB_ADMIN_USER", "root"),
-        admin_secret_ref=os.environ.get(
-            "TENANT_DB_ADMIN_PASSWORD_REF", "TENANT_DB_ADMIN_PASSWORD"
-        ),
+        admin_user=os.environ["TENANT_DB_ADMIN_USER"],
+        admin_secret_ref=os.environ["TENANT_DB_ADMIN_PASSWORD_REF"],
         vault=_EnvVault(),
     )
-    # For this optional CI harness, tenant open uses the same env password vault stub.
-    # Prefer dedicated per-tenant users when VOKIT_MYSQL_ISOLATION labs are upgraded.
+    # CI harness still uses one shared login for open(); production path uses
+    # per-agency vault users from agency create.
     tenant_a = new_uuid7()
     tenant_b = new_uuid7()
     object_id = new_uuid7()

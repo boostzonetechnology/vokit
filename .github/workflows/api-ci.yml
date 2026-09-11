@@ -60,5 +60,8 @@ jobs:
           TENANT_DB_USER: root
           TENANT_DB_PASSWORD: vokit_ci
           TENANT_DB_PASSWORD_REF: TENANT_DB_PASSWORD
+          TENANT_DB_ADMIN_USER: root
+          TENANT_DB_ADMIN_PASSWORD: vokit_ci
+          TENANT_DB_ADMIN_PASSWORD_REF: TENANT_DB_ADMIN_PASSWORD
           TENANT_DB_NAME_A: vokit_tenant_a
           TENANT_DB_NAME_B: vokit_tenant_b
