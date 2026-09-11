@@ -1,6 +1,6 @@
 import { CircleHelp, Search } from "lucide-react";
 
-import type { SessionPayload } from "../../api";
+import type { SessionPayload } from "@/api";
 import { UserAvatar } from "./UserAvatar";
 
 export function TopBar({

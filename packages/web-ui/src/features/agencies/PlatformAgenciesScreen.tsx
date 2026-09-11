@@ -1,12 +1,12 @@
 import { FormEvent, useMemo, useState, type ReactNode } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { MetricCard } from "../../components/ui/MetricCard";
-import { StatusBadge, type BadgeTone } from "../../components/ui/StatusBadge";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import {
   formatCount,
   formatMoneyMinor,
-} from "../dashboard/lib/format";
+} from "@/features/dashboard/lib/format";
 import { usePlatformAgencies } from "./hooks/usePlatformAgencies";
 import {
   CAPABILITY_FIELDS,

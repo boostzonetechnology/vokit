@@ -1,5 +1,5 @@
-import { cn } from "../../../lib/utils";
-import type { PlatformAgentRow } from "../hooks/usePlatformDashboard";
+import { cn } from "@/lib/utils";
+import type { PlatformAgentRow } from "@/features/dashboard/hooks/usePlatformDashboard";
 
 function agentLabel(agent: PlatformAgentRow): string {
   return agent.display_name || agent.name || agent.id.slice(0, 8);

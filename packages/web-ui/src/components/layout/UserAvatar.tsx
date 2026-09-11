@@ -1,5 +1,5 @@
-import type { SessionPayload } from "../../api";
-import { cn } from "../../lib/utils";
+import type { SessionPayload } from "@/api";
+import { cn } from "@/lib/utils";
 
 function initials(email: string): string {
   const local = email.split("@")[0] ?? "U";

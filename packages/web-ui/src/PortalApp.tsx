@@ -8,14 +8,14 @@ import {
   isApiError,
   login,
   logout,
-} from "./api";
-import { AppShell } from "./components/layout/AppShell";
-import { LoginScreen } from "./features/auth/components/LoginScreen";
-import { AgencyDashboard } from "./features/dashboard/AgencyDashboard";
-import { CustomerDashboard } from "./features/dashboard/CustomerDashboard";
-import { PlatformDashboard } from "./features/dashboard/PlatformDashboard";
-import { currentRoute, portalNav } from "./nav";
-import { renderProductScreen } from "./productScreens";
+} from "@/api";
+import { AppShell } from "@/components/layout/AppShell";
+import { LoginScreen } from "@/features/auth/components/LoginScreen";
+import { AgencyDashboard } from "@/features/dashboard/AgencyDashboard";
+import { CustomerDashboard } from "@/features/dashboard/CustomerDashboard";
+import { PlatformDashboard } from "@/features/dashboard/PlatformDashboard";
+import { currentRoute, portalNav } from "@/nav";
+import { renderProductScreen } from "@/productScreens";
 
 type View = "loading" | "login" | "home" | "unauthenticated" | "forbidden";
 

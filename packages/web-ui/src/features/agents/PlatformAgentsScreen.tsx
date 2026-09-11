@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState, type ReactNode } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { StatusBadge, type BadgeTone } from "../../components/ui/StatusBadge";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { usePlatformAgentsDirectory } from "./hooks/usePlatformAgentsDirectory";
 import type { PlatformAgentRow } from "./types";
 

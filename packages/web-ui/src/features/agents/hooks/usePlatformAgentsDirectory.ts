@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "../../../api";
+import { apiGet, apiSend, isApiError } from "@/api";
 import type {
   AgencyOption,
   CallRow,
@@ -8,7 +8,7 @@ import type {
   IntegrationRow,
   PhoneNumberRow,
   PlatformAgentRow,
-} from "../types";
+} from "@/features/agents/types";
 
 function asList<T>(data: unknown): T[] {
   if (Array.isArray(data)) {

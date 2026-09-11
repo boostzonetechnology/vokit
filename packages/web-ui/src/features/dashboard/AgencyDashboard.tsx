@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { MetricCard } from "../../components/ui/MetricCard";
-import { StatusBadge } from "../../components/ui/StatusBadge";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DualLineChart, useCallSeries } from "./components/DualLineChart";
 import { useDashboardBundle } from "./hooks/useDashboardBundle";
 import {

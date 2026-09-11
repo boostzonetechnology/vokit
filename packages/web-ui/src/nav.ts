@@ -1,4 +1,4 @@
-import type { Portal } from "./api";
+import type { Portal } from "@/api";
 
 export type NavItem = { href: string; label: string; path: string };
 

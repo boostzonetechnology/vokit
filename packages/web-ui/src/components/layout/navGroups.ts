@@ -25,8 +25,8 @@ import {
   Webhook,
 } from "lucide-react";
 
-import type { Portal } from "../../api";
-import type { NavItem } from "../../nav";
+import type { Portal } from "@/api";
+import type { NavItem } from "@/nav";
 
 export type NavGroup = {
   id: string;

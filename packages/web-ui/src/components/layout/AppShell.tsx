@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-import type { Portal, SessionPayload } from "../../api";
-import { cn } from "../../lib/utils";
-import type { NavItem } from "../../nav";
+import type { Portal, SessionPayload } from "@/api";
+import { cn } from "@/lib/utils";
+import type { NavItem } from "@/nav";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useSidebarCollapsed } from "./useSidebarCollapsed";

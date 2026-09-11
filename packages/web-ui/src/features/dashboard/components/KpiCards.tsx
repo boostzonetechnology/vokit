@@ -1,6 +1,6 @@
-import { cn } from "../../../lib/utils";
-import { formatCount, formatMoneyMinor, kpiValue } from "../lib/format";
-import type { DashboardPayload } from "../../../api";
+import { cn } from "@/lib/utils";
+import { formatCount, formatMoneyMinor, kpiValue } from "@/features/dashboard/lib/format";
+import type { DashboardPayload } from "@/api";
 
 type Accent = "brand" | "success" | "info" | "warning";
 

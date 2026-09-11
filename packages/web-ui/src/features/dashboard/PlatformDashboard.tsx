@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { MetricCard, type MetricAccent } from "../../components/ui/MetricCard";
-import { StatusBadge } from "../../components/ui/StatusBadge";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { MetricCard, type MetricAccent } from "@/components/ui/MetricCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DualLineChart, useInvoiceSeries } from "./components/DualLineChart";
 import { useDashboardBundle } from "./hooks/useDashboardBundle";
 import {

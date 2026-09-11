@@ -6,7 +6,7 @@ import {
   apiGet,
   getDashboard,
   isApiError,
-} from "../../../api";
+} from "@/api";
 
 export type CallRow = {
   id: string;

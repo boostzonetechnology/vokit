@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { apiGet, apiSend, getDashboard, isApiError } from "../../../api";
+import { apiGet, apiSend, getDashboard, isApiError } from "@/api";
 import type {
   AgencyCapabilities,
   AgencyDashboardSlice,
   AgencyRecord,
   WalletBuckets,
-} from "../types";
-import { defaultCapabilities } from "../types";
+} from "@/features/agencies/types";
+import { defaultCapabilities } from "@/features/agencies/types";
 
 function asList<T>(data: unknown): T[] {
   if (Array.isArray(data)) return data as T[];

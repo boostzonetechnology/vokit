@@ -1,11 +1,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { Portal, apiGet, apiSend, isApiError } from "./api";
-import { PlatformAgentsScreen } from "./features/agents/PlatformAgentsScreen";
-import { PlatformAgenciesScreen } from "./features/agencies/PlatformAgenciesScreen";
-import { PlatformCustomersScreen } from "./features/customers/PlatformCustomersScreen";
-import { PlatformResourceScreen } from "./features/platform/PlatformResourceScreen";
-import { PLATFORM_MODULES } from "./features/platform/platformModules";
+import { Portal, apiGet, apiSend, isApiError } from "@/api";
+import {
+  renderPlatformProductScreen,
+  renderPlatformResourceScreen,
+} from "@/features/platform/renderPlatformScreen";
+import { PLATFORM_MODULES } from "@/features/platform/platformModules";
 
 type Row = Record<string, unknown>;
 
@@ -324,10 +324,6 @@ export function CustomersScreen({ portal }: { portal: Portal }) {
 }
 
 export function AgentsScreen({ portal }: { portal: Portal }) {
-  if (portal === "platform") {
-    return <PlatformAgentsScreen />;
-  }
-
   const listPath =
     portal === "agency" ? "/api/v1/agency/agents" : "/api/v1/customer/agents";
   const { rows, error, refresh } = useRows(listPath);
@@ -1564,17 +1560,10 @@ export function renderProductScreen(
   fallbackTitle: string,
 ) {
   if (portal === "platform") {
-    if (route === "agents") {
-      return <PlatformAgentsScreen />;
-    }
-    if (route === "agencies") {
-      return <PlatformAgenciesScreen />;
-    }
-    if (route === "customers") {
-      return <PlatformCustomersScreen />;
-    }
+    const custom = renderPlatformProductScreen(route);
+    if (custom) return custom;
     if (route in PLATFORM_MODULES) {
-      return <PlatformResourceScreen route={route} />;
+      return renderPlatformResourceScreen(route);
     }
   }
 

@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle } from "lucide-react";
 
-import type { DashboardPayload } from "../../../api";
-import { kpiValue } from "../lib/format";
+import type { DashboardPayload } from "@/api";
+import { kpiValue } from "@/features/dashboard/lib/format";
 
 type Step = { id: string; label: string; done: boolean; href: string };
 

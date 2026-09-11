@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "../../../api";
-import type { AgencyOption, CustomerRecord, PlanVersionOption } from "../types";
+import { apiGet, apiSend, isApiError } from "@/api";
+import type { AgencyOption, CustomerRecord, PlanVersionOption } from "@/features/customers/types";
 
 function asList<T>(data: unknown): T[] {
   if (Array.isArray(data)) return data as T[];

@@ -1,8 +1,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { apiGet, apiSend, isApiError } from "../../api";
-import { ActionButton } from "../../components/ui/ActionButton";
-import { StatusBadge, type BadgeTone } from "../../components/ui/StatusBadge";
+import { apiGet, apiSend, isApiError } from "@/api";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import {
   PLATFORM_MODULES,
   cellValue,

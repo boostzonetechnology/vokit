@@ -7,7 +7,7 @@ import {
   apiSend,
   getDashboard,
   isApiError,
-} from "./api";
+} from "@/api";
 
 function asRows(data: unknown): Record<string, unknown>[] {
   if (Array.isArray(data)) {

@@ -1,9 +1,9 @@
 import { FormEvent, useState, type ReactNode } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { MetricCard } from "../../components/ui/MetricCard";
-import { StatusBadge, type BadgeTone } from "../../components/ui/StatusBadge";
-import { formatCount, formatMoneyMinor } from "../dashboard/lib/format";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { formatCount, formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { usePlatformCustomers } from "./hooks/usePlatformCustomers";
 import { CUSTOMER_STATUS_ACTIONS } from "./types";
 

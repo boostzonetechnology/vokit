@@ -1,5 +1,5 @@
-import type { DashboardPayload } from "../../../api";
-import { periodLabel } from "../lib/format";
+import type { DashboardPayload } from "@/api";
+import { periodLabel } from "@/features/dashboard/lib/format";
 
 export function DashboardHeader({
   data,

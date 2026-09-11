@@ -1,8 +1,8 @@
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
-import type { Portal, SessionPayload } from "../../api";
-import { cn } from "../../lib/utils";
-import type { NavItem } from "../../nav";
+import type { Portal, SessionPayload } from "@/api";
+import { cn } from "@/lib/utils";
+import type { NavItem } from "@/nav";
 import { portalNavGroups } from "./navGroups";
 import { UserAvatar } from "./UserAvatar";
 

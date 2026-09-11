@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { PlatformCallRow } from "../hooks/usePlatformDashboard";
+import type { PlatformCallRow } from "@/features/dashboard/hooks/usePlatformDashboard";
 
 type Point = { day: string; connected: number; completed: number };
 

@@ -1,6 +1,6 @@
-import { cn } from "../../../lib/utils";
-import type { PlatformAgentRow, PlatformCallRow } from "../hooks/usePlatformDashboard";
-import { formatDuration, formatRelativeTime } from "../lib/format";
+import { cn } from "@/lib/utils";
+import type { PlatformAgentRow, PlatformCallRow } from "@/features/dashboard/hooks/usePlatformDashboard";
+import { formatDuration, formatRelativeTime } from "@/features/dashboard/lib/format";
 
 function outcome(status?: string): { label: string; className: string } {
   const value = (status ?? "").toLowerCase();
