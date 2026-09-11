@@ -2,14 +2,11 @@ import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 
 import { isAgenciesRoute } from "@/features/agencies/lib/routes";
 import { renderAgencyRoutes } from "@/features/agencies/renderAgencyRoutes";
+import { isCustomersRoute } from "@/features/customers/lib/routes";
+import { renderCustomerRoutes } from "@/features/customers/renderCustomerRoutes";
 
 const PlatformAgentsScreen = lazy(() =>
   import("@/features/agents/PlatformAgentsScreen").then((m) => ({ default: m.PlatformAgentsScreen })),
-);
-const PlatformCustomersScreen = lazy(() =>
-  import("@/features/customers/PlatformCustomersScreen").then((m) => ({
-    default: m.PlatformCustomersScreen,
-  })),
 );
 const PlatformTemplatesScreen = lazy(() =>
   import("@/features/templates/PlatformTemplatesScreen").then((m) => ({
@@ -93,18 +90,15 @@ export function renderPlatformProductScreen(route: string): ReactNode | null {
   if (isAgenciesRoute(route)) {
     return renderAgencyRoutes(route);
   }
+  if (isCustomersRoute(route)) {
+    return renderCustomerRoutes(route);
+  }
 
   switch (route) {
     case "agents":
       return (
         <Lazy>
           <PlatformAgentsScreen />
-        </Lazy>
-      );
-    case "customers":
-      return (
-        <Lazy>
-          <PlatformCustomersScreen />
         </Lazy>
       );
     case "templates":
