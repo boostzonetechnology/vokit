@@ -68,7 +68,9 @@ def _login(client: Client, email: str) -> None:
 
 def _create_agency(client: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    return _post(
+    from tests.tenant_db_fixtures import tenant_db_payload
+
+    response = _post(
         client,
         "/api/v1/platform/agencies",
         {
@@ -76,7 +78,16 @@ def _create_agency(client: Client, name: str, db_name: str, owner: str):
             "legal_name": name,
             "owner_email": owner,
             "commission_rate_bps": 3000,
+            "database": tenant_db_payload(owner),
         },
+    )
+    if response.status_code != 201:
+        return response
+    agency_id = response.json()["data"]["id"]
+    return _post(
+        client,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate"},
     )
 
 
@@ -112,7 +123,7 @@ def _bootstrap():
     platform = _client()
     _login(platform, "platform@vokit.test")
     agency = _create_agency(platform, "Risk A", "risk_a", "oa-risk@vokit.test")
-    assert agency.status_code == 201
+    assert agency.status_code == 200
     agency_id = uuid.UUID(agency.json()["data"]["id"])
     customer = _post(
         platform,
@@ -250,7 +261,7 @@ def test_chargeback_disables_agents_and_reverses_commission() -> None:
     assert blocked_pay.status_code == 409
     assert blocked_pay.json()["error"]["code"] == "customer_risk_blocked"
     other = _create_agency(ctx["platform"], "Risk B", "risk_b", "oa-risk-b@vokit.test")
-    assert other.status_code == 201
+    assert other.status_code == 200
     denied = _post(
         ctx["platform"],
         "/api/v1/platform/customers",

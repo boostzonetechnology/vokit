@@ -3,11 +3,15 @@ from __future__ import annotations
 import logging
 import uuid
 
+from control_plane.audit.application.record import RecordAudit, RecordAuditCommand
+from control_plane.notifications.application.hooks import kyc_notify
 from control_plane.tenancy.application.ports import Clock, TenantRecord, TenantRepository
 from control_plane.tenancy.domain.lifecycle import (
     AgencyCapabilities,
     AgencyStatus,
     apply_agency_status_action,
+    default_capabilities_for_status,
+    merge_capability_gates,
 )
 from shared_kernel.errors import DomainError
 from shared_kernel.logging import log_event
@@ -49,26 +53,45 @@ class ChangeAgencyStatus:
         tenants: TenantRepository,
         lifecycle: TenantLifecycleService,
         clock: Clock,
+        audit: RecordAudit,
     ) -> None:
         self._tenants = tenants
         self._lifecycle = lifecycle
         self._clock = clock
+        self._audit = audit
 
-    def execute(self, tenant_id: uuid.UUID, action: str) -> TenantRecord:
+    def execute(
+        self,
+        tenant_id: uuid.UUID,
+        action: str,
+        *,
+        reason: str = "",
+        actor_id: uuid.UUID | None = None,
+        actor_role: str = "",
+    ) -> TenantRecord:
         tenant = _require_tenant(self._tenants, tenant_id)
         nxt = apply_agency_status_action(tenant.agency_status, action)
-        capabilities = tenant.capabilities
-        if nxt is AgencyStatus.SUSPENDED:
-            capabilities = AgencyCapabilities(
-                create_customers=False,
-                create_agents=capabilities.create_agents,
-                purchase_numbers=capabilities.purchase_numbers,
-                request_payouts=capabilities.request_payouts,
-                existing_customer_services=capabilities.existing_customer_services,
-            )
+        capabilities = merge_capability_gates(
+            tenant.capabilities, default_capabilities_for_status(nxt)
+        )
         updated = tenant.with_agency(agency_status=nxt, capabilities=capabilities)
         self._tenants.update(updated)
         _sync_profile(self._lifecycle, updated, self._clock)
+        self._audit.execute(
+            RecordAuditCommand(
+                action="agency.status.changed",
+                entity_type="agency",
+                entity_id=str(tenant_id),
+                actor_id=actor_id,
+                actor_role=actor_role,
+                tenant_id=tenant_id,
+                reason=reason,
+                before_summary=tenant.agency_status.value,
+                after_summary=nxt.value,
+            )
+        )
+        if nxt is AgencyStatus.SUSPENDED:
+            kyc_notify(tenant_id=tenant_id, status="suspended")
         log_event(
             logger,
             "agency.status.changed",
@@ -118,10 +141,12 @@ class UpdateAgencyProfile:
         tenants: TenantRepository,
         lifecycle: TenantLifecycleService,
         clock: Clock,
+        audit: RecordAudit,
     ) -> None:
         self._tenants = tenants
         self._lifecycle = lifecycle
         self._clock = clock
+        self._audit = audit
 
     def execute(
         self,
@@ -129,6 +154,8 @@ class UpdateAgencyProfile:
         *,
         display_name: str | None,
         legal_name: str | None,
+        actor_id: uuid.UUID | None = None,
+        actor_role: str = "",
     ) -> TenantRecord:
         tenant = _require_tenant(self._tenants, tenant_id)
         name = tenant.display_name if display_name is None else display_name.strip()
@@ -138,6 +165,18 @@ class UpdateAgencyProfile:
         updated = tenant.with_agency(display_name=name, legal_name=legal)
         self._tenants.update(updated)
         _sync_profile(self._lifecycle, updated, self._clock)
+        self._audit.execute(
+            RecordAuditCommand(
+                action="agency.profile.changed",
+                entity_type="agency",
+                entity_id=str(tenant_id),
+                actor_id=actor_id,
+                actor_role=actor_role,
+                tenant_id=tenant_id,
+                before_summary=f"{tenant.display_name}|{tenant.legal_name}",
+                after_summary=f"{name}|{legal}",
+            )
+        )
         log_event(
             logger,
             "agency.profile.changed",
@@ -148,11 +187,21 @@ class UpdateAgencyProfile:
 
 
 class SetCommissionRate:
-    def __init__(self, tenants: TenantRepository, clock: Clock) -> None:
+    def __init__(
+        self, tenants: TenantRepository, clock: Clock, audit: RecordAudit
+    ) -> None:
         self._tenants = tenants
         self._clock = clock
+        self._audit = audit
 
-    def execute(self, tenant_id: uuid.UUID, rate_bps: int) -> TenantRecord:
+    def execute(
+        self,
+        tenant_id: uuid.UUID,
+        rate_bps: int,
+        *,
+        actor_id: uuid.UUID | None = None,
+        actor_role: str = "",
+    ) -> TenantRecord:
         if rate_bps < 0 or rate_bps > 10000:
             raise DomainError("validation_error", "commission_rate_bps is invalid.")
         tenant = _require_tenant(self._tenants, tenant_id)
@@ -161,6 +210,18 @@ class SetCommissionRate:
             rate_effective_at=self._clock.now(),
         )
         self._tenants.update(updated)
+        self._audit.execute(
+            RecordAuditCommand(
+                action="agency.commission.changed",
+                entity_type="agency",
+                entity_id=str(tenant_id),
+                actor_id=actor_id,
+                actor_role=actor_role,
+                tenant_id=tenant_id,
+                before_summary=str(tenant.commission_rate_bps),
+                after_summary=str(rate_bps),
+            )
+        )
         log_event(
             logger,
             "agency.commission.changed",

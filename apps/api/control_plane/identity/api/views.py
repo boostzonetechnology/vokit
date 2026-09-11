@@ -149,10 +149,21 @@ class TeamListView(CsrfAPIView):
 
     def get(self, request: Request) -> Response:
         context = require_principal(request, self.principal_type)
+        principal = self.principal_type
+        tenant_id = context.membership.tenant_id
+        customer_id = context.membership.customer_id
+        if self.principal_type is PrincipalType.PLATFORM:
+            agency_id = parse_optional_uuid(
+                request.query_params.get("agency_id"), field="agency_id"
+            )
+            if agency_id is not None:
+                principal = PrincipalType.AGENCY
+                tenant_id = agency_id
+                customer_id = None
         rows = memberships().list_for_scope(
-            principal_type=self.principal_type,
-            tenant_id=context.membership.tenant_id,
-            customer_id=context.membership.customer_id,
+            principal_type=principal,
+            tenant_id=tenant_id,
+            customer_id=customer_id,
         )
         emails = {
             item.id: item.email for item in users().list_by_ids([row.user_id for row in rows])

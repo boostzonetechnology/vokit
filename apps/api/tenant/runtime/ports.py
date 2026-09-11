@@ -18,6 +18,7 @@ class ConnectionTarget:
     name: str
     secret_ref: str
     tls_required: bool
+    username: str = ""
 
 
 class TenantConnection(Protocol):
@@ -55,6 +56,8 @@ class SchemaRunner(Protocol):
 class DatabaseAdministrator(Protocol):
     def ensure_database(self, target: ConnectionTarget) -> None: ...
 
+    def ensure_user(self, target: ConnectionTarget) -> None: ...
+
 
 class ConnectionGuard(Protocol):
     def bound(
@@ -71,4 +74,5 @@ def target_from_record(record: TenantDatabaseRecord) -> ConnectionTarget:
         name=record.name,
         secret_ref=record.secret_ref,
         tls_required=record.tls_required,
+        username=record.db_username,
     )

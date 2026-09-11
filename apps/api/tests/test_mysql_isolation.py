@@ -22,6 +22,19 @@ pytestmark = [
 ]
 
 
+def _configure_ci_admin() -> None:
+    """Map legacy CI TENANT_DB_* login onto Phase B admin + vault stubs."""
+    os.environ.setdefault(
+        "TENANT_DB_PASSWORD", os.environ.get("TENANT_DB_PASSWORD", "vokit_ci")
+    )
+    os.environ.setdefault(
+        "TENANT_DB_ADMIN_USER", os.environ.get("TENANT_DB_USER", "root")
+    )
+    if not (os.environ.get("TENANT_DB_ADMIN_PASSWORD") or "").strip():
+        os.environ["TENANT_DB_ADMIN_PASSWORD"] = os.environ["TENANT_DB_PASSWORD"]
+    os.environ.setdefault("TENANT_DB_ADMIN_PASSWORD_REF", "TENANT_DB_ADMIN_PASSWORD")
+
+
 def _target(tenant_id: uuid.UUID, name: str) -> ConnectionTarget:
     return ConnectionTarget(
         tenant_id=tenant_id,
@@ -29,14 +42,30 @@ def _target(tenant_id: uuid.UUID, name: str) -> ConnectionTarget:
         host=os.environ.get("TENANT_DB_HOST", "127.0.0.1"),
         port=int(os.environ.get("TENANT_DB_PORT", "3306")),
         name=name,
-        secret_ref=os.environ.get("TENANT_DB_PASSWORD_REF", "TENANT_DB_PASSWORD"),
+        secret_ref="vault:tenant_db",
         tls_required=False,
+        username=os.environ.get("TENANT_DB_USER", "vokit"),
     )
 
 
+class _EnvVault:
+    def get(self, database_id: uuid.UUID) -> str:
+        _ = database_id
+        return os.environ.get("TENANT_DB_PASSWORD", "vokit_ci")
+
+    def put(self, database_id: uuid.UUID, password: str) -> None:
+        _ = database_id, password
+
+
 def test_mysql_same_object_id_stays_on_current_tenant_db() -> None:
-    os.environ.setdefault("TENANT_DB_PASSWORD", os.environ.get("TENANT_DB_PASSWORD", "vokit_ci"))
-    runtime = MysqlRuntime(user=os.environ.get("TENANT_DB_USER", "vokit"))
+    _configure_ci_admin()
+    runtime = MysqlRuntime(
+        admin_user=os.environ["TENANT_DB_ADMIN_USER"],
+        admin_secret_ref=os.environ["TENANT_DB_ADMIN_PASSWORD_REF"],
+        vault=_EnvVault(),
+    )
+    # CI harness still uses one shared login for open(); production path uses
+    # per-agency vault users from agency create.
     tenant_a = new_uuid7()
     tenant_b = new_uuid7()
     object_id = new_uuid7()

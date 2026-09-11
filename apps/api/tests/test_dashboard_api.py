@@ -65,6 +65,8 @@ def _login(client: Client, email: str) -> None:
 
 def _agency(platform: Client, name: str, db_name: str, owner: str):
     _ = db_name
+    from tests.tenant_db_fixtures import tenant_db_payload
+
     return _post(
         platform,
         "/api/v1/platform/agencies",
@@ -72,6 +74,7 @@ def _agency(platform: Client, name: str, db_name: str, owner: str):
             "display_name": name,
             "legal_name": name,
             "owner_email": owner,
+            "database": tenant_db_payload(owner),
         },
     )
 

@@ -7,6 +7,8 @@ from control_plane.tenancy.api.agency_views import (
     AgencyCollectionView,
     AgencyCommissionView,
     AgencyDetailView,
+    AgencyFinanceView,
+    AgencyNotesView,
     AgencyReassignCustomerView,
     AgencyStatusView,
 )
@@ -41,6 +43,16 @@ urlpatterns = [
         "platform/agencies/<str:agency_id>/commission",
         AgencyCommissionView.as_view(),
         name="platform-agency-commission",
+    ),
+    path(
+        "platform/agencies/<str:agency_id>/finance",
+        AgencyFinanceView.as_view(),
+        name="platform-agency-finance",
+    ),
+    path(
+        "platform/agencies/<str:agency_id>/notes",
+        AgencyNotesView.as_view(),
+        name="platform-agency-notes",
     ),
     path(
         "platform/agencies/<str:agency_id>/reassign-customer",

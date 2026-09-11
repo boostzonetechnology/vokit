@@ -24,6 +24,7 @@ class DatabaseStatus(StrEnum):
 class ProvisioningStep(StrEnum):
     CREATED = "created"
     DATABASE_ALLOCATED = "database_allocated"
+    USER_CREATED = "user_created"
     SCHEMA_APPLIED = "schema_applied"
     VERIFIED = "verified"
     READY = "ready"

@@ -60,6 +60,7 @@ def _database(row: TenantDatabase) -> TenantDatabaseRecord:
         status=DatabaseStatus(row.status),
         schema_version=row.schema_version,
         last_health_at=row.last_health_at,
+        db_username=row.db_username,
     )
 
 
@@ -103,6 +104,13 @@ class DjangoTenantDatabaseRepository:
         row = TenantDatabase.objects.filter(tenant_id=tenant_id).first()
         return _database(row) if row else None
 
+    def get_by_username(self, db_username: str) -> TenantDatabaseRecord | None:
+        cleaned = (db_username or "").strip()
+        if not cleaned:
+            return None
+        row = TenantDatabase.objects.filter(db_username=cleaned).first()
+        return _database(row) if row else None
+
     def create(self, record: TenantDatabaseRecord) -> None:
         TenantDatabase.objects.create(
             id=record.id,
@@ -110,6 +118,7 @@ class DjangoTenantDatabaseRepository:
             host=record.host,
             port=record.port,
             name=record.name,
+            db_username=record.db_username,
             secret_ref=record.secret_ref,
             tls_required=record.tls_required,
             status=record.status.value,
@@ -122,6 +131,7 @@ class DjangoTenantDatabaseRepository:
             host=record.host,
             port=record.port,
             name=record.name,
+            db_username=record.db_username,
             secret_ref=record.secret_ref,
             tls_required=record.tls_required,
             status=record.status.value,
