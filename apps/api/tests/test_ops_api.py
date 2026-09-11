@@ -18,6 +18,8 @@ from control_plane.platform_settings.infrastructure.container import platform_se
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 
+from tests.tenant_db_fixtures import tenant_db_payload
+
 PASSWORD = "Phase2-Demo!ok"
 
 
@@ -107,6 +109,7 @@ def _pair() -> dict:
             "display_name": "Ops A",
             "legal_name": "Ops A",
             "owner_email": "oa-ops@vokit.test",
+            "database": tenant_db_payload("oa-ops@vokit.test"),
         },
     )
     agency_b = _post(
@@ -116,6 +119,7 @@ def _pair() -> dict:
             "display_name": "Ops B",
             "legal_name": "Ops B",
             "owner_email": "ob-ops@vokit.test",
+            "database": tenant_db_payload("ob-ops@vokit.test"),
         },
     )
     agency_a_id = uuid.UUID(agency_a.json()["data"]["id"])

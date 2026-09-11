@@ -74,6 +74,7 @@ class TenantDatabaseRecord:
     status: DatabaseStatus
     schema_version: str
     last_health_at: datetime | None = None
+    db_username: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +107,11 @@ class TenantRepository(Protocol):
 
 class TenantDatabaseRepository(Protocol):
     def get_for_tenant(self, tenant_id: uuid.UUID) -> TenantDatabaseRecord | None: ...
+
+    def get_by_username(self, db_username: str) -> TenantDatabaseRecord | None: ...
+
     def create(self, record: TenantDatabaseRecord) -> None: ...
+
     def update(self, record: TenantDatabaseRecord) -> None: ...
 
 

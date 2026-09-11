@@ -21,29 +21,25 @@ from tenant.runtime.memory import MemoryRuntime
 from tenant.schema import CURRENT_VERSION
 
 
+def _cmd(name: str, db_name: str, *, tenant_id=None) -> ProvisionTenantCommand:
+    return ProvisionTenantCommand(
+        display_name=name,
+        host="127.0.0.1",
+        port=3306,
+        name=db_name,
+        db_username=f"u_{db_name}",
+        db_password="TenantDbPass12!",
+        tls_required=False,
+        tenant_id=tenant_id,
+    )
+
+
 @pytest.mark.django_db
 def test_provisioning_is_idempotent_and_ready_only_after_verify() -> None:
-    first = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Agency One",
-            host="127.0.0.1",
-            port=3306,
-            name="prov_one",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-        )
-    )
+    first = provisioner().execute(_cmd("Agency One", "prov_one"))
     assert first.status is TenantStatus.READY
     second = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Agency One",
-            host="127.0.0.1",
-            port=3306,
-            name="prov_one",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-            tenant_id=first.id,
-        )
+        _cmd("Agency One", "prov_one", tenant_id=first.id)
     )
     assert second.id == first.id
     assert second.status is TenantStatus.READY
@@ -51,26 +47,8 @@ def test_provisioning_is_idempotent_and_ready_only_after_verify() -> None:
 
 @pytest.mark.django_db
 def test_canary_migration_then_bounded_batch() -> None:
-    one = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Canary",
-            host="127.0.0.1",
-            port=3306,
-            name="mig_canary",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-        )
-    )
-    two = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Follow",
-            host="127.0.0.1",
-            port=3306,
-            name="mig_follow",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-        )
-    )
+    one = provisioner().execute(_cmd("Canary", "mig_canary"))
+    two = provisioner().execute(_cmd("Follow", "mig_follow"))
     jobs = migration_batch().execute(
         [one.id, two.id],
         canary_ids=[one.id],
@@ -92,32 +70,14 @@ def test_canary_migration_then_bounded_batch() -> None:
 
 @pytest.mark.django_db
 def test_worker_reconstructs_tenant_from_id_only() -> None:
-    tenant = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Worker",
-            host="127.0.0.1",
-            port=3306,
-            name="prov_worker",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-        )
-    )
+    tenant = provisioner().execute(_cmd("Worker", "prov_worker"))
     provision_tenant_task.run(str(tenant.id), "corr-phase3")
     assert tenant_repo().get(tenant.id).status is TenantStatus.READY
 
 
 @pytest.mark.django_db
 def test_single_tenant_migration_lock_path() -> None:
-    tenant = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Lock",
-            host="127.0.0.1",
-            port=3306,
-            name="mig_lock",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-        )
-    )
+    tenant = provisioner().execute(_cmd("Lock", "mig_lock"))
     job = migrator().execute(MigrateTenantCommand(tenant_id=tenant.id))
     assert job.status is MigrationJobStatus.SUCCEEDED
     again = migrator().execute(MigrateTenantCommand(tenant_id=tenant.id))
@@ -126,26 +86,8 @@ def test_single_tenant_migration_lock_path() -> None:
 
 @pytest.mark.django_db
 def test_migration_failure_isolates_one_tenant() -> None:
-    healthy = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Healthy",
-            host="127.0.0.1",
-            port=3306,
-            name="mig_ok",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-        )
-    )
-    broken = provisioner().execute(
-        ProvisionTenantCommand(
-            display_name="Broken",
-            host="127.0.0.1",
-            port=3306,
-            name="mig_down",
-            secret_ref="TENANT_DB_PASSWORD",
-            tls_required=False,
-        )
-    )
+    healthy = provisioner().execute(_cmd("Healthy", "mig_ok"))
+    broken = provisioner().execute(_cmd("Broken", "mig_down"))
     engine = runtime()
     assert isinstance(engine, MemoryRuntime)
     engine.mark_down("mig_down")

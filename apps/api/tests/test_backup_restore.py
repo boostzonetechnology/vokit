@@ -27,7 +27,8 @@ def _provision(name: str, db_name: str):
             host="127.0.0.1",
             port=3306,
             name=db_name,
-            secret_ref="TENANT_DB_PASSWORD",
+            db_username=f"u_{db_name}",
+            db_password="TenantDbPass12!",
             tls_required=False,
         )
     )
@@ -65,7 +66,7 @@ def test_restore_one_tenant_does_not_touch_the_other() -> None:
     snapshot = backup_tenant().execute(agency_a.id)
     document = snapshot.to_public_dict()
     assert_snapshot_has_no_secrets(document)
-    assert "TENANT_DB_PASSWORD" == document["secret_ref"]
+    assert "vault:tenant_db" == document["secret_ref"]
     assert "127.0.0.1" not in str(document["payload"])
     _put(agency_a.id, object_a, "alpha-mutated")
     _put(agency_b.id, object_b, "bravo-mutated")

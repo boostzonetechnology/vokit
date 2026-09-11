@@ -24,7 +24,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         host = getattr(settings, "TENANT_DB_HOST", "127.0.0.1")
         port = int(getattr(settings, "TENANT_DB_PORT", 3306))
-        secret_ref = getattr(settings, "TENANT_DB_PASSWORD_REF", "TENANT_DB_PASSWORD")
         tls = bool(getattr(settings, "TENANT_TLS_REQUIRED", False))
         name_a = getattr(settings, "TENANT_DB_NAME_A", "vokit_tenant_a")
         name_b = getattr(settings, "TENANT_DB_NAME_B", "vokit_tenant_b")
@@ -39,7 +38,8 @@ class Command(BaseCommand):
                     host=host,
                     port=port,
                     name=database_name,
-                    secret_ref=secret_ref,
+                    db_username=f"demo_{tenant_id.hex[:16]}",
+                    db_password="DemoTenantPass12!",
                     tls_required=tls,
                     tenant_id=tenant_id,
                 )

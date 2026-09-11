@@ -7,6 +7,7 @@ from shared_kernel.errors import DomainError
 
 
 class AgencyStatus(StrEnum):
+    INVITED = "invited"
     PENDING = "pending"
     ACTIVE = "active"
     RESTRICTED = "restricted"
@@ -27,6 +28,7 @@ class AgencyCapabilities:
 _TRANSITIONS: dict[str, frozenset[AgencyStatus]] = {
     "activate": frozenset(
         {
+            AgencyStatus.INVITED,
             AgencyStatus.PENDING,
             AgencyStatus.RESTRICTED,
             AgencyStatus.UNDER_REVIEW,
@@ -34,10 +36,20 @@ _TRANSITIONS: dict[str, frozenset[AgencyStatus]] = {
         }
     ),
     "restrict": frozenset(
-        {AgencyStatus.ACTIVE, AgencyStatus.UNDER_REVIEW, AgencyStatus.PENDING}
+        {
+            AgencyStatus.ACTIVE,
+            AgencyStatus.UNDER_REVIEW,
+            AgencyStatus.PENDING,
+            AgencyStatus.INVITED,
+        }
     ),
     "review": frozenset(
-        {AgencyStatus.ACTIVE, AgencyStatus.RESTRICTED, AgencyStatus.PENDING}
+        {
+            AgencyStatus.ACTIVE,
+            AgencyStatus.RESTRICTED,
+            AgencyStatus.PENDING,
+            AgencyStatus.INVITED,
+        }
     ),
     "suspend": frozenset(
         {
@@ -45,6 +57,7 @@ _TRANSITIONS: dict[str, frozenset[AgencyStatus]] = {
             AgencyStatus.RESTRICTED,
             AgencyStatus.UNDER_REVIEW,
             AgencyStatus.PENDING,
+            AgencyStatus.INVITED,
         }
     ),
     "close": frozenset(
@@ -54,6 +67,7 @@ _TRANSITIONS: dict[str, frozenset[AgencyStatus]] = {
             AgencyStatus.UNDER_REVIEW,
             AgencyStatus.SUSPENDED,
             AgencyStatus.PENDING,
+            AgencyStatus.INVITED,
         }
     ),
 }
@@ -89,6 +103,35 @@ def apply_agency_status_action(
             http_status=409,
         )
     return _ACTION_STATUS[normalized]
+
+
+def default_capabilities_for_status(
+    status: AgencyStatus,
+) -> AgencyCapabilities | None:
+    """SRS §24.1 forced-off defaults. True flags mean inherit; False forces off."""
+    if status is AgencyStatus.RESTRICTED:
+        return AgencyCapabilities(create_customers=False, request_payouts=False)
+    if status is AgencyStatus.UNDER_REVIEW:
+        return AgencyCapabilities(request_payouts=False)
+    if status is AgencyStatus.SUSPENDED:
+        return AgencyCapabilities(create_customers=False)
+    return None
+
+
+def merge_capability_gates(
+    current: AgencyCapabilities, gates: AgencyCapabilities | None
+) -> AgencyCapabilities:
+    if gates is None:
+        return current
+    return AgencyCapabilities(
+        create_customers=current.create_customers and gates.create_customers,
+        create_agents=current.create_agents and gates.create_agents,
+        purchase_numbers=current.purchase_numbers and gates.purchase_numbers,
+        request_payouts=current.request_payouts and gates.request_payouts,
+        existing_customer_services=(
+            current.existing_customer_services and gates.existing_customer_services
+        ),
+    )
 
 
 def assert_agency_may_create_customer(

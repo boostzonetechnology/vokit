@@ -18,6 +18,8 @@ from control_plane.telephony.infrastructure.container import reset_sip_edge
 from shared_kernel.hmac import sign_hmac_raw
 from shared_kernel.ids import new_uuid7
 
+from tests.tenant_db_fixtures import tenant_db_payload
+
 PASSWORD = "Phase2-Demo!ok"
 TEL_TOKEN = "test-internal-telephony-token"
 
@@ -89,9 +91,17 @@ def _ready_pair() -> dict:
             "display_name": "Int A",
             "legal_name": "Int A",
             "owner_email": "oa-int@vokit.test",
+            "database": tenant_db_payload("oa-int@vokit.test"),
         },
     )
+    assert agency.status_code == 201
     agency_id = uuid.UUID(agency.json()["data"]["id"])
+    activated = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate"},
+    )
+    assert activated.status_code == 200
     customer_a = _post(
         platform,
         "/api/v1/platform/customers",

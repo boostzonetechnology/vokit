@@ -9,9 +9,13 @@ from control_plane.identity.application.ports import MembershipRecord
 from control_plane.identity.domain.types import MembershipStatus, PrincipalType
 from control_plane.identity.infrastructure.repositories import DjangoMembershipRepository
 from control_plane.identity.models import User
-from control_plane.tenancy.application.allocate_database import tenant_database_name
+from control_plane.tenancy.application.allocate_database import (
+    VAULT_SECRET_REF,
+    tenant_database_name,
+)
 from control_plane.tenancy.infrastructure.container import database_repo
 from shared_kernel.ids import new_uuid7
+from tests.tenant_db_fixtures import tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 
@@ -56,7 +60,6 @@ def _platform() -> User:
     TENANT_RUNTIME="memory",
     TENANT_DB_HOST="127.0.0.1",
     TENANT_DB_PORT=3306,
-    TENANT_DB_PASSWORD_REF="TENANT_DB_PASSWORD",
     TENANT_TLS_REQUIRED=False,
 )
 def test_agency_create_allocates_distinct_databases() -> None:
@@ -75,6 +78,7 @@ def test_agency_create_allocates_distinct_databases() -> None:
             "legal_name": "Agency One LLC",
             "owner_email": "owner1@example.test",
             "commission_rate_bps": 1000,
+            "database": tenant_db_payload("owner1@example.test"),
         },
     )
     second = _post(
@@ -85,6 +89,7 @@ def test_agency_create_allocates_distinct_databases() -> None:
             "legal_name": "Agency Two LLC",
             "owner_email": "owner2@example.test",
             "commission_rate_bps": 1100,
+            "database": tenant_db_payload("owner2@example.test"),
         },
     )
     assert first.status_code == 201
@@ -101,7 +106,10 @@ def test_agency_create_allocates_distinct_databases() -> None:
     assert db2.name == tenant_database_name(tid2)
     assert db1.name != db2.name
     assert db1.host == "127.0.0.1"
-    assert db1.secret_ref == "TENANT_DB_PASSWORD"
+    assert db1.secret_ref == VAULT_SECRET_REF
+    assert db1.db_username == tenant_db_payload("owner1@example.test")["username"]
+    assert db2.db_username == tenant_db_payload("owner2@example.test")["username"]
+    assert db1.db_username != db2.db_username
 
 
 @pytest.mark.django_db
@@ -109,9 +117,38 @@ def test_agency_create_allocates_distinct_databases() -> None:
     TENANT_RUNTIME="memory",
     TENANT_DB_HOST="127.0.0.1",
     TENANT_DB_PORT=3306,
-    TENANT_DB_PASSWORD_REF="TENANT_DB_PASSWORD",
 )
-def test_agency_create_rejects_client_database_block() -> None:
+def test_agency_create_rejects_client_database_name() -> None:
+    _platform()
+    client = _client()
+    _post(
+        client,
+        "/api/v1/auth/login",
+        {"email": "platform-auto-db@vokit.test", "password": PASSWORD},
+    )
+    payload = tenant_db_payload("forged@example.test")
+    payload["name"] = "stolen"
+    response = _post(
+        client,
+        "/api/v1/platform/agencies",
+        {
+            "display_name": "Forged",
+            "legal_name": "Forged",
+            "owner_email": "forged@example.test",
+            "database": payload,
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.django_db
+@override_settings(
+    TENANT_RUNTIME="memory",
+    TENANT_DB_HOST="127.0.0.1",
+    TENANT_DB_PORT=3306,
+)
+def test_agency_create_requires_username_and_password() -> None:
     _platform()
     client = _client()
     _post(
@@ -123,17 +160,56 @@ def test_agency_create_rejects_client_database_block() -> None:
         client,
         "/api/v1/platform/agencies",
         {
-            "display_name": "Forged",
-            "legal_name": "Forged",
-            "owner_email": "forged@example.test",
-            "database": {
-                "host": "evil.example",
-                "port": 9999,
-                "name": "stolen",
-                "secret_ref": "OTHER",
-                "tls_required": True,
-            },
+            "display_name": "No Creds",
+            "legal_name": "No Creds",
+            "owner_email": "nocreds@example.test",
+            "database": {"host": "127.0.0.1", "port": 3306},
         },
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "validation_error"
+
+
+@pytest.mark.django_db
+@override_settings(
+    TENANT_RUNTIME="memory",
+    TENANT_DB_HOST="127.0.0.1",
+    TENANT_DB_PORT=3306,
+)
+def test_agency_create_rejects_duplicate_db_username() -> None:
+    _platform()
+    client = _client()
+    _post(
+        client,
+        "/api/v1/auth/login",
+        {"email": "platform-auto-db@vokit.test", "password": PASSWORD},
+    )
+    shared = tenant_db_payload("shared-user@example.test")
+    first = _post(
+        client,
+        "/api/v1/platform/agencies",
+        {
+            "display_name": "First",
+            "legal_name": "First",
+            "owner_email": "first-owner@example.test",
+            "database": shared,
+        },
+    )
+    assert first.status_code == 201
+    second = _post(
+        client,
+        "/api/v1/platform/agencies",
+        {
+            "display_name": "Second",
+            "legal_name": "Second",
+            "owner_email": "second-owner@example.test",
+            "database": {
+                "host": shared["host"],
+                "port": shared["port"],
+                "username": shared["username"],
+                "password": shared["password"],
+            },
+        },
+    )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "db_username_conflict"

@@ -4,6 +4,7 @@ from django.conf import settings
 
 from control_plane.identity.infrastructure.clock import SystemClock
 from control_plane.identity.infrastructure.container import invite_user
+from control_plane.audit.infrastructure.container import record_audit
 from control_plane.tenancy.application.backup import (
     BackupControlPlane,
     BackupTenant,
@@ -16,6 +17,7 @@ from control_plane.tenancy.application.change_agency import (
     UpdateAgencyProfile,
 )
 from control_plane.tenancy.application.create_agency import CreateAgency
+from control_plane.tenancy.application.notes import CreateAgencyNote, ListAgencyNotes
 from control_plane.tenancy.application.migrate_tenant import (
     MigrateTenant,
     MigrateTenantBatch,
@@ -27,6 +29,7 @@ from control_plane.tenancy.infrastructure.repositories import (
     DjangoTenantDatabaseRepository,
     DjangoTenantRepository,
 )
+from control_plane.tenancy.infrastructure.vault import DjangoTenantDbVault
 from tenant.lifecycle.service import TenantLifecycleService
 from tenant.runtime.memory import MemoryRuntime
 from tenant.runtime.mysql import MysqlRuntime
@@ -35,6 +38,14 @@ from tenant.runtime.router import TenantRouter
 
 _memory_runtime: MemoryRuntime | None = None
 _mysql_runtime: MysqlRuntime | None = None
+_vault: DjangoTenantDbVault | None = None
+
+
+def tenant_db_vault() -> DjangoTenantDbVault:
+    global _vault
+    if _vault is None:
+        _vault = DjangoTenantDbVault()
+    return _vault
 
 
 def tenant_repo() -> DjangoTenantRepository:
@@ -78,7 +89,11 @@ def _mysql() -> MysqlRuntime:
     global _mysql_runtime
     if _mysql_runtime is None:
         _mysql_runtime = MysqlRuntime(
-            user=getattr(settings, "TENANT_DB_USER", "vokit"),
+            admin_user=getattr(settings, "TENANT_DB_ADMIN_USER", "root"),
+            admin_secret_ref=getattr(
+                settings, "TENANT_DB_ADMIN_PASSWORD_REF", "TENANT_DB_ADMIN_PASSWORD"
+            ),
+            vault=tenant_db_vault(),
             connect_timeout=int(
                 getattr(settings, "TENANT_CONNECT_TIMEOUT_SECONDS", 5)
             ),
@@ -93,9 +108,10 @@ def _mysql() -> MysqlRuntime:
 
 
 def reset_runtime() -> None:
-    global _memory_runtime, _mysql_runtime
+    global _memory_runtime, _mysql_runtime, _vault
     _memory_runtime = None
     _mysql_runtime = None
+    _vault = None
 
 
 def router() -> TenantRouter:
@@ -118,6 +134,7 @@ def provisioner() -> ProvisionTenant:
         engine,
         engine,
         SystemClock(),
+        tenant_db_vault(),
     )
 
 
@@ -165,6 +182,7 @@ def create_agency() -> CreateAgency:
     return CreateAgency(
         provisioner(),
         tenant_repo(),
+        database_repo(),
         lifecycle(),
         invite_user(),
         SystemClock(),
@@ -172,7 +190,9 @@ def create_agency() -> CreateAgency:
 
 
 def change_agency_status() -> ChangeAgencyStatus:
-    return ChangeAgencyStatus(tenant_repo(), lifecycle(), SystemClock())
+    return ChangeAgencyStatus(
+        tenant_repo(), lifecycle(), SystemClock(), record_audit()
+    )
 
 
 def change_agency_capabilities() -> ChangeAgencyCapabilities:
@@ -180,8 +200,18 @@ def change_agency_capabilities() -> ChangeAgencyCapabilities:
 
 
 def update_agency_profile() -> UpdateAgencyProfile:
-    return UpdateAgencyProfile(tenant_repo(), lifecycle(), SystemClock())
+    return UpdateAgencyProfile(
+        tenant_repo(), lifecycle(), SystemClock(), record_audit()
+    )
 
 
 def set_commission_rate() -> SetCommissionRate:
-    return SetCommissionRate(tenant_repo(), SystemClock())
+    return SetCommissionRate(tenant_repo(), SystemClock(), record_audit())
+
+
+def create_agency_note() -> CreateAgencyNote:
+    return CreateAgencyNote(tenant_repo(), record_audit(), SystemClock())
+
+
+def list_agency_notes() -> ListAgencyNotes:
+    return ListAgencyNotes(tenant_repo())

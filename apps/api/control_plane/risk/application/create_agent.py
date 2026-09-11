@@ -10,7 +10,7 @@ from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.customers.domain.policies import customer_not_found
 from control_plane.risk.application.gate import CustomerRiskGate
 from control_plane.risk.domain.types import AgentStatus
-from control_plane.tenancy.application.ports import Clock
+from control_plane.tenancy.application.ports import Clock, TenantRepository
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
@@ -38,6 +38,7 @@ class CreateAgent:
         gate: CustomerRiskGate,
         clock: Clock,
         index: AgentIndexRepository,
+        tenants: TenantRepository,
     ) -> None:
         self._customers = customers
         self._lifecycle = lifecycle
@@ -45,6 +46,7 @@ class CreateAgent:
         self._gate = gate
         self._clock = clock
         self._index = index
+        self._tenants = tenants
 
     def execute(self, command: CreateAgentCommand) -> TenantAgent:
         name = command.display_name.strip()
@@ -58,6 +60,15 @@ class CreateAgent:
                 raise customer_not_found()
         if self._lifecycle.get_customer(customer.tenant_id, customer.id) is None:
             raise customer_not_found()
+        tenant = self._tenants.get(customer.tenant_id)
+        if tenant is None:
+            raise customer_not_found()
+        if not command.privileged and not tenant.capabilities.create_agents:
+            raise DomainError(
+                "agency_cannot_create_agent",
+                "Agent creation is not available.",
+                http_status=409,
+            )
         self._gate.assert_open(customer.id)
         now = self._clock.now()
         agent = TenantAgent(

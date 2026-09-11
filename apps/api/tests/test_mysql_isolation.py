@@ -29,14 +29,32 @@ def _target(tenant_id: uuid.UUID, name: str) -> ConnectionTarget:
         host=os.environ.get("TENANT_DB_HOST", "127.0.0.1"),
         port=int(os.environ.get("TENANT_DB_PORT", "3306")),
         name=name,
-        secret_ref=os.environ.get("TENANT_DB_PASSWORD_REF", "TENANT_DB_PASSWORD"),
+        secret_ref="vault:tenant_db",
         tls_required=False,
+        username=os.environ.get("TENANT_DB_USER", "vokit"),
     )
+
+
+class _EnvVault:
+    def get(self, database_id: uuid.UUID) -> str:
+        _ = database_id
+        return os.environ.get("TENANT_DB_PASSWORD", "vokit_ci")
+
+    def put(self, database_id: uuid.UUID, password: str) -> None:
+        _ = database_id, password
 
 
 def test_mysql_same_object_id_stays_on_current_tenant_db() -> None:
     os.environ.setdefault("TENANT_DB_PASSWORD", os.environ.get("TENANT_DB_PASSWORD", "vokit_ci"))
-    runtime = MysqlRuntime(user=os.environ.get("TENANT_DB_USER", "vokit"))
+    runtime = MysqlRuntime(
+        admin_user=os.environ.get("TENANT_DB_ADMIN_USER", "root"),
+        admin_secret_ref=os.environ.get(
+            "TENANT_DB_ADMIN_PASSWORD_REF", "TENANT_DB_ADMIN_PASSWORD"
+        ),
+        vault=_EnvVault(),
+    )
+    # For this optional CI harness, tenant open uses the same env password vault stub.
+    # Prefer dedicated per-tenant users when VOKIT_MYSQL_ISOLATION labs are upgraded.
     tenant_a = new_uuid7()
     tenant_b = new_uuid7()
     object_id = new_uuid7()

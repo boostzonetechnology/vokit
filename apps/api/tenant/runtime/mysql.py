@@ -91,38 +91,41 @@ class MysqlRuntime:
     def __init__(
         self,
         *,
-        user: str,
+        admin_user: str,
+        admin_secret_ref: str,
+        vault,
         connect_timeout: int = 5,
         max_per_tenant: int = 4,
         max_tenants: int = 16,
-        admin_user: str | None = None,
     ) -> None:
-        self._user = user
-        self._admin_user = admin_user or user
+        self._admin_user = admin_user
+        self._admin_secret_ref = admin_secret_ref
+        self._vault = vault
         self._connect_timeout = connect_timeout
         self._max_per_tenant = max_per_tenant
         self._max_tenants = max_tenants
         self._buckets: dict[uuid.UUID, _PoolBucket] = {}
         self._checked_out: dict[int, MysqlConnection] = {}
 
-    def ensure_database(self, target: ConnectionTarget) -> None:
-        password = SecretRef(target.secret_ref).resolve()
-        try:
-            existing = pymysql.connect(
-                host=target.host,
-                port=target.port,
-                user=self._user,
-                password=password,
-                database=target.name,
-                connect_timeout=self._connect_timeout,
-                charset="utf8mb4",
-                ssl=self._ssl(target),
-                autocommit=True,
+    def _admin_password(self) -> str:
+        return SecretRef(self._admin_secret_ref).resolve()
+
+    def _tenant_password(self, target: ConnectionTarget) -> str:
+        if not target.username.strip():
+            raise DomainError(
+                "tenant_db_misconfigured",
+                "Tenant database username is not configured.",
+                http_status=503,
             )
-            existing.close()
-            return
-        except pymysql.err.OperationalError:
-            pass
+        return self._vault.get(target.database_id)
+
+    def ensure_database(self, target: ConnectionTarget) -> None:
+        """Create the tenant schema. Do not probe-connect to the DB name first —
+
+        Django can rebind PyMySQL exception classes, so ``except OperationalError``
+        may miss errno 1049 (unknown database) and abort provisioning.
+        """
+        password = self._admin_password()
         raw = pymysql.connect(
             host=target.host,
             port=target.port,
@@ -144,12 +147,58 @@ class MysqlRuntime:
         finally:
             raw.close()
 
-    def open(self, target: ConnectionTarget) -> TenantConnection:
-        password = SecretRef(target.secret_ref).resolve()
+    def ensure_user(self, target: ConnectionTarget) -> None:
+        username = _safe_ident(target.username)
+        dbname = _safe_ident(target.name)
+        tenant_password = self._tenant_password(target)
         raw = pymysql.connect(
             host=target.host,
             port=target.port,
-            user=self._user,
+            user=self._admin_user,
+            password=self._admin_password(),
+            connect_timeout=self._connect_timeout,
+            charset="utf8mb4",
+            ssl=self._ssl(target),
+            autocommit=True,
+        )
+        try:
+            with raw.cursor() as cursor:
+                cursor.execute(
+                    f"CREATE USER IF NOT EXISTS `{username}`@%s IDENTIFIED BY %s",
+                    ("%", tenant_password),
+                )
+                try:
+                    cursor.execute(
+                        (
+                            f"GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP, "
+                            f"CREATE TEMPORARY TABLES, LOCK TABLES, REFERENCES "
+                            f"ON `{dbname}`.* TO `{username}`@%s"
+                        ),
+                        ("%",),
+                    )
+                except pymysql.MySQLError as exc:
+                    errno = exc.args[0] if exc.args else None
+                    if errno == 1044:
+                        raise DomainError(
+                            "tenant_db_admin_denied",
+                            (
+                                "Tenant DB admin cannot GRANT on the agency database. "
+                                "Use an admin with WITH GRANT OPTION "
+                                "(e.g. root) or grant that option on vokit_t_%.*"
+                            ),
+                            http_status=503,
+                        ) from exc
+                    raise
+                cursor.execute("FLUSH PRIVILEGES")
+        finally:
+            raw.close()
+
+    def open(self, target: ConnectionTarget) -> TenantConnection:
+        password = self._tenant_password(target)
+        raw = pymysql.connect(
+            host=target.host,
+            port=target.port,
+            user=target.username,
             password=password,
             database=target.name,
             connect_timeout=self._connect_timeout,

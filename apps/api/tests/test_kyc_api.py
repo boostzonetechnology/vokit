@@ -68,14 +68,25 @@ def _login(client: Client, email: str) -> None:
 
 def _create_agency(client: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    return _post(
+    from tests.tenant_db_fixtures import tenant_db_payload
+
+    response = _post(
         client,
         "/api/v1/platform/agencies",
         {
             "display_name": name,
             "legal_name": name,
             "owner_email": owner,
+            "database": tenant_db_payload(owner),
         },
+    )
+    if response.status_code != 201:
+        return response
+    agency_id = response.json()["data"]["id"]
+    return _post(
+        client,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate"},
     )
 
 
@@ -99,7 +110,7 @@ def test_payout_rejects_unverified() -> None:
     platform = _client()
     _login(platform, "platform@vokit.test")
     agency = _create_agency(platform, "KYC A", "kyc_a", "oa-kyc@vokit.test")
-    assert agency.status_code == 201
+    assert agency.status_code == 200
     agency_id = agency.json()["data"]["id"]
     _user("agency-kyc@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
     agency_client = _client()

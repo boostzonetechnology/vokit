@@ -12,6 +12,8 @@ from control_plane.identity.infrastructure.repositories import DjangoMembershipR
 from control_plane.identity.models import User
 from shared_kernel.ids import new_uuid7
 
+from tests.tenant_db_fixtures import tenant_db_payload
+
 PASSWORD = "Phase2-Demo!ok"
 
 
@@ -65,7 +67,8 @@ def _login(client: Client, email: str):
 
 def _create_agency(client: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    return _post(
+
+    response = _post(
         client,
         "/api/v1/platform/agencies",
         {
@@ -73,8 +76,18 @@ def _create_agency(client: Client, name: str, db_name: str, owner: str):
             "legal_name": name,
             "owner_email": owner,
             "commission_rate_bps": 1200,
+            "database": tenant_db_payload(owner),
         },
     )
+    if response.status_code != 201:
+        return response
+    agency_id = response.json()["data"]["id"]
+    activated = _post(
+        client,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate"},
+    )
+    return activated
 
 
 @pytest.mark.django_db
@@ -83,8 +96,9 @@ def test_platform_creates_agency_and_customer_under_that_agency() -> None:
     client = _client()
     _login(client, "platform@vokit.test")
     agency = _create_agency(client, "North", "life_north", "owner-n@vokit.test")
-    assert agency.status_code == 201
+    assert agency.status_code == 200
     assert agency.json()["data"]["status"] == "active"
+    assert "owner_invitation_token" not in json.dumps(agency.json())
     assert "password" not in json.dumps(agency.json())
     agency_id = agency.json()["data"]["id"]
     created = _post(
@@ -262,6 +276,7 @@ def test_customer_account_ignores_forged_customer_id() -> None:
             "display_name": "Cust Agency",
             "legal_name": "Cust Agency",
             "owner_email": "ocust@vokit.test",
+            "database": tenant_db_payload("ocust@vokit.test"),
         },
     )
     agency_id = agency.json()["data"]["id"]
