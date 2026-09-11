@@ -25,5 +25,10 @@ class TenantCustomer:
     tenant_id: uuid.UUID
     display_name: str
     status: CustomerStatus
+    legal_name: str = ""
+    owner_email: str = ""
+    phone: str = ""
+    country: str = ""
+    timezone: str = ""
     created_at: datetime | None = None
     updated_at: datetime | None = None

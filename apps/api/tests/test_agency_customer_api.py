@@ -11,7 +11,7 @@ from control_plane.identity.domain.types import MembershipStatus, PrincipalType
 from control_plane.identity.infrastructure.repositories import DjangoMembershipRepository
 from control_plane.identity.models import User
 from shared_kernel.ids import new_uuid7
-from tests.tenant_db_fixtures import tenant_db_payload
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 
@@ -103,10 +103,12 @@ def test_platform_creates_agency_and_customer_under_that_agency() -> None:
     created = _post(
         client,
         "/api/v1/platform/customers",
-        {"display_name": "Cust N", "agency_id": agency_id},
+        platform_customer_body(agency_id, "Cust N"),
     )
     assert created.status_code == 201
     assert created.json()["data"]["agency_id"] == agency_id
+    assert created.json()["data"]["status"] == "invited"
+    assert "owner_invitation_token" not in json.dumps(created.json())
     listed = client.get(f"/api/v1/platform/customers?agency_id={agency_id}")
     assert listed.status_code == 200
     assert len(listed.json()["data"]) == 1
@@ -124,12 +126,12 @@ def test_two_agencies_cannot_see_each_others_customers() -> None:
     cust_a = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Secret A", "agency_id": id_a},
+        platform_customer_body(id_a, "Secret A"),
     )
     cust_b = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Secret B", "agency_id": id_b},
+        platform_customer_body(id_b, "Secret B"),
     )
     assert cust_a.status_code == 201
     assert cust_b.status_code == 201
@@ -150,7 +152,12 @@ def test_two_agencies_cannot_see_each_others_customers() -> None:
     forged_write = _post(
         client_a,
         "/api/v1/agency/customers",
-        {"display_name": "Injected", "agency_id": id_b, "tenant_id": id_b},
+        {
+            "display_name": "Injected",
+            "agency_id": id_b,
+            "tenant_id": id_b,
+            "owner_email": platform_customer_body(id_a, "Injected")["owner_email"],
+        },
     )
     assert forged_write.status_code == 201
     assert forged_write.json()["data"]["agency_id"] == id_a
@@ -181,13 +188,20 @@ def test_suspended_agency_cannot_create_customer() -> None:
     denied = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Nope", "agency_id": agency_id},
+        platform_customer_body(agency_id, "Nope"),
     )
     assert denied.status_code == 409
     _user("agency-h@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
     agency_client = _client()
     _login(agency_client, "agency-h@vokit.test")
-    also_denied = _post(agency_client, "/api/v1/agency/customers", {"display_name": "Nope"})
+    also_denied = _post(
+        agency_client,
+        "/api/v1/agency/customers",
+        {
+            "display_name": "Nope",
+            "owner_email": platform_customer_body(agency_id, "Nope")["owner_email"],
+        },
+    )
     assert also_denied.status_code == 409
 
 
@@ -206,7 +220,14 @@ def test_capability_override_blocks_agency_create() -> None:
     _user("agency-c@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
     agency_client = _client()
     _login(agency_client, "agency-c@vokit.test")
-    denied = _post(agency_client, "/api/v1/agency/customers", {"display_name": "Blocked"})
+    denied = _post(
+        agency_client,
+        "/api/v1/agency/customers",
+        {
+            "display_name": "Blocked",
+            "owner_email": platform_customer_body(agency_id, "Blocked")["owner_email"],
+        },
+    )
     assert denied.status_code == 409
 
 
@@ -282,11 +303,11 @@ def test_customer_account_ignores_forged_customer_id() -> None:
     created = _post(
         platform,
         "/api/v1/platform/customers",
-        {
-            "display_name": "Mine",
-            "agency_id": agency_id,
-            "customer_id": str(customer_id),
-        },
+        platform_customer_body(
+            agency_id,
+            "Mine",
+            customer_id=str(customer_id),
+        ),
     )
     assert created.status_code == 201
     _user(

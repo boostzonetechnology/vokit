@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from control_plane.customers.application.create_customer import CreateCustomerCommand
 from control_plane.customers.infrastructure.container import (
+    change_customer_status,
     create_customer,
     customer_index,
 )
@@ -85,5 +86,14 @@ class Command(BaseCommand):
                     owner_email=email,
                     customer_id=customer_id,
                 )
+            )
+            change_customer_status().execute(
+                customer_id=created.customer.customer_id,
+                tenant_id=tenant_id,
+                action="activate",
+                privileged=True,
+                reason="demo seed",
+                actor_id=actor.user_id,
+                actor_role=actor.role,
             )
             self.stdout.write(f"Customer {created.customer.customer_id}")

@@ -258,6 +258,11 @@ class MemoryRuntime:
                 tenant_id=memory.tenant_id,
                 display_name=str(row.get("display_name") or ""),
                 status=CustomerStatus(str(row.get("status") or "active")),
+                legal_name=str(row.get("legal_name") or ""),
+                owner_email=str(row.get("owner_email") or ""),
+                phone=str(row.get("phone") or ""),
+                country=str(row.get("country") or ""),
+                timezone=str(row.get("timezone") or ""),
             )
         memory.backend.records = records
         memory.backend.customers = customers

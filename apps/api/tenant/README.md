@@ -2,8 +2,8 @@
 
 One MySQL database per Agency. Connections are opened from the trusted control-plane registry through a bounded, tenant-safe pool.
 
-Current tenant schema (`0010_integrations`): isolation tables, `agency_profiles`, `customers`,
-subscriptions/invoices/payments/minute lots, agent builder tables,
+Current tenant schema (`0011_customer_profile`): isolation tables, `agency_profiles`, `customers`
+(with profile columns), subscriptions/invoices/payments/minute lots, agent builder tables,
 `number_assignments`, `calls`, `call_events`, `transfer_destinations`,
 `voicemail_messages`, `recording_artifacts`, plus customer-owned
 `integration_connections`, `webhook_endpoints`, and `webhook_deliveries`.

@@ -18,6 +18,7 @@ from control_plane.tenancy.infrastructure.container import (
     restore_tenant,
 )
 from shared_kernel.hmac import sign_hmac_sha256
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 from shared_kernel.ids import new_uuid7
 from tenant.schema import CURRENT_VERSION
 
@@ -67,8 +68,6 @@ def _login(client: Client, email: str) -> None:
 
 def _agency(platform: Client, name: str, db_name: str, owner: str):
     _ = db_name
-    from tests.tenant_db_fixtures import tenant_db_payload
-
     return _post(
         platform,
         "/api/v1/platform/agencies",
@@ -94,7 +93,7 @@ def test_staging_sandbox_canary_payment_and_restore() -> None:
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Stage Cust", "agency_id": str(agency_a)},
+        platform_customer_body(agency_a, "Stage Cust"),
     )
     customer_id = uuid.UUID(customer.json()["data"]["id"])
     plan = _post(

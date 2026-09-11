@@ -17,7 +17,7 @@ from control_plane.kyc.infrastructure.hmac import sign_kyc_body
 from control_plane.platform_settings.infrastructure.container import platform_settings
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
-from tests.tenant_db_fixtures import tenant_db_payload
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 
@@ -126,12 +126,12 @@ def _pair() -> dict:
     customer_a = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Ops Cust A", "agency_id": str(agency_a_id)},
+        platform_customer_body(agency_a_id, "Ops Cust A"),
     )
     customer_b = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Ops Cust B", "agency_id": str(agency_a_id)},
+        platform_customer_body(agency_a_id, "Ops Cust B"),
     )
     customer_a_id = uuid.UUID(customer_a.json()["data"]["id"])
     customer_b_id = uuid.UUID(customer_b.json()["data"]["id"])

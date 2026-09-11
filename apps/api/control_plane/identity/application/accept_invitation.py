@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
+from typing import Protocol
 
 from control_plane.identity.application.ports import (
     Clock,
@@ -21,10 +23,15 @@ from control_plane.identity.domain.tokens import hash_invitation_token
 from control_plane.identity.domain.types import (
     InvitationStatus,
     MembershipStatus,
+    PrincipalType,
     UserStatus,
 )
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
+
+
+class CustomerInviteActivator(Protocol):
+    def execute(self, *, tenant_id: uuid.UUID, customer_id: uuid.UUID) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,12 +48,14 @@ class AcceptInvitation:
         invitations: InvitationRepository,
         passwords: PasswordHasher,
         clock: Clock,
+        activate_customer: CustomerInviteActivator | None = None,
     ) -> None:
         self._users = users
         self._memberships = memberships
         self._invitations = invitations
         self._passwords = passwords
         self._clock = clock
+        self._activate_customer = activate_customer
 
     def execute(self, command: AcceptInvitationCommand) -> UserRecord:
         invitation = self._invitations.get_by_token_hash(hash_invitation_token(command.token))
@@ -94,4 +103,14 @@ class AcceptInvitation:
             )
         )
         self._invitations.mark_accepted(invitation.id)
+        if (
+            self._activate_customer is not None
+            and invitation.principal_type is PrincipalType.CUSTOMER
+            and invitation.tenant_id is not None
+            and invitation.customer_id is not None
+        ):
+            self._activate_customer.execute(
+                tenant_id=invitation.tenant_id,
+                customer_id=invitation.customer_id,
+            )
         return user

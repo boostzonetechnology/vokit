@@ -14,7 +14,7 @@ from control_plane.identity.infrastructure.repositories import DjangoMembershipR
 from control_plane.identity.models import User
 from control_plane.notifications.models import NotificationDelivery
 from shared_kernel.ids import new_uuid7
-from tests.tenant_db_fixtures import tenant_db_payload
+from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 
@@ -241,7 +241,7 @@ def test_create_agents_capability_blocks_agency_actor() -> None:
     customer = _post(
         platform,
         "/api/v1/platform/customers",
-        {"display_name": "Cust", "agency_id": agency_id},
+        platform_customer_body(agency_id, "Cust"),
     )
     customer_id = customer.json()["data"]["id"]
     _user(
