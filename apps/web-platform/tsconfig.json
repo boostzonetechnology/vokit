@@ -8,7 +8,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../packages/web-ui/src/*"]
+    }
   },
   "include": ["src", "../../packages/web-ui/src"]
 }

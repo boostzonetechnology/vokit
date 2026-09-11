@@ -1,6 +1,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { Portal, apiGet, apiSend, isApiError } from "./api";
+import { PlatformAgentsScreen } from "./features/agents/PlatformAgentsScreen";
+import { PlatformAgenciesScreen } from "./features/agencies/PlatformAgenciesScreen";
+import { PlatformCustomersScreen } from "./features/customers/PlatformCustomersScreen";
+import { PlatformResourceScreen } from "./features/platform/PlatformResourceScreen";
+import { PLATFORM_MODULES } from "./features/platform/platformModules";
 
 type Row = Record<string, unknown>;
 
@@ -58,7 +63,7 @@ function useRows(path: string | null) {
 function Message({ value }: { value: string }) {
   if (!value) return null;
   return (
-    <p className={value.toLowerCase().includes("fail") || value.toLowerCase().includes("error") ? "error" : "hint"} role="status">
+    <p className={value.toLowerCase().includes("fail") || value.toLowerCase().includes("error") ? "text-danger" : "text-text-secondary"} role="status">
       {value}
     </p>
   );
@@ -76,10 +81,10 @@ function DataTable({
   onSelect?: (row: Row) => void;
 }) {
   if (!rows.length) {
-    return <p className="empty">{empty}</p>;
+    return <p className="rounded-lg border border-dashed border-border-strong bg-surface p-6 text-text-muted">{empty}</p>;
   }
   return (
-    <div className="table-wrap">
+    <div className="overflow-auto rounded-lg border border-border-default bg-surface">
       <table>
         <thead>
           <tr>
@@ -92,7 +97,7 @@ function DataTable({
           {rows.map((row, index) => (
             <tr
               key={String(row.id ?? index)}
-              className={onSelect ? "clickable" : undefined}
+              className={onSelect ? "cursor-pointer hover:bg-brand-subtle" : undefined}
               onClick={onSelect ? () => onSelect(row) : undefined}
             >
               {columns.map((col) => (
@@ -141,14 +146,14 @@ export function AgenciesScreen() {
   }
 
   return (
-    <section className="stack">
-      <div className="toolbar">
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <h2>Agencies</h2>
       </div>
       <Message value={error || message} />
-      <article className="card">
+      <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
         <h3>Create agency</h3>
-        <form className="form-grid" onSubmit={(e) => void onCreate(e)}>
+        <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void onCreate(e)}>
           <label>
             Display name
             <input name="display_name" required />
@@ -165,7 +170,7 @@ export function AgenciesScreen() {
             Commission (bps)
             <input name="commission_rate_bps" type="number" min={0} max={10000} defaultValue={1500} />
           </label>
-          <p className="hint span-2">
+          <p className="col-span-full text-text-secondary">
             Database host/name/password are never collected here — allocated from server settings.
           </p>
           <button type="submit">Create</button>
@@ -185,9 +190,9 @@ export function AgenciesScreen() {
         onSelect={setSelected}
       />
       {selected ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>{cell(selected.display_name)}</h3>
-          <dl className="dense">
+          <dl className="grid gap-2">
             <div>
               <dt>Id</dt>
               <dd>{cell(selected.id)}</dd>
@@ -197,7 +202,7 @@ export function AgenciesScreen() {
               <dd>{cell(selected.capabilities)}</dd>
             </div>
           </dl>
-          <div className="actions">
+          <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void patchStatus("suspend")}>
               Suspend
             </button>
@@ -250,14 +255,14 @@ export function CustomersScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
-      <div className="toolbar">
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <h2>Customers</h2>
       </div>
       <Message value={error || message} />
-      <article className="card">
+      <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
         <h3>Create customer</h3>
-        <form className="form-grid" onSubmit={(e) => void onCreate(e)}>
+        <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void onCreate(e)}>
           {portal === "platform" ? (
             <label>
               Agency
@@ -293,11 +298,11 @@ export function CustomersScreen({ portal }: { portal: Portal }) {
             Phone
             <input name="contact_phone" />
           </label>
-          <label className="span-2">
+          <label className="col-span-full">
             Address
             <input name="address" />
           </label>
-          <label className="span-2">
+          <label className="col-span-full">
             Notes
             <textarea name="notes" rows={2} />
           </label>
@@ -319,12 +324,12 @@ export function CustomersScreen({ portal }: { portal: Portal }) {
 }
 
 export function AgentsScreen({ portal }: { portal: Portal }) {
+  if (portal === "platform") {
+    return <PlatformAgentsScreen />;
+  }
+
   const listPath =
-    portal === "platform"
-      ? "/api/v1/platform/agents"
-      : portal === "agency"
-        ? "/api/v1/agency/agents"
-        : "/api/v1/customer/agents";
+    portal === "agency" ? "/api/v1/agency/agents" : "/api/v1/customer/agents";
   const { rows, error, refresh } = useRows(listPath);
   const [message, setMessage] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -339,7 +344,7 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
   }, [portal]);
 
   useEffect(() => {
-    if (!selectedId || portal === "platform") {
+    if (!selectedId) {
       setDetail(null);
       return;
     }
@@ -354,7 +359,6 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (portal !== "agency" && portal !== "customer") return;
     const form = new FormData(event.currentTarget);
     try {
       await apiSend(listPath, "POST", {
@@ -370,7 +374,7 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
 
   async function onConfigure(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedId || portal === "platform") return;
+    if (!selectedId) return;
     const form = new FormData(event.currentTarget);
     const path =
       portal === "agency"
@@ -415,15 +419,15 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
-      <div className="toolbar">
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <h2>Agents</h2>
       </div>
       <Message value={error || message} />
       {portal === "agency" || portal === "customer" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>New agent</h3>
-          <form className="form-grid" onSubmit={(e) => void onCreate(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void onCreate(e)}>
             {portal === "agency" ? (
               <label>
                 Customer
@@ -460,15 +464,15 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
         empty="No agents yet."
         onSelect={(row) => setSelectedId(String(row.id))}
       />
-      {detail && portal !== "platform" ? (
-        <article className="card">
+      {detail ? (
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Builder — {cell(detail.display_name)}</h3>
-          <form className="form-grid" onSubmit={(e) => void onConfigure(e)}>
-            <label className="span-2">
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void onConfigure(e)}>
+            <label className="col-span-full">
               Greeting
               <textarea name="greeting" rows={2} defaultValue={String(detail.greeting || "")} />
             </label>
-            <label className="span-2">
+            <label className="col-span-full">
               Instructions
               <textarea
                 name="instructions"
@@ -525,7 +529,7 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
                 <option value="transfer">Transfer</option>
               </select>
             </label>
-            <label className="checkbox">
+            <label className="flex items-center gap-2 font-semibold">
               <input
                 name="inbound_enabled"
                 type="checkbox"
@@ -533,10 +537,10 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
               />
               Inbound enabled
             </label>
-            <div className="actions span-2">
+            <div className="col-span-full flex flex-wrap gap-2">
               <button type="submit">Save draft</button>
               {portal === "agency" ? (
-                <button type="button" className="primary" onClick={() => void publish()}>
+                <button type="button" className="bg-success text-text-inverse" onClick={() => void publish()}>
                   Publish
                 </button>
               ) : null}
@@ -620,15 +624,15 @@ export function NumbersScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
-      <div className="toolbar">
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <h2>Phone numbers</h2>
       </div>
       <Message value={error || message} />
       {portal === "platform" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Stock lab inventory</h3>
-          <form className="form-grid" onSubmit={(e) => void stock(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void stock(e)}>
             <label>
               E.164
               <input name="e164" placeholder="+15551234567" required />
@@ -651,9 +655,9 @@ export function NumbersScreen({ portal }: { portal: Portal }) {
       ) : null}
       {portal === "agency" ? (
         <>
-          <article className="card">
+          <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
             <h3>Search inventory</h3>
-            <form className="form-grid" onSubmit={(e) => void doSearch(e)}>
+            <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void doSearch(e)}>
               <label>
                 Country
                 <input name="country" defaultValue="US" />
@@ -674,9 +678,9 @@ export function NumbersScreen({ portal }: { portal: Portal }) {
               empty="Run a search to list stock."
             />
           </article>
-          <article className="card">
+          <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
             <h3>Reserve & assign</h3>
-            <form className="form-grid" onSubmit={(e) => void reserveAndAssign(e)}>
+            <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void reserveAndAssign(e)}>
               <label>
                 Number id
                 <input name="number_id" required />
@@ -776,15 +780,15 @@ export function CallsScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
-      <div className="toolbar">
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <h2>Calls</h2>
       </div>
       <Message value={error || message} />
       {portal === "agency" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Outbound (lab)</h3>
-          <form className="form-grid" onSubmit={(e) => void originate(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void originate(e)}>
             <label>
               Agent id
               <input name="agent_id" required />
@@ -812,9 +816,9 @@ export function CallsScreen({ portal }: { portal: Portal }) {
         onSelect={setSelected}
       />
       {selected ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Call detail</h3>
-          <dl className="dense">
+          <dl className="grid gap-2">
             {Object.entries(selected).map(([key, value]) => (
               <div key={key}>
                 <dt>{key}</dt>
@@ -822,11 +826,11 @@ export function CallsScreen({ portal }: { portal: Portal }) {
               </div>
             ))}
           </dl>
-          <p className="hint">
+          <p className="text-text-secondary">
             Transcripts are not stored as an application DB log column; recording play uses a
             short-lived grant to the recording plane.
           </p>
-          <div className="actions">
+          <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void playRecording()}>
               Request recording play
             </button>
@@ -872,13 +876,13 @@ export function BillingPlansScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Plans</h2>
       <Message value={error || message} />
       {portal === "platform" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Create plan</h3>
-          <form className="form-grid" onSubmit={(e) => void createPlan(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void createPlan(e)}>
             <label>
               Name
               <input name="name" required />
@@ -960,13 +964,13 @@ export function PaymentsScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>{portal === "agency" ? "Wallet" : "Payments"}</h2>
       <Message value={error || message} />
       {portal === "platform" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Sandbox settle</h3>
-          <form className="form-grid" onSubmit={(e) => void sandboxSettle(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void sandboxSettle(e)}>
             <label>
               Client reference
               <input name="client_reference" required />
@@ -984,9 +988,9 @@ export function PaymentsScreen({ portal }: { portal: Portal }) {
         </article>
       ) : null}
       {portal === "agency" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Request payout</h3>
-          <form className="form-grid" onSubmit={(e) => void topUp(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void topUp(e)}>
             <button type="submit">Request available balance</button>
           </form>
         </article>
@@ -1037,13 +1041,13 @@ export function KnowledgeScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Knowledge</h2>
       <Message value={error || message} />
       {portal !== "platform" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Add FAQ / document</h3>
-          <form className="form-grid" onSubmit={(e) => void ingest(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void ingest(e)}>
             <label>
               Agent id
               <input name="agent_id" required />
@@ -1052,13 +1056,13 @@ export function KnowledgeScreen({ portal }: { portal: Portal }) {
               Title
               <input name="title" required />
             </label>
-            <label className="span-2">
+            <label className="col-span-full">
               Body
               <textarea name="body" rows={4} required />
             </label>
             <button type="submit">Ingest</button>
           </form>
-          <p className="hint">
+          <p className="text-text-secondary">
             Optional Qdrant + FastEmbed: set QDRANT_URL and align Pipecat embeddings
             (see packages/pipecat-voice).
           </p>
@@ -1108,13 +1112,13 @@ export function KycRiskScreen({
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>{kind === "kyc" ? "KYC" : "Risk"}</h2>
       <Message value={error || message} />
       {kind === "kyc" && portal === "agency" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Start hosted KYC</h3>
-          <p className="hint">Documents stay with the external provider.</p>
+          <p className="text-text-secondary">Documents stay with the external provider.</p>
           <form onSubmit={(e) => void startKyc(e)}>
             <button type="submit">Create session</button>
           </form>
@@ -1169,7 +1173,7 @@ export function IntegrationsScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Integrations</h2>
       <Message value={error || message} />
       {portal === "agency" ? (
@@ -1179,9 +1183,9 @@ export function IntegrationsScreen({ portal }: { portal: Portal }) {
         </label>
       ) : null}
       {portal !== "platform" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Connect</h3>
-          <form className="form-grid" onSubmit={(e) => void connect(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void connect(e)}>
             {portal === "agency" ? (
               <label>
                 Customer id
@@ -1225,7 +1229,7 @@ export function AuditScreen() {
     ? rows.filter((row) => JSON.stringify(row).toLowerCase().includes(q.toLowerCase()))
     : rows;
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Audit</h2>
       <Message value={error} />
       <label>
@@ -1261,7 +1265,7 @@ export function GenericModuleScreen({
           .map((key) => ({ key, label: key }))
       : [{ key: "id", label: "Id" }];
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>{title}</h2>
       <Message value={error} />
       <DataTable rows={rows} columns={columns} empty={`No ${title.toLowerCase()} yet.`} />
@@ -1293,13 +1297,13 @@ export function TransfersScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Transfer destinations</h2>
       <Message value={error || message} />
       {portal === "agency" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Add destination</h3>
-          <form className="form-grid" onSubmit={(e) => void onCreate(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void onCreate(e)}>
             <label>
               Name
               <input name="display_name" required />
@@ -1356,12 +1360,12 @@ export function TeamScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>{portal === "platform" ? "Users" : "Team"}</h2>
       <Message value={error || message} />
-      <article className="card">
+      <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
         <h3>Invite</h3>
-        <form className="form-grid" onSubmit={(e) => void invite(e)}>
+        <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void invite(e)}>
           <label>
             Email
             <input name="email" type="email" required />
@@ -1417,17 +1421,17 @@ export function WebhooksScreen() {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Webhooks</h2>
       <Message value={error || message} />
-      <article className="card">
+      <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
         <h3>Add endpoint</h3>
-        <form className="form-grid" onSubmit={(e) => void createEndpoint(e)}>
+        <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void createEndpoint(e)}>
           <label>
             Customer id
             <input name="customer_id" required />
           </label>
-          <label className="span-2">
+          <label className="col-span-full">
             URL
             <input name="url" type="url" required />
           </label>
@@ -1471,13 +1475,13 @@ export function SettingsScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Settings</h2>
       <Message value={error || message} />
       {portal === "platform" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <h3>Platform settings</h3>
-          <form className="form-grid" onSubmit={(e) => void patch(e)}>
+          <form className="grid items-end gap-3 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]" onSubmit={(e) => void patch(e)}>
             <label>
               Support email
               <input name="support_email" type="email" />
@@ -1530,11 +1534,11 @@ export function PayoutsScreen({ portal }: { portal: Portal }) {
   }
 
   return (
-    <section className="stack">
+    <section className="grid gap-4">
       <h2>Payouts</h2>
       <Message value={error || message} />
       {portal === "agency" ? (
-        <article className="card">
+        <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
           <form onSubmit={(e) => void requestPayout(e)}>
             <button type="submit">Request available balance</button>
           </form>
@@ -1559,6 +1563,21 @@ export function renderProductScreen(
   fallbackPath: string,
   fallbackTitle: string,
 ) {
+  if (portal === "platform") {
+    if (route === "agents") {
+      return <PlatformAgentsScreen />;
+    }
+    if (route === "agencies") {
+      return <PlatformAgenciesScreen />;
+    }
+    if (route === "customers") {
+      return <PlatformCustomersScreen />;
+    }
+    if (route in PLATFORM_MODULES) {
+      return <PlatformResourceScreen route={route} />;
+    }
+  }
+
   switch (route) {
     case "agencies":
       return <AgenciesScreen />;
@@ -1584,8 +1603,9 @@ export function renderProductScreen(
     case "kyc":
       return <KycRiskScreen portal={portal} kind="kyc" />;
     case "risk":
-    case "disputes":
       return <KycRiskScreen portal={portal} kind="risk" />;
+    case "disputes":
+      return <GenericModuleScreen title="Disputes" path="/api/v1/platform/disputes" />;
     case "integrations":
       return <IntegrationsScreen portal={portal} />;
     case "webhooks":

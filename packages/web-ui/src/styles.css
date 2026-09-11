@@ -1,297 +1,369 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
+
+/**
+ * =============================================================================
+ * VOKIT FOUNDATIONS — LOCKED SOURCE OF TRUTH
+ * =============================================================================
+ * Used by all three portals: Platform, Agency, Customer.
+ * File: packages/web-ui/src/styles.css
+ *
+ * DO NOT invent new colors, type sizes, spacing, radii, or shadows outside this
+ * file. Consume these tokens via Tailwind utilities / CSS variables only.
+ *
+ * Color hex values were sampled from the foundation sheet.
+ * Spacing uses the documented 4px base grid.
+ * Typography face: Inter (compact SaaS).
+ * =============================================================================
+ */
+
+/* Scan shared UI + each portal app for Tailwind class usage */
+@source "./**/*.{js,ts,jsx,tsx}";
+@source "../../../apps/web-platform/src/**/*.{js,ts,jsx,tsx}";
+@source "../../../apps/web-agency/src/**/*.{js,ts,jsx,tsx}";
+@source "../../../apps/web-customer/src/**/*.{js,ts,jsx,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+/* -----------------------------------------------------------------------------
+ * Primitive + semantic tokens (light)
+ * --------------------------------------------------------------------------- */
 :root {
-  color: #10233a;
-  background: #f4f7fb;
-  font-family: "Segoe UI", sans-serif;
+  /* Brand + surfaces */
+  --vokit-brand: #6557f5;
+  --vokit-brand-subtle: #f5f3ff;
+  --vokit-canvas: #f8fafc;
+  --vokit-surface: #ffffff;
+  --vokit-elevated: #ffffff;
+  --vokit-violet-600: #6557f5;
+  --vokit-violet-500: #7c6ff6;
+  --vokit-violet-100: #ede9fe;
+
+  /* Text */
+  --vokit-text-primary: #0b1220;
+  --vokit-text-secondary: #4b5563;
+  --vokit-text-muted: #64748b;
+  --vokit-text-brand: #5146d8;
+  --vokit-text-inverse: #ffffff;
+
+  /* Borders */
+  --vokit-border-default: #e2e8f0;
+  --vokit-border-strong: #cbd5e1;
+  --vokit-border-brand: #ddd6fe;
+
+  /* Status + reporting */
+  --vokit-success: #16a34a;
+  --vokit-warning: #d97706;
+  --vokit-danger: #dc2626;
+  --vokit-info: #2563eb;
+  --vokit-chart-1: #6557f5;
+  --vokit-chart-2: #3b82f6;
+  --vokit-chart-3: #22c55e;
+  --vokit-chart-4: #f59e0b;
+
+  /* Spacing — 4px base grid (foundation sheet) */
+  --vokit-space-xs: 0.25rem; /* 4px */
+  --vokit-space-sm: 0.5rem; /* 8px */
+  --vokit-space-md: 0.75rem; /* 12px */
+  --vokit-space-lg: 1rem; /* 16px */
+  --vokit-space-xl: 1.25rem; /* 20px */
+  --vokit-space-2xl: 1.5rem; /* 24px */
+  --vokit-space-3xl: 2rem; /* 32px */
+  --vokit-space-4xl: 2.5rem; /* 40px */
+
+  /* Radius */
+  --vokit-radius-sm: 0.25rem; /* 4px */
+  --vokit-radius-md: 0.5rem; /* 8px */
+  --vokit-radius-lg: 0.75rem; /* 12px */
+  --vokit-radius-xl: 1rem; /* 16px */
+  --vokit-radius-full: 9999px;
+
+  /* Elevation — layered, not floating chrome */
+  --vokit-shadow-subtle: 0 1px 2px rgb(11 18 32 / 0.06);
+  --vokit-shadow-medium: 0 0 4px rgb(11 18 32 / 0.1);
+  --vokit-shadow-floating: 0 0 12px rgb(11 18 32 / 0.14);
+
+  /* -------------------------------------------------------------------------
+   * shadcn semantic bridge → Vokit foundations
+   * Keep component library wired to the same locked palette.
+   * ----------------------------------------------------------------------- */
+  --background: var(--vokit-canvas);
+  --foreground: var(--vokit-text-primary);
+  --card: var(--vokit-surface);
+  --card-foreground: var(--vokit-text-primary);
+  --popover: var(--vokit-elevated);
+  --popover-foreground: var(--vokit-text-primary);
+  --primary: var(--vokit-brand);
+  --primary-foreground: var(--vokit-text-inverse);
+  --secondary: var(--vokit-brand-subtle);
+  --secondary-foreground: var(--vokit-text-brand);
+  --muted: var(--vokit-brand-subtle);
+  --muted-foreground: var(--vokit-text-muted);
+  --accent: var(--vokit-violet-100);
+  --accent-foreground: var(--vokit-text-brand);
+  --destructive: var(--vokit-danger);
+  --border: var(--vokit-border-default);
+  --input: var(--vokit-border-default);
+  --ring: var(--vokit-brand);
+  --chart-1: var(--vokit-chart-1);
+  --chart-2: var(--vokit-chart-2);
+  --chart-3: var(--vokit-chart-3);
+  --chart-4: var(--vokit-chart-4);
+  --chart-5: var(--vokit-violet-500);
+  --radius: var(--vokit-radius-md);
+  --sidebar: var(--vokit-surface);
+  --sidebar-foreground: var(--vokit-text-primary);
+  --sidebar-primary: var(--vokit-brand);
+  --sidebar-primary-foreground: var(--vokit-text-inverse);
+  --sidebar-accent: var(--vokit-brand-subtle);
+  --sidebar-accent-foreground: var(--vokit-text-brand);
+  --sidebar-border: var(--vokit-border-default);
+  --sidebar-ring: var(--vokit-brand);
 }
 
-* {
-  box-sizing: border-box;
+/* -----------------------------------------------------------------------------
+ * Dark — inverted surfaces; brand + status stay on-foundation
+ * (Sheet is light-first; dark keeps the same brand system locked.)
+ * --------------------------------------------------------------------------- */
+.dark {
+  --vokit-brand: #7c6ff6;
+  --vokit-brand-subtle: #1e1b4b;
+  --vokit-canvas: #0b1220;
+  --vokit-surface: #111827;
+  --vokit-elevated: #1f2937;
+  --vokit-violet-600: #7c6ff6;
+  --vokit-violet-500: #6557f5;
+  --vokit-violet-100: #312e81;
+
+  --vokit-text-primary: #f8fafc;
+  --vokit-text-secondary: #cbd5e1;
+  --vokit-text-muted: #94a3b8;
+  --vokit-text-brand: #a5b4fc;
+  --vokit-text-inverse: #0b1220;
+
+  --vokit-border-default: #1f2937;
+  --vokit-border-strong: #334155;
+  --vokit-border-brand: #4338ca;
+
+  --vokit-shadow-subtle: 0 1px 2px rgb(0 0 0 / 0.35);
+  --vokit-shadow-medium: 0 0 4px rgb(0 0 0 / 0.4);
+  --vokit-shadow-floating: 0 0 12px rgb(0 0 0 / 0.5);
+
+  --background: var(--vokit-canvas);
+  --foreground: var(--vokit-text-primary);
+  --card: var(--vokit-surface);
+  --card-foreground: var(--vokit-text-primary);
+  --popover: var(--vokit-elevated);
+  --popover-foreground: var(--vokit-text-primary);
+  --primary: var(--vokit-brand);
+  --primary-foreground: var(--vokit-text-inverse);
+  --secondary: var(--vokit-brand-subtle);
+  --secondary-foreground: var(--vokit-text-brand);
+  --muted: var(--vokit-brand-subtle);
+  --muted-foreground: var(--vokit-text-muted);
+  --accent: var(--vokit-violet-100);
+  --accent-foreground: var(--vokit-text-brand);
+  --destructive: var(--vokit-danger);
+  --border: var(--vokit-border-default);
+  --input: var(--vokit-border-strong);
+  --ring: var(--vokit-brand);
+  --chart-1: var(--vokit-chart-1);
+  --chart-2: var(--vokit-chart-2);
+  --chart-3: var(--vokit-chart-3);
+  --chart-4: var(--vokit-chart-4);
+  --chart-5: var(--vokit-violet-500);
+  --sidebar: var(--vokit-surface);
+  --sidebar-foreground: var(--vokit-text-primary);
+  --sidebar-primary: var(--vokit-brand);
+  --sidebar-primary-foreground: var(--vokit-text-inverse);
+  --sidebar-accent: var(--vokit-brand-subtle);
+  --sidebar-accent-foreground: var(--vokit-text-brand);
+  --sidebar-border: var(--vokit-border-default);
+  --sidebar-ring: var(--vokit-brand);
 }
 
-body {
-  margin: 0;
+/* -----------------------------------------------------------------------------
+ * Tailwind theme bridge — utilities only consume locked tokens
+ * --------------------------------------------------------------------------- */
+@theme inline {
+  /* Font */
+  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+
+  /* 4px spacing base → p-1 = 4px, p-2 = 8px, … */
+  --spacing: 0.25rem;
+
+  /* Named foundation spacing */
+  --spacing-xs: var(--vokit-space-xs);
+  --spacing-sm: var(--vokit-space-sm);
+  --spacing-md: var(--vokit-space-md);
+  --spacing-lg: var(--vokit-space-lg);
+  --spacing-xl: var(--vokit-space-xl);
+  --spacing-2xl: var(--vokit-space-2xl);
+  --spacing-3xl: var(--vokit-space-3xl);
+  --spacing-4xl: var(--vokit-space-4xl);
+
+  /* Typography scale (foundation hierarchy) */
+  --text-display: 2.25rem;
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 700;
+
+  --text-page: 1.75rem;
+  --text-page--line-height: 1.2;
+  --text-page--letter-spacing: -0.015em;
+  --text-page--font-weight: 700;
+
+  --text-section: 1.125rem;
+  --text-section--line-height: 1.35;
+  --text-section--letter-spacing: -0.01em;
+  --text-section--font-weight: 600;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.5;
+  --text-body--font-weight: 400;
+
+  --text-body-sm: 0.75rem;
+  --text-body-sm--line-height: 1.45;
+  --text-body-sm--font-weight: 400;
+
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1.3;
+  --text-label--letter-spacing: 0.06em;
+  --text-label--font-weight: 600;
+
+  /* Radius */
+  --radius-sm: var(--vokit-radius-sm);
+  --radius-md: var(--vokit-radius-md);
+  --radius-lg: var(--vokit-radius-lg);
+  --radius-xl: var(--vokit-radius-xl);
+  --radius-full: var(--vokit-radius-full);
+  --radius-2xl: var(--vokit-radius-xl);
+  --radius-3xl: var(--vokit-radius-xl);
+  --radius-4xl: var(--vokit-radius-xl);
+
+  /* Elevation */
+  --shadow-subtle: var(--vokit-shadow-subtle);
+  --shadow-medium: var(--vokit-shadow-medium);
+  --shadow-floating: var(--vokit-shadow-floating);
+
+  /* Foundation colors (prefer these over arbitrary hex) */
+  --color-brand: var(--vokit-brand);
+  --color-brand-subtle: var(--vokit-brand-subtle);
+  --color-canvas: var(--vokit-canvas);
+  --color-surface: var(--vokit-surface);
+  --color-elevated: var(--vokit-elevated);
+  --color-violet-600: var(--vokit-violet-600);
+  --color-violet-500: var(--vokit-violet-500);
+  --color-violet-100: var(--vokit-violet-100);
+
+  --color-text-primary: var(--vokit-text-primary);
+  --color-text-secondary: var(--vokit-text-secondary);
+  --color-text-muted: var(--vokit-text-muted);
+  --color-text-brand: var(--vokit-text-brand);
+  --color-text-inverse: var(--vokit-text-inverse);
+
+  --color-border-default: var(--vokit-border-default);
+  --color-border-strong: var(--vokit-border-strong);
+  --color-border-brand: var(--vokit-border-brand);
+
+  --color-success: var(--vokit-success);
+  --color-warning: var(--vokit-warning);
+  --color-danger: var(--vokit-danger);
+  --color-info: var(--vokit-info);
+
+  /* shadcn semantic colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
-.app {
-  min-height: 100vh;
-}
-
-.skip-link {
-  position: absolute;
-  left: 12px;
-  top: -48px;
-  z-index: 10;
-  background: #0b2438;
-  color: #fff;
-  padding: 8px 12px;
-}
-
-.skip-link:focus {
-  top: 12px;
-}
-
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
-  background: #173f63;
-  color: #fff;
-}
-
-.topbar h1 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.eyebrow {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin: 0 0 4px;
-  opacity: 0.8;
-  font-size: 0.75rem;
-}
-
-.session {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  min-height: calc(100vh - 76px);
-}
-
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 12px;
-  background: #fff;
-  border-right: 1px solid #d7e0ea;
-}
-
-.nav a {
-  color: #173f63;
-  text-decoration: none;
-  padding: 8px 10px;
-  border-radius: 8px;
-}
-
-.nav a.active,
-.nav a:hover {
-  background: #e8eef5;
-}
-
-.content,
-.pad,
-.shell {
-  padding: 20px;
-}
-
-.shell {
-  max-width: 480px;
-  margin: 48px auto;
-}
-
-.hint,
-.error {
-  color: #3d4d5c;
-}
-
-.error {
-  color: #8a1515;
-}
-
-.card,
-.kpi {
-  background: #fff;
-  border: 1px solid #d7e0ea;
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.stack {
-  display: grid;
-  gap: 16px;
-}
-
-.toolbar,
-.inline {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.kpi {
-  text-align: left;
-  cursor: pointer;
-  display: grid;
-  gap: 8px;
-}
-
-.kpi span {
-  color: #3d4d5c;
-  font-size: 0.85rem;
-}
-
-.form-grid,
-.card {
-  display: grid;
-  gap: 12px;
-}
-
-label {
-  display: grid;
-  gap: 6px;
-  font-weight: 600;
-}
-
-input,
-select,
-button {
-  padding: 10px 12px;
-  border-radius: 8px;
-}
-
-input,
-select {
-  border: 1px solid #c5d0db;
-}
-
-button {
-  border: 0;
-  background: #173f63;
-  color: #fff;
-  cursor: pointer;
-  width: fit-content;
-}
-
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible {
-  outline: 3px solid #0b2438;
-  outline-offset: 2px;
-}
-
-table caption {
-  text-align: left;
-  padding: 10px 12px;
-  font-weight: 600;
-}
-
-.table-wrap {
-  overflow: auto;
-  background: #fff;
-  border: 1px solid #d7e0ea;
-  border-radius: 12px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 560px;
-}
-
-th,
-td {
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid #edf2f7;
-  font-size: 0.9rem;
-}
-
-.dense {
-  display: grid;
-  gap: 8px;
-}
-
-.dense dt {
-  color: #5b6b7c;
-  font-size: 0.8rem;
-}
-
-.dense dd {
-  margin: 0;
-}
-
-.form-grid {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  align-items: end;
-}
-
-.form-grid .span-2 {
-  grid-column: 1 / -1;
-}
-
-.form-grid textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #c5d0db;
-  font: inherit;
-}
-
-.actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-button.primary {
-  background: #0d9488;
-}
-
-.checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.empty {
-  padding: 24px;
-  background: #fff;
-  border: 1px dashed #c5d0db;
-  border-radius: 12px;
-  color: #5b6b7c;
-}
-
-tr.clickable {
-  cursor: pointer;
-}
-
-tr.clickable:hover {
-  background: #f0f7f6;
-}
-
-.nav a.active {
-  background: #d8efe9;
-  color: #0f3d3a;
-}
-
-@media (max-width: 800px) {
-  .layout {
-    grid-template-columns: 1fr;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
 
-  .nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-    border-right: 0;
-    border-bottom: 1px solid #d7e0ea;
+  html {
+    @apply font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply m-0 bg-canvas text-text-primary;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  label {
+    @apply grid gap-1.5 font-semibold;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply rounded-md border border-border-strong px-3 py-2.5;
+  }
+
+  button {
+    @apply w-fit cursor-pointer rounded-md border-0 px-3 py-2.5;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    @apply outline outline-3 outline-offset-2 outline-brand;
+  }
+
+  table {
+    @apply w-full min-w-[560px] border-collapse;
+  }
+
+  table caption {
+    @apply px-3 py-2.5 text-left font-semibold;
+  }
+
+  th,
+  td {
+    @apply border-b border-border-default px-3 py-2.5 text-left text-sm;
+  }
+
+  dt {
+    @apply text-body-sm text-text-muted;
+  }
+
+  dd {
+    @apply m-0;
   }
 }
 
