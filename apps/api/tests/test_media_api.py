@@ -13,7 +13,6 @@ from control_plane.identity.infrastructure.repositories import DjangoMembershipR
 from control_plane.identity.models import User
 from control_plane.telephony.infrastructure.container import reset_sip_edge
 from shared_kernel.ids import new_uuid7
-
 from tests.tenant_db_fixtures import tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"

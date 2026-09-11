@@ -17,7 +17,6 @@ from control_plane.kyc.infrastructure.hmac import sign_kyc_body
 from control_plane.platform_settings.infrastructure.container import platform_settings
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
-
 from tests.tenant_db_fixtures import tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"

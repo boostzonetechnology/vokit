@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from django.conf import settings
 
+from control_plane.audit.infrastructure.container import record_audit
 from control_plane.identity.infrastructure.clock import SystemClock
 from control_plane.identity.infrastructure.container import invite_user
-from control_plane.audit.infrastructure.container import record_audit
 from control_plane.tenancy.application.backup import (
     BackupControlPlane,
     BackupTenant,
@@ -17,11 +17,11 @@ from control_plane.tenancy.application.change_agency import (
     UpdateAgencyProfile,
 )
 from control_plane.tenancy.application.create_agency import CreateAgency
-from control_plane.tenancy.application.notes import CreateAgencyNote, ListAgencyNotes
 from control_plane.tenancy.application.migrate_tenant import (
     MigrateTenant,
     MigrateTenantBatch,
 )
+from control_plane.tenancy.application.notes import CreateAgencyNote, ListAgencyNotes
 from control_plane.tenancy.application.provision_tenant import ProvisionTenant
 from control_plane.tenancy.infrastructure.repositories import (
     DjangoMigrationJobRepository,
