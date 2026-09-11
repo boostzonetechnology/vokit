@@ -29,7 +29,7 @@ from control_plane.commission.infrastructure.container import (
     reverse_commission,
     upload_proof,
 )
-from control_plane.identity.api.auth import parse_uuid, require_principal
+from control_plane.identity.api.auth import parse_optional_uuid, parse_uuid, require_principal
 from control_plane.identity.api.views import CsrfAPIView
 from control_plane.identity.domain.types import PrincipalType
 from control_plane.identity.infrastructure.clock import SystemClock
@@ -237,7 +237,12 @@ class PlatformPayoutCollectionView(CsrfAPIView):
             status = PayoutStatus(status_raw) if status_raw else None
         except ValueError as exc:
             raise DomainError("validation_error", "status is invalid.") from exc
-        rows, page = page_slice(payouts().list(status=status), offset, limit)
+        agency_id = parse_optional_uuid(
+            request.query_params.get("agency_id"), field="agency_id"
+        )
+        rows, page = page_slice(
+            payouts().list(tenant_id=agency_id, status=status), offset, limit
+        )
         return success([_payout_public(row) for row in rows], page=page)
 
 

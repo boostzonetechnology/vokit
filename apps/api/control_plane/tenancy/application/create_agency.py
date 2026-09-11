@@ -8,8 +8,14 @@ from control_plane.identity.application.invite_user import InviteUser, InviteUse
 from control_plane.identity.application.ports import MembershipRecord
 from control_plane.identity.domain.policies import MembershipBinding
 from control_plane.identity.domain.types import PrincipalType
+from control_plane.notifications.application.hooks import deliver_invitation
 from control_plane.tenancy.application.allocate_database import allocate_tenant_database
-from control_plane.tenancy.application.ports import Clock, TenantRecord, TenantRepository
+from control_plane.tenancy.application.ports import (
+    Clock,
+    TenantDatabaseRepository,
+    TenantRecord,
+    TenantRepository,
+)
 from control_plane.tenancy.application.provision_tenant import (
     ProvisionTenant,
     ProvisionTenantCommand,
@@ -31,6 +37,10 @@ class CreateAgencyCommand:
     legal_name: str
     owner_email: str
     actor: MembershipRecord
+    db_username: str
+    db_password: str
+    db_host: str | None = None
+    db_port: int | None = None
     commission_rate_bps: int = 0
     currency: str = "USD"
     capabilities: AgencyCapabilities = AgencyCapabilities()
@@ -42,7 +52,6 @@ class CreateAgencyCommand:
 @dataclass(frozen=True, slots=True)
 class CreatedAgency:
     tenant: TenantRecord
-    invitation_token: str | None
 
 
 class CreateAgency:
@@ -50,12 +59,14 @@ class CreateAgency:
         self,
         provision: ProvisionTenant,
         tenants: TenantRepository,
+        databases: TenantDatabaseRepository,
         lifecycle: TenantLifecycleService,
         invites: InviteUser,
         clock: Clock,
     ) -> None:
         self._provision = provision
         self._tenants = tenants
+        self._databases = databases
         self._lifecycle = lifecycle
         self._invites = invites
         self._clock = clock
@@ -65,6 +76,10 @@ class CreateAgency:
         tenant_id = command.tenant_id or new_uuid7()
         allocated = allocate_tenant_database(
             tenant_id,
+            db_username=command.db_username,
+            db_password=command.db_password,
+            db_host=command.db_host,
+            db_port=command.db_port,
             name_override=command.database_name,
         )
         tenant = self._provision.execute(
@@ -73,6 +88,8 @@ class CreateAgency:
                 host=allocated.host,
                 port=allocated.port,
                 name=allocated.name,
+                db_username=allocated.db_username,
+                db_password=allocated.db_password,
                 secret_ref=allocated.secret_ref,
                 tls_required=allocated.tls_required,
                 tenant_id=tenant_id,
@@ -87,7 +104,7 @@ class CreateAgency:
         now = self._clock.now()
         updated = tenant.with_agency(
             display_name=command.display_name.strip(),
-            agency_status=AgencyStatus.ACTIVE,
+            agency_status=AgencyStatus.INVITED,
             legal_name=command.legal_name.strip() or command.display_name.strip(),
             currency=command.currency,
             commission_rate_bps=command.commission_rate_bps,
@@ -107,7 +124,7 @@ class CreateAgency:
                 updated_at=now,
             ),
         )
-        token = self._invite_owner(command, updated.id)
+        self._invite_owner(command, updated.id)
         log_event(
             logger,
             "agency.created",
@@ -115,11 +132,11 @@ class CreateAgency:
             tenant_id=str(updated.id),
         )
         saved = self._tenants.get(updated.id) or updated
-        return CreatedAgency(tenant=saved, invitation_token=token)
+        return CreatedAgency(tenant=saved)
 
-    def _invite_owner(self, command: CreateAgencyCommand, tenant_id: uuid.UUID) -> str | None:
+    def _invite_owner(self, command: CreateAgencyCommand, tenant_id: uuid.UUID) -> None:
         try:
-            _record, token = self._invites.execute(
+            record, token = self._invites.execute(
                 InviteUserCommand(
                     email=command.owner_email,
                     binding=MembershipBinding(
@@ -132,11 +149,24 @@ class CreateAgency:
                     actor_membership=command.actor,
                 )
             )
-            return token
         except DomainError as exc:
             if exc.code == "membership_conflict":
-                return None
+                raise DomainError(
+                    "owner_conflict",
+                    "Owner email already has a membership.",
+                    http_status=409,
+                ) from exc
             raise
+        deliver_invitation(
+            email=record.email,
+            role=record.role,
+            principal_type=record.principal_type,
+            tenant_id=record.tenant_id,
+            customer_id=record.customer_id,
+            token=token,
+            actor_id=command.actor.user_id,
+            actor_role=command.actor.role,
+        )
 
     def _validate(self, command: CreateAgencyCommand) -> None:
         if not command.display_name.strip():
@@ -147,3 +177,13 @@ class CreateAgency:
             raise DomainError("validation_error", "commission_rate_bps is invalid.")
         if not command.owner_email.strip():
             raise DomainError("validation_error", "owner_email is required.")
+        username = (command.db_username or "").strip()
+        if not username:
+            raise DomainError("validation_error", "username is required.")
+        existing = self._databases.get_by_username(username)
+        if existing is not None:
+            raise DomainError(
+                "db_username_conflict",
+                "Database username is already in use.",
+                http_status=409,
+            )

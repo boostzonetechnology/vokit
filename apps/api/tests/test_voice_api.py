@@ -11,6 +11,7 @@ from control_plane.identity.domain.types import MembershipStatus, PrincipalType
 from control_plane.identity.infrastructure.repositories import DjangoMembershipRepository
 from control_plane.identity.models import User
 from shared_kernel.ids import new_uuid7
+from tests.tenant_db_fixtures import tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 TOKEN = "test-internal-telephony-token"
@@ -84,10 +85,17 @@ def _ready_voice(*, overage: bool = False, grace: int = 30, publish: bool = True
             "display_name": "Voice A",
             "legal_name": "Voice A",
             "owner_email": "oa-voice@vokit.test",
+            "database": tenant_db_payload("oa-voice@vokit.test"),
         },
     )
     assert agency.status_code == 201
     agency_id = uuid.UUID(agency.json()["data"]["id"])
+    activated = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate"},
+    )
+    assert activated.status_code == 200
     customer = _post(
         platform,
         "/api/v1/platform/customers",

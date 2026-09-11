@@ -62,6 +62,8 @@ class Command(BaseCommand):
                     tenant_id=tenant_id,
                     database_name=db_name,
                     capabilities=AgencyCapabilities(),
+                    db_username=f"demo_{tenant_id.hex[:16]}",
+                    db_password="DemoTenantPass12!",
                 )
             )
             status = created.tenant.agency_status.value

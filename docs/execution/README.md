@@ -39,6 +39,7 @@ If this pack and the SRS conflict, **the SRS wins**.
 | [24 Phase 17 security review](24-PHASE-17-SECURITY-REVIEW.md) | Auth/RBAC/tenancy/webhook/recording review |
 | [25 Capacity worksheet](25-CAPACITY-WORKSHEET.md) | Pre-scale estimates; no speculative replicas |
 | [26 Phase 19 evidence](26-PHASE-19-EVIDENCE.md) | Lab ready / live No-Go pack |
+| [Known gaps](../known-gaps/README.md) | Open SRS-vs-code module gaps (backlog) |
 | [Runbooks](runbooks/README.md) | Staging/ops procedures (backup, canary, P0 isolation) |
 
 ## Removed as duplicates (already covered)

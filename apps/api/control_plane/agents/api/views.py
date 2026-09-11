@@ -285,6 +285,22 @@ class PlatformInstructionView(CsrfAPIView):
 class PlatformKnowledgeView(CsrfAPIView):
     def get(self, request: Request) -> Response:
         _require_platform_perm(request, "agents.review")
+        agency_id = parse_optional_uuid(
+            request.query_params.get("agency_id"), field="agency_id"
+        )
+        if agency_id is not None:
+            rows = [
+                {
+                    "id": str(row.source_id),
+                    "title": row.title,
+                    "scope": row.scope,
+                    "status": row.status,
+                    "group_id": row.group_id,
+                    "agency_id": str(agency_id),
+                }
+                for row in tenant_agents().list_knowledge(agency_id)
+            ]
+            return success(rows)
         rows = [
             {"id": str(item[0]), "title": item[1], "scope": "global"}
             for item in global_knowledge().list()

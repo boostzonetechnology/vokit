@@ -25,6 +25,7 @@ from control_plane.telephony.infrastructure.container import reset_sip_edge
 from control_plane.tenancy.infrastructure.container import router, runtime
 from shared_kernel.ids import new_uuid7
 from tenant.media.service import TenantMediaService
+from tests.tenant_db_fixtures import tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 TEL_TOKEN = "test-internal-telephony-token"
@@ -101,10 +102,17 @@ def _ready_call(*, tag: str, e164: str, hours: list | None = None) -> dict:
             "display_name": f"Rec {tag}",
             "legal_name": f"Rec {tag}",
             "owner_email": f"oa-{tag}@vokit.test",
+            "database": tenant_db_payload(f"oa-{tag}@vokit.test"),
         },
     )
     assert agency.status_code == 201
     agency_id = uuid.UUID(agency.json()["data"]["id"])
+    activated = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate"},
+    )
+    assert activated.status_code == 200
     customer = _post(
         platform,
         "/api/v1/platform/customers",

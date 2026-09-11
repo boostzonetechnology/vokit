@@ -34,6 +34,7 @@ class TenantDatabase(models.Model):
     host = models.CharField(max_length=255)
     port = models.PositiveIntegerField(default=3306)
     name = models.CharField(max_length=64)
+    db_username = models.CharField(max_length=128, blank=True, default="")
     secret_ref = models.CharField(max_length=128)
     tls_required = models.BooleanField(default=False)
     status = models.CharField(max_length=32, default="allocating")
@@ -83,3 +84,36 @@ class TenantMigrationJob(models.Model):
                 name="tenancy_one_active_migration",
             )
         ]
+
+
+class AgencyNote(models.Model):
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name="notes"
+    )
+    body = models.TextField(max_length=2000)
+    risk_flag = models.BooleanField(default=False)
+    created_by_id = models.UUIDField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "agency_notes"
+        indexes = [
+            models.Index(fields=["tenant", "-created_at"], name="idx_agency_notes_tenant"),
+        ]
+
+
+class TenantDbCredential(models.Model):
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    database = models.OneToOneField(
+        TenantDatabase,
+        on_delete=models.CASCADE,
+        related_name="credential",
+    )
+    ciphertext = models.CharField(max_length=1024)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "tenant_db_credentials"

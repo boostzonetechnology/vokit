@@ -133,6 +133,11 @@ VOKIT_CURRENCY = "USD"
 TENANT_RUNTIME = _env("TENANT_RUNTIME", "mysql")
 TENANT_DB_HOST = _env("TENANT_DB_HOST", "127.0.0.1")
 TENANT_DB_PORT = _env_int("TENANT_DB_PORT", 3306)
+TENANT_DB_ADMIN_USER = _env("TENANT_DB_ADMIN_USER", "root")
+TENANT_DB_ADMIN_PASSWORD_REF = _env(
+    "TENANT_DB_ADMIN_PASSWORD_REF", "TENANT_DB_ADMIN_PASSWORD"
+)
+# Deprecated for tenant runtime login (Phase B). Kept only for transitional tooling.
 TENANT_DB_USER = _env("TENANT_DB_USER", "vokit")
 TENANT_DB_PASSWORD_REF = _env("TENANT_DB_PASSWORD_REF", "TENANT_DB_PASSWORD")
 TENANT_DB_NAME_A = _env("TENANT_DB_NAME_A", "vokit_tenant_a")

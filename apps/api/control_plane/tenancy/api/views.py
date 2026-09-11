@@ -49,7 +49,7 @@ def _tenant_payload(
             "host": database.host,
             "port": database.port,
             "name": database.name,
-            "secret_ref": database.secret_ref,
+            "username": database.db_username,
             "tls_required": database.tls_required,
             "status": database.status.value,
             "schema_version": database.schema_version,
@@ -69,13 +69,16 @@ class TenantCollectionView(CsrfAPIView):
     def post(self, request: Request) -> Response:
         _require_platform_perm(request, "tenants.provision")
         database = request.data.get("database") or {}
+        if "name" not in database:
+            raise DomainError("validation_error", "database.name is required.")
         tenant = provisioner().execute(
             ProvisionTenantCommand(
                 display_name=str(request.data.get("display_name") or ""),
                 host=str(database.get("host") or ""),
                 port=int(database.get("port") or 0),
                 name=str(database.get("name") or ""),
-                secret_ref=str(database.get("secret_ref") or ""),
+                db_username=str(database.get("username") or ""),
+                db_password=str(database.get("password") or ""),
                 tls_required=bool(database.get("tls_required") or False),
                 tenant_id=parse_optional_uuid(
                     request.data.get("tenant_id"), field="tenant_id"

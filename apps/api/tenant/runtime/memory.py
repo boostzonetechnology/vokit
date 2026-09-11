@@ -110,6 +110,9 @@ class MemoryRuntime:
         store = self._stores.setdefault(target.name, MemoryStore())
         store.created = True
 
+    def ensure_user(self, target: ConnectionTarget) -> None:
+        return
+
     def mark_down(self, name: str, down: bool = True) -> None:
         self._stores.setdefault(name, MemoryStore()).down = down
 

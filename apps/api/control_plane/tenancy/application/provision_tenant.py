@@ -4,6 +4,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 
+from control_plane.tenancy.application.allocate_database import VAULT_SECRET_REF
 from control_plane.tenancy.application.ports import (
     Clock,
     ProvisioningJobRecord,
@@ -18,6 +19,7 @@ from control_plane.tenancy.domain.types import (
     ProvisioningStep,
     TenantStatus,
 )
+from control_plane.tenancy.infrastructure.vault import TenantDbVault
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
@@ -38,9 +40,11 @@ class ProvisionTenantCommand:
     host: str
     port: int
     name: str
-    secret_ref: str
+    db_username: str
+    db_password: str
     tls_required: bool
     tenant_id: uuid.UUID | None = None
+    secret_ref: str = VAULT_SECRET_REF
 
 
 class ProvisionTenant:
@@ -53,6 +57,7 @@ class ProvisionTenant:
         connections: TenantConnectionFactory,
         schema: SchemaRunner,
         clock: Clock,
+        vault: TenantDbVault,
     ) -> None:
         self._tenants = tenants
         self._databases = databases
@@ -61,6 +66,7 @@ class ProvisionTenant:
         self._connections = connections
         self._schema = schema
         self._clock = clock
+        self._vault = vault
 
     def execute(self, command: ProvisionTenantCommand) -> TenantRecord:
         self._validate(command)
@@ -91,12 +97,19 @@ class ProvisionTenant:
                 host=command.host.strip(),
                 port=command.port,
                 name=command.name.strip(),
-                secret_ref=command.secret_ref.strip(),
+                secret_ref=(command.secret_ref or VAULT_SECRET_REF).strip(),
                 tls_required=command.tls_required,
                 status=DatabaseStatus.ALLOCATING,
                 schema_version="",
+                db_username=command.db_username.strip(),
             )
             self._databases.create(database)
+            self._vault.put(database.id, command.db_password)
+        elif command.db_password:
+            try:
+                self._vault.get(database.id)
+            except DomainError:
+                self._vault.put(database.id, command.db_password)
         return self.resume(tenant_id)
 
     def resume(self, tenant_id: uuid.UUID) -> TenantRecord:
@@ -110,8 +123,16 @@ class ProvisionTenant:
         try:
             job = self._advance(job, ProvisioningStep.CREATED)
             target = target_from_record(database)
+            if not target.username.strip():
+                raise DomainError(
+                    "tenant_db_misconfigured",
+                    "Tenant database username is not configured.",
+                    http_status=503,
+                )
             self._admin.ensure_database(target)
             job = self._advance(job, ProvisioningStep.DATABASE_ALLOCATED)
+            self._admin.ensure_user(target)
+            job = self._advance(job, ProvisioningStep.USER_CREATED)
             connection = self._connections.open(target)
             try:
                 version = self._schema.apply(connection, CURRENT_VERSION)
@@ -128,6 +149,7 @@ class ProvisionTenant:
                     status=DatabaseStatus.HEALTHY,
                     schema_version=version,
                     last_health_at=self._clock.now(),
+                    db_username=database.db_username,
                 )
                 self._databases.update(database)
                 job = self._advance(job, ProvisioningStep.VERIFIED)
@@ -154,6 +176,13 @@ class ProvisionTenant:
             raise
         except Exception as exc:
             self._fail(tenant_id, job, "Provisioning failed.")
+            log_event(
+                logger,
+                "tenant.provision.failed",
+                outcome="error",
+                tenant_id=str(tenant_id),
+                error_type=type(exc).__name__,
+            )
             raise DomainError(
                 "tenant_provision_failed",
                 "Provisioning failed.",
@@ -178,6 +207,7 @@ class ProvisionTenant:
         order = [
             ProvisioningStep.CREATED,
             ProvisioningStep.DATABASE_ALLOCATED,
+            ProvisioningStep.USER_CREATED,
             ProvisioningStep.SCHEMA_APPLIED,
             ProvisioningStep.VERIFIED,
             ProvisioningStep.READY,
@@ -227,5 +257,7 @@ class ProvisionTenant:
             raise DomainError("validation_error", "Database host and name are required.")
         if command.port < 1 or command.port > 65535:
             raise DomainError("validation_error", "Database port is invalid.")
-        if not command.secret_ref.strip() or any(ch.isspace() for ch in command.secret_ref):
-            raise DomainError("validation_error", "secret_ref is invalid.")
+        if not command.db_username.strip() or any(ch.isspace() for ch in command.db_username):
+            raise DomainError("validation_error", "username is required.")
+        if len(command.db_password) < 12:
+            raise DomainError("validation_error", "password must be at least 12 characters.")

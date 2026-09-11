@@ -99,6 +99,7 @@ class MigrateTenant:
                     status=DatabaseStatus.HEALTHY,
                     schema_version=version,
                     last_health_at=self._clock.now(),
+                    db_username=database.db_username,
                 )
             )
             succeeded = self._with_status(running, MigrationJobStatus.SUCCEEDED)

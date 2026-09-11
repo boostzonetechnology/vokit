@@ -13,6 +13,7 @@ from control_plane.identity.infrastructure.repositories import DjangoMembershipR
 from control_plane.identity.models import User
 from control_plane.telephony.infrastructure.container import reset_sip_edge
 from shared_kernel.ids import new_uuid7
+from tests.tenant_db_fixtures import tenant_db_payload
 
 PASSWORD = "Phase2-Demo!ok"
 TOKEN = "test-internal-telephony-token"
@@ -85,10 +86,17 @@ def _ready_media(*, outbound: bool = False, hours: list | None = None):
             "display_name": "Media A",
             "legal_name": "Media A",
             "owner_email": "oa-media@vokit.test",
+            "database": tenant_db_payload("oa-media@vokit.test"),
         },
     )
     assert agency.status_code == 201
     agency_id = uuid.UUID(agency.json()["data"]["id"])
+    activated = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate"},
+    )
+    assert activated.status_code == 200
     customer = _post(
         platform,
         "/api/v1/platform/customers",
@@ -315,6 +323,7 @@ def test_transfer_e164_queue_and_sip_client() -> None:
             "display_name": "Media B",
             "legal_name": "Media B",
             "owner_email": "oa-media-b@vokit.test",
+            "database": tenant_db_payload("oa-media-b@vokit.test"),
         },
     )
     other_id = uuid.UUID(foreign.json()["data"]["id"])
