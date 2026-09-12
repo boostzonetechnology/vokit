@@ -26,6 +26,8 @@ from control_plane.notifications.domain.policies import (
 )
 from control_plane.notifications.domain.types import (
     DEFAULT_TEMPLATES,
+    EMAIL_CTA,
+    EMAIL_TITLES,
     EVENT_CATALOG,
     TEMPLATE_VARIABLES,
     DeliveryStatus,
@@ -67,6 +69,7 @@ class NotificationControl:
         self._clock = clock
 
     def ensure_defaults(self) -> None:
+        legacy_invite_marker = "Use this one-time token to accept"
         for event_type, bodies in DEFAULT_TEMPLATES.items():
             in_app = self._templates.get(event_type, NotificationChannel.IN_APP)
             if in_app is None:
@@ -90,6 +93,20 @@ class NotificationControl:
                         subject=bodies["subject"],
                         body=bodies["email_body"],
                         version=1,
+                    )
+                )
+            elif (
+                event_type.startswith("invitation.")
+                and legacy_invite_marker in (email.body or "")
+            ):
+                self._templates.upsert(
+                    TemplateRecord(
+                        id=email.id,
+                        event_type=event_type,
+                        channel=NotificationChannel.EMAIL,
+                        subject=bodies["subject"],
+                        body=bodies["email_body"],
+                        version=email.version + 1,
                     )
                 )
 
@@ -344,6 +361,10 @@ class NotificationControl:
     ) -> None:
         from django.conf import settings
 
+        from control_plane.notifications.infrastructure.email_layout import (
+            greeting_from_email,
+            wrap_email_html,
+        )
         from control_plane.notifications.tasks import send_email_task
 
         template = self._templates.get(event_type, NotificationChannel.EMAIL)
@@ -364,6 +385,24 @@ class NotificationControl:
             return
         subject = render_template(template.subject, variables, event_type)
         body = render_template(template.body, variables, event_type)
+        cta_url = ""
+        cta_label = ""
+        cta = EMAIL_CTA.get(event_type)
+        if cta is not None:
+            cta_label, url_key = cta
+            cta_url = str(variables.get(url_key) or "")
+        title = EMAIL_TITLES.get(event_type) or subject
+        html_body = wrap_email_html(
+            title=title,
+            message=body,
+            greeting=greeting_from_email(
+                str(variables.get("email") or recipient.email or "")
+            ),
+            cta_url=cta_url,
+            cta_label=cta_label,
+        )
+        if cta_url and cta_url not in body:
+            body = f"{body}\n\n{cta_label or 'Open'}: {cta_url}"
         delivery_id = new_uuid7()
         self._deliveries.create(
             DeliveryRecord(
@@ -383,6 +422,7 @@ class NotificationControl:
             subject,
             body,
             get_correlation_id() or "",
+            html_body,
         )
         try:
             if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):

@@ -11,13 +11,18 @@ Outbound email is queued on Celery (broker = Redis via `REDIS_URL`):
 
 1. `NotificationControl` renders the template and creates a delivery row with status `queued`.
 2. Task `notifications.send_email` is enqueued (payload includes the rendered body; do not log it).
-3. The worker calls `DjangoMailer` → Django `send_mail` (SMTP settings below) and sets delivery to `sent` or `failed`.
+3. The worker calls `DjangoMailer` → Django `EmailMultiAlternatives` (HTML + plain text) and sets delivery to `sent` or `failed`.
+
+All emails share one HTML shell (`infrastructure/email_layout.py`). Invitation CTAs use
+`PLATFORM_PORTAL_PUBLIC_URL` / `AGENCY_PORTAL_PUBLIC_URL` / `CUSTOMER_PORTAL_PUBLIC_URL`
+plus `/accept-invite?token=…`.
 
 ### Env (see `apps/api/.env.example`)
 
 - `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`
 - `EMAIL_HOST_PASSWORD_REF` / `EMAIL_HOST_PASSWORD` (secret ref; never commit real passwords)
 - `EMAIL_USE_TLS` / `EMAIL_USE_SSL`, `DEFAULT_FROM_EMAIL`
+- `PLATFORM_PORTAL_PUBLIC_URL`, `AGENCY_PORTAL_PUBLIC_URL`, `CUSTOMER_PORTAL_PUBLIC_URL`
 - `REDIS_URL`, `CELERY_TASK_ALWAYS_EAGER`
 
 ### Local

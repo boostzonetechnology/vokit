@@ -19,6 +19,7 @@ import {
 } from "@/api";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginScreen } from "@/features/auth/components/LoginScreen";
+import { AcceptInviteScreen } from "@/features/auth/components/AcceptInviteScreen";
 import { AgencyDashboard } from "@/features/dashboard/AgencyDashboard";
 import { CustomerDashboard } from "@/features/dashboard/CustomerDashboard";
 import { PlatformDashboard } from "@/features/dashboard/PlatformDashboard";
@@ -26,6 +27,10 @@ import { portalNav, routeFromPathname, toAppPath } from "@/nav";
 import { renderProductScreen } from "@/productScreens";
 
 type View = "loading" | "login" | "home" | "unauthenticated" | "forbidden";
+
+function isAcceptInviteRoute(route: string): boolean {
+  return route === "accept-invite" || route.startsWith("accept-invite?");
+}
 
 /** One-time migration for bookmarks that still use hash URLs. */
 function LegacyHashRedirect() {
@@ -126,11 +131,18 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
   };
 
   if (view === "loading") {
+    if (isAcceptInviteRoute(route)) {
+      return <AcceptInviteScreen portal={portal} />;
+    }
     return (
       <p className="p-5 text-body text-text-muted" role="status">
         Checking session…
       </p>
     );
+  }
+
+  if (isAcceptInviteRoute(route)) {
+    return <AcceptInviteScreen portal={portal} />;
   }
 
   if (view === "login" || view === "unauthenticated") {

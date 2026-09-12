@@ -31,6 +31,7 @@ def send_email_task(
     subject: str,
     body: str,
     correlation_id: str = "",
+    html_body: str = "",
 ) -> None:
     """Send a rendered email and update the delivery row. Do not log body/token."""
     if correlation_id:
@@ -50,7 +51,7 @@ def send_email_task(
     if existing.status is DeliveryStatus.SENT:
         return
     try:
-        DjangoMailer().send(to=to, subject=subject, body=body)
+        DjangoMailer().send(to=to, subject=subject, body=body, html_body=html_body)
     except Exception as exc:  # noqa: BLE001
         if isinstance(exc, _RETRYABLE) and self.request.retries < self.max_retries:
             raise self.retry(exc=exc) from exc
