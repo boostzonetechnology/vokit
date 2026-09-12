@@ -155,7 +155,16 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
           pick(byRoute, "numbers", "Phone numbers", portal),
           pick(byRoute, "knowledge", "Knowledge", portal),
           pick(byRoute, "calls", "Calls", portal),
+          pick(byRoute, "transfers", "Transfers", portal),
           pick(byRoute, "customers", "Customers", portal),
+        ],
+      },
+      {
+        id: "ops",
+        label: "Operations",
+        items: [
+          pick(byRoute, "integrations", "Integrations", portal),
+          pick(byRoute, "webhooks", "Webhooks", portal),
         ],
       },
       {
@@ -175,6 +184,7 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
           pick(byRoute, "kyc", "KYC", portal),
           pick(byRoute, "team", "Team", portal),
           pick(byRoute, "notifications", "Notifications", portal),
+          pick(byRoute, "preferences", "Settings", portal),
         ],
       },
     ];

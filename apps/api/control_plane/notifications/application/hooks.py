@@ -5,6 +5,7 @@ from control_plane.audit.infrastructure.container import record_audit
 from control_plane.identity.domain.types import PrincipalType
 from control_plane.notifications.application.service import DispatchCommand
 from control_plane.notifications.infrastructure.container import notifications
+from control_plane.notifications.infrastructure.invite_links import invitation_accept_url
 from control_plane.notifications.infrastructure.recipients import (
     invitation_recipient,
     recipients_for_scope,
@@ -30,11 +31,17 @@ def deliver_invitation(
     recipient = invitation_recipient(
         email=email, tenant_id=tenant_id, customer_id=customer_id
     )
+    accept_url = invitation_accept_url(principal_type=principal_type, token=token)
     notifications().dispatch(
         DispatchCommand(
             event_type=event,
             recipients=(recipient,),
-            variables={"email": email, "role": role, "token": token},
+            variables={
+                "email": email,
+                "role": role,
+                "token": token,
+                "accept_url": accept_url,
+            },
             tenant_id=tenant_id,
             customer_id=customer_id,
         )

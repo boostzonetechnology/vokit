@@ -1,3 +1,10 @@
+export type InvoiceLine = {
+  description?: string;
+  amount_minor?: number;
+  quantity?: number;
+  commissionable?: boolean;
+};
+
 export type InvoiceRecord = {
   id: string;
   agency_id?: string;
@@ -6,6 +13,7 @@ export type InvoiceRecord = {
   currency?: string;
   total_minor?: number;
   paid_at?: string | null;
+  lines?: InvoiceLine[];
 };
 
 export type PaymentRecord = {

@@ -361,7 +361,17 @@ def test_invitation_email_contains_token_not_logged_in_app() -> None:
     token = invited.json()["data"]["token"]
     assert token
     assert mail.outbox
-    assert token in mail.outbox[-1].body
+    message = mail.outbox[-1]
+    assert "accept-invite?token=" in message.body
+    assert token in message.body
+    assert "Accept invitation" in message.body
+    html = ""
+    if message.alternatives:
+        html = str(message.alternatives[0][0])
+    assert html
+    assert "Accept invitation" in html
+    assert "accept-invite?token=" in html
+    assert "You are invited to Vokit" in html
     inbox = ctx["agency_a"].get("/api/v1/agency/notifications")
     bodies = " ".join(item["body"] for item in inbox.json()["data"])
     assert token not in bodies

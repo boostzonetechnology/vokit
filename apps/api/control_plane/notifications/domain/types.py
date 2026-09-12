@@ -61,9 +61,9 @@ EVENT_CATALOG: dict[str, NotificationCategory] = {
 }
 
 TEMPLATE_VARIABLES: dict[str, frozenset[str]] = {
-    "invitation.agency": frozenset({"email", "role", "token"}),
-    "invitation.customer": frozenset({"email", "role", "token"}),
-    "invitation.platform": frozenset({"email", "role", "token"}),
+    "invitation.agency": frozenset({"email", "role", "token", "accept_url"}),
+    "invitation.customer": frozenset({"email", "role", "token", "accept_url"}),
+    "invitation.platform": frozenset({"email", "role", "token", "accept_url"}),
     "kyc.submitted": frozenset({"agency_id", "status"}),
     "kyc.approved": frozenset({"agency_id", "status"}),
     "kyc.rejected": frozenset({"agency_id", "status"}),
@@ -80,29 +80,42 @@ TEMPLATE_VARIABLES: dict[str, frozenset[str]] = {
     "announcement.platform": frozenset({"title", "body"}),
 }
 
+# Optional CTA for the shared HTML email shell (label, variable key for URL).
+EMAIL_CTA: dict[str, tuple[str, str]] = {
+    "invitation.agency": ("Accept invitation", "accept_url"),
+    "invitation.customer": ("Accept invitation", "accept_url"),
+    "invitation.platform": ("Accept invitation", "accept_url"),
+}
+
+EMAIL_TITLES: dict[str, str] = {
+    "invitation.agency": "You are invited to Vokit",
+    "invitation.customer": "You are invited to Vokit",
+    "invitation.platform": "You are invited to Vokit",
+}
+
 DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
     "invitation.agency": {
-        "subject": "You were invited to a Vokit agency",
+        "subject": "You're invited to a Vokit agency",
         "body": "An agency invitation was issued for {{email}} as {{role}}.",
         "email_body": (
-            "An agency invitation was issued for {{email}} as {{role}}.\n"
-            "Use this one-time token to accept: {{token}}"
+            "You've been invited to join a Vokit agency as {{role}}.\n"
+            "Click the button below to set your password and accept the invitation."
         ),
     },
     "invitation.customer": {
-        "subject": "You were invited to a Vokit customer",
+        "subject": "You're invited to a Vokit customer",
         "body": "A customer invitation was issued for {{email}} as {{role}}.",
         "email_body": (
-            "A customer invitation was issued for {{email}} as {{role}}.\n"
-            "Use this one-time token to accept: {{token}}"
+            "You've been invited to join a Vokit customer workspace as {{role}}.\n"
+            "Click the button below to set your password and accept the invitation."
         ),
     },
     "invitation.platform": {
-        "subject": "You were invited to Vokit platform",
+        "subject": "You're invited to Vokit platform",
         "body": "A platform invitation was issued for {{email}} as {{role}}.",
         "email_body": (
-            "A platform invitation was issued for {{email}} as {{role}}.\n"
-            "Use this one-time token to accept: {{token}}"
+            "You've been invited to the Vokit platform as {{role}}.\n"
+            "Click the button below to set your password and accept the invitation."
         ),
     },
     "kyc.submitted": {
@@ -176,3 +189,4 @@ DEFAULT_TEMPLATES: dict[str, dict[str, str]] = {
         "email_body": "A security notice was issued for {{email}}.",
     },
 }
+

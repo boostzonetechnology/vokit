@@ -46,6 +46,25 @@ export type CreateCustomerInput = {
   timezone?: string;
 };
 
+/** Agency create: tenant comes from session — no agency_id in body. */
+export type AgencyCreateCustomerInput = {
+  display_name: string;
+  owner_email: string;
+  legal_name?: string;
+  phone?: string;
+  country?: string;
+  timezone?: string;
+};
+
+export type CustomerResourceBundle = {
+  agents: Array<{ id: string; display_name?: string; status?: string }>;
+  numbers: Array<{ id: string; e164?: string; status?: string }>;
+  calls: Array<{ id: string; status?: string; billed_minutes?: number; started_at?: string | null }>;
+  knowledge: Array<{ id: string; title?: string; name?: string; status?: string }>;
+  integrations: Array<{ id: string; provider?: string; status?: string }>;
+  invoices: Array<{ id: string; status?: string; total_minor?: number; currency?: string }>;
+};
+
 export type PlanVersionOption = {
   id: string;
   plan_id?: string;
