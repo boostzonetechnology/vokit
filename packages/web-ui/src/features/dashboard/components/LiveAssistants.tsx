@@ -1,5 +1,5 @@
-import { cn } from "../../../lib/utils";
-import type { PlatformAgentRow } from "../hooks/usePlatformDashboard";
+import { cn } from "@/lib/utils";
+import type { PlatformAgentRow } from "@/features/dashboard/hooks/usePlatformDashboard";
 
 function agentLabel(agent: PlatformAgentRow): string {
   return agent.display_name || agent.name || agent.id.slice(0, 8);
@@ -61,7 +61,7 @@ export function LiveAssistants({
       <button
         type="button"
         className="mt-4 bg-transparent p-0 text-body font-semibold text-text-brand"
-        onClick={() => onNavigate("#/agents")}
+        onClick={() => onNavigate("/agents")}
       >
         Manage agents →
       </button>

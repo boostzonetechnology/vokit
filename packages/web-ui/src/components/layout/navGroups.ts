@@ -25,8 +25,8 @@ import {
   Webhook,
 } from "lucide-react";
 
-import type { Portal } from "../../api";
-import type { NavItem } from "../../nav";
+import type { Portal } from "@/api";
+import type { NavItem } from "@/nav";
 
 export type NavGroup = {
   id: string;
@@ -70,7 +70,7 @@ const ICONS: Record<string, LucideIcon> = {
 function withIcons(items: NavItem[]): Array<NavItem & { icon: LucideIcon }> {
   return items.map((item) => ({
     ...item,
-    icon: ICONS[item.href.replace("#/", "")] ?? LayoutDashboard,
+    icon: ICONS[item.href.replace(/^\/+/, "")] ?? LayoutDashboard,
   }));
 }
 
@@ -81,7 +81,7 @@ function pick(
   portal: Portal,
 ): NavItem & { icon: LucideIcon } {
   const item = byRoute.get(route) ?? {
-    href: `#/${route}`,
+    href: `/${route}`,
     label: fallbackLabel,
     path: `/api/v1/${portal}/${route}`,
   };
@@ -90,7 +90,7 @@ function pick(
 
 /** Shared sidebar groups — same shell layout for every portal. */
 export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
-  const byRoute = new Map(nav.map((item) => [item.href.replace("#/", ""), item]));
+  const byRoute = new Map(nav.map((item) => [item.href.replace(/^\/+/, ""), item]));
 
   if (portal === "platform") {
     return [

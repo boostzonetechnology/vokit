@@ -6,6 +6,16 @@ export type AgencyCapabilities = {
   existing_customer_services: boolean;
 };
 
+export type AgencyDatabase = {
+  host?: string;
+  port?: number;
+  name?: string;
+  username?: string;
+  status?: string;
+  schema_version?: string;
+  tls_required?: boolean;
+};
+
 export type AgencyRecord = {
   id: string;
   display_name?: string;
@@ -16,7 +26,31 @@ export type AgencyRecord = {
   commission_rate_bps?: number;
   rate_effective_at?: string | null;
   capabilities?: AgencyCapabilities;
-  owner_invitation_token?: string;
+  database?: AgencyDatabase;
+};
+
+export type CreateAgencyInput = {
+  display_name: string;
+  legal_name: string;
+  owner_email: string;
+  commission_rate_bps: number;
+  currency: string;
+  capabilities: AgencyCapabilities;
+  database: {
+    username: string;
+    password: string;
+    host?: string;
+    port?: number;
+  };
+};
+
+export type AgencyNote = {
+  id: string;
+  agency_id?: string;
+  body: string;
+  risk_flag?: boolean;
+  created_by_id?: string;
+  created_at?: string | null;
 };
 
 export type WalletBuckets = {

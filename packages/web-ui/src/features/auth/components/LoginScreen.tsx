@@ -1,8 +1,8 @@
 import { FormEvent, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
-import type { Portal } from "../../../api";
-import loginHeroImage from "../../../assets/login-form.jpg";
+import type { Portal } from "@/api";
+import loginHeroImage from "@/assets/login-form.jpg";
 
 const PORTAL_COPY: Record<
   Portal,

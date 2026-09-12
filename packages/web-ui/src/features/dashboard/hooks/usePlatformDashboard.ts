@@ -5,7 +5,7 @@ import {
   apiGet,
   getDashboard,
   isApiError,
-} from "../../../api";
+} from "@/api";
 
 export type PlatformCallRow = {
   id: string;

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { MetricCard } from "../../components/ui/MetricCard";
-import { StatusBadge } from "../../components/ui/StatusBadge";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DualLineChart, useInvoiceSeries } from "./components/DualLineChart";
 import { useDashboardBundle } from "./hooks/useDashboardBundle";
 import {
@@ -93,10 +93,10 @@ export function CustomerDashboard({ onNavigate }: { onNavigate: (href: string) =
               <option value="mtd">Month to date</option>
             </select>
           </label>
-          <ActionButton variant="outline" onClick={() => onNavigate("#/invoices")}>
+          <ActionButton variant="outline" onClick={() => onNavigate("/invoices")}>
             Download statement
           </ActionButton>
-          <ActionButton onClick={() => onNavigate("#/payment-methods")}>
+          <ActionButton onClick={() => onNavigate("/payment-methods")}>
             Add payment method
           </ActionButton>
         </div>
@@ -113,21 +113,21 @@ export function CustomerDashboard({ onNavigate }: { onNavigate: (href: string) =
                 : "$0 due · wallet credits not in API"
             }
             accent="brand"
-            onClick={() => onNavigate("#/invoices")}
+            onClick={() => onNavigate("/invoices")}
           />
           <MetricCard
             label="This month"
             value={formatMoneyMinor(paidThisPeriod, "USD")}
             hint={`${formatCount(minutesRemaining)} minutes remaining`}
             accent="success"
-            onClick={() => onNavigate("#/usage")}
+            onClick={() => onNavigate("/usage")}
           />
           <MetricCard
             label="Active subscriptions"
             value={hasSubscription ? "1" : "0"}
             hint={hasSubscription ? `Plan: ${plan}` : "No active plan (count API missing)"}
             accent="muted"
-            onClick={() => onNavigate("#/invoices")}
+            onClick={() => onNavigate("/invoices")}
           />
           <MetricCard
             label="Next invoice"
@@ -145,7 +145,7 @@ export function CustomerDashboard({ onNavigate }: { onNavigate: (href: string) =
                 : "No open invoice"
             }
             accent="warning"
-            onClick={() => onNavigate("#/invoices")}
+            onClick={() => onNavigate("/invoices")}
           />
         </div>
 
@@ -184,7 +184,7 @@ export function CustomerDashboard({ onNavigate }: { onNavigate: (href: string) =
             <button
               type="button"
               className="mt-4 bg-transparent p-0 text-body font-semibold text-text-brand"
-              onClick={() => onNavigate("#/payment-methods")}
+              onClick={() => onNavigate("/payment-methods")}
             >
               Update payment method →
             </button>
@@ -198,7 +198,7 @@ export function CustomerDashboard({ onNavigate }: { onNavigate: (href: string) =
               <button
                 type="button"
                 className="bg-transparent p-0 text-body font-semibold text-text-brand"
-                onClick={() => onNavigate("#/invoices")}
+                onClick={() => onNavigate("/invoices")}
               >
                 View all invoices →
               </button>
@@ -278,7 +278,7 @@ export function CustomerDashboard({ onNavigate }: { onNavigate: (href: string) =
                           : "On file"}
                       </p>
                     </div>
-                    <ActionButton variant="secondary" onClick={() => onNavigate("#/payment-methods")}>
+                    <ActionButton variant="secondary" onClick={() => onNavigate("/payment-methods")}>
                       Edit
                     </ActionButton>
                   </div>
@@ -287,7 +287,7 @@ export function CustomerDashboard({ onNavigate }: { onNavigate: (href: string) =
               <button
                 type="button"
                 className="w-full rounded-xl border border-dashed border-border-strong bg-transparent px-3 py-3 text-body font-semibold text-text-brand"
-                onClick={() => onNavigate("#/payment-methods")}
+                onClick={() => onNavigate("/payment-methods")}
               >
                 + Add payment method
               </button>

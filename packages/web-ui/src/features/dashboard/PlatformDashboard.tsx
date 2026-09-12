@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { MetricCard, type MetricAccent } from "../../components/ui/MetricCard";
-import { StatusBadge } from "../../components/ui/StatusBadge";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { MetricCard, type MetricAccent } from "@/components/ui/MetricCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DualLineChart, useInvoiceSeries } from "./components/DualLineChart";
 import { useDashboardBundle } from "./hooks/useDashboardBundle";
 import {
@@ -36,7 +36,7 @@ const KPI_ACCENT: Record<string, MetricAccent> = {
 
 function toModuleHref(href: string): string {
   const path = href.startsWith("/") ? href.slice(1) : href;
-  return `#/${path}`;
+  return `/${path}`;
 }
 
 function toDateInputValue(iso: string): string {
@@ -210,7 +210,7 @@ export function PlatformDashboard({ onNavigate }: { onNavigate: (href: string) =
       value: formatCount(activeAgents),
       hint: "Derived from agents list (not dashboard KPI)",
       accent: "success" as MetricAccent,
-      href: "#/agents",
+      href: "/agents",
     },
   ];
 
@@ -273,10 +273,10 @@ export function PlatformDashboard({ onNavigate }: { onNavigate: (href: string) =
               </label>
             </>
           ) : null}
-          <ActionButton variant="outline" onClick={() => onNavigate("#/invoices")}>
+          <ActionButton variant="outline" onClick={() => onNavigate("/invoices")}>
             Export report
           </ActionButton>
-          <ActionButton onClick={() => onNavigate("#/agencies")}>Create agency</ActionButton>
+          <ActionButton onClick={() => onNavigate("/agencies")}>Create agency</ActionButton>
         </div>
       </div>
 
@@ -311,42 +311,42 @@ export function PlatformDashboard({ onNavigate }: { onNavigate: (href: string) =
               value={formatMoneyMinor(gross, currency)}
               hint="Paid invoices in selected period"
               accent="brand"
-              onClick={() => onNavigate("#/invoices")}
+              onClick={() => onNavigate("/invoices")}
             />
             <MetricCard
               label="Estimated platform share"
               value={formatMoneyMinor(platformShare, currency)}
               hint="Revenue − agency commissions"
               accent="info"
-              onClick={() => onNavigate("#/payments")}
+              onClick={() => onNavigate("/payments")}
             />
             <MetricCard
               label="Agency commissions"
               value={formatMoneyMinor(agencyCommission, currency)}
               hint="Commission earned this period"
               accent="success"
-              onClick={() => onNavigate("#/payouts")}
+              onClick={() => onNavigate("/payouts")}
             />
             <MetricCard
               label="Held commission"
               value={formatMoneyMinor(held, currency)}
               hint="Still in hold window"
               accent="warning"
-              onClick={() => onNavigate("#/payouts")}
+              onClick={() => onNavigate("/payouts")}
             />
             <MetricCard
               label="Available commission"
               value={formatMoneyMinor(available, currency)}
               hint="Withdrawable now"
               accent="success"
-              onClick={() => onNavigate("#/payouts")}
+              onClick={() => onNavigate("/payouts")}
             />
             <MetricCard
               label="Paid payouts"
               value={formatMoneyMinor(paidPayouts, currency)}
               hint="Lifetime paid (wallet projection)"
               accent="muted"
-              onClick={() => onNavigate("#/payouts")}
+              onClick={() => onNavigate("/payouts")}
             />
           </div>
         </div>
@@ -376,7 +376,7 @@ export function PlatformDashboard({ onNavigate }: { onNavigate: (href: string) =
                     {failed} ({failedPct}% of period calls)
                   </p>
                 </div>
-                <ActionButton variant="secondary" onClick={() => onNavigate("#/calls")}>
+                <ActionButton variant="secondary" onClick={() => onNavigate("/calls")}>
                   Open
                 </ActionButton>
               </li>
@@ -387,7 +387,7 @@ export function PlatformDashboard({ onNavigate }: { onNavigate: (href: string) =
                     {kycQueue} pending · {pendingPayouts} payout queues
                   </p>
                 </div>
-                <ActionButton variant="secondary" onClick={() => onNavigate("#/kyc")}>
+                <ActionButton variant="secondary" onClick={() => onNavigate("/kyc")}>
                   Review
                 </ActionButton>
               </li>
@@ -432,7 +432,7 @@ export function PlatformDashboard({ onNavigate }: { onNavigate: (href: string) =
               <button
                 type="button"
                 className="bg-transparent p-0 text-body font-semibold text-text-brand"
-                onClick={() => onNavigate("#/payments")}
+                onClick={() => onNavigate("/payments")}
               >
                 View payments →
               </button>

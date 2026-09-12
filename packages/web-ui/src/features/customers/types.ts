@@ -1,9 +1,49 @@
+export type CustomerSubscription = {
+  id?: string;
+  plan_id?: string;
+  plan_version_id?: string;
+  plan_name?: string;
+  plan_version?: number;
+  status?: string;
+  included_minutes?: number;
+};
+
+export type MinuteLot = {
+  id: string;
+  kind?: string;
+  granted_minutes?: number;
+  remaining_minutes?: number;
+};
+
+export type CustomerUsage = {
+  remaining_minutes?: number;
+  lots?: MinuteLot[];
+};
+
 export type CustomerRecord = {
   id: string;
   agency_id?: string;
   display_name?: string;
   status?: string;
-  owner_invitation_token?: string;
+  legal_name?: string;
+  owner_email?: string;
+  phone?: string;
+  country?: string;
+  timezone?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  remaining_minutes?: number;
+  subscription?: CustomerSubscription | null;
+};
+
+export type CreateCustomerInput = {
+  agency_id: string;
+  display_name: string;
+  owner_email: string;
+  legal_name?: string;
+  phone?: string;
+  country?: string;
+  timezone?: string;
 };
 
 export type PlanVersionOption = {
@@ -22,7 +62,9 @@ export type AgencyOption = {
 };
 
 export const CUSTOMER_STATUS_ACTIONS = [
-  { action: "suspend", label: "Suspend" },
-  { action: "activate", label: "Activate / reactivate" },
-  { action: "close", label: "Close" },
+  { action: "activate", label: "Activate / reactivate", needsReason: false },
+  { action: "suspend", label: "Suspend", needsReason: true },
+  { action: "close", label: "Close", needsReason: true },
 ] as const;
+
+export const CUSTOMER_STATUSES = ["invited", "active", "suspended", "closed"] as const;

@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-import { ActionButton } from "../../components/ui/ActionButton";
-import { MetricCard } from "../../components/ui/MetricCard";
-import { StatusBadge } from "../../components/ui/StatusBadge";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { MetricCard } from "@/components/ui/MetricCard";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DualLineChart, useCallSeries } from "./components/DualLineChart";
 import { useDashboardBundle } from "./hooks/useDashboardBundle";
 import {
@@ -65,10 +65,10 @@ export function AgencyDashboard({ onNavigate }: { onNavigate: (href: string) => 
   const liveAgents = agents.slice(0, 5);
   const recent = calls.slice(0, 6);
   const checklist = [
-    { id: "number", label: "Choose a phone number", done: numbers > 0, href: "#/numbers" },
-    { id: "prompt", label: "Write a clear system prompt", done: agents.length > 0, href: "#/agents" },
-    { id: "knowledge", label: "Add your knowledge base", done: knowledgeReady, href: "#/knowledge" },
-    { id: "call", label: "Place a test call", done: callsCount > 0, href: "#/calls" },
+    { id: "number", label: "Choose a phone number", done: numbers > 0, href: "/numbers" },
+    { id: "prompt", label: "Write a clear system prompt", done: agents.length > 0, href: "/agents" },
+    { id: "knowledge", label: "Add your knowledge base", done: knowledgeReady, href: "/knowledge" },
+    { id: "call", label: "Place a test call", done: callsCount > 0, href: "/calls" },
   ];
   const next = checklist.find((step) => !step.done) ?? checklist[checklist.length - 1]!;
 
@@ -99,10 +99,10 @@ export function AgencyDashboard({ onNavigate }: { onNavigate: (href: string) => 
               <option value="mtd">Month to date</option>
             </select>
           </label>
-          <ActionButton variant="secondary" onClick={() => onNavigate("#/agents")}>
+          <ActionButton variant="secondary" onClick={() => onNavigate("/agents")}>
             Test agent
           </ActionButton>
-          <ActionButton onClick={() => onNavigate("#/agents")}>Create agent</ActionButton>
+          <ActionButton onClick={() => onNavigate("/agents")}>Create agent</ActionButton>
         </div>
       </div>
 
@@ -113,28 +113,28 @@ export function AgencyDashboard({ onNavigate }: { onNavigate: (href: string) => 
             value={formatCount(callsCount)}
             hint="In selected period"
             accent="brand"
-            onClick={() => onNavigate("#/calls")}
+            onClick={() => onNavigate("/calls")}
           />
           <MetricCard
             label="Minutes used"
             value={formatCount(minutes)}
             hint="Billed minutes"
             accent="success"
-            onClick={() => onNavigate("#/calls")}
+            onClick={() => onNavigate("/calls")}
           />
           <MetricCard
             label="Active agents"
             value={formatCount(activeAgents)}
             hint="Currently active"
             accent="muted"
-            onClick={() => onNavigate("#/agents")}
+            onClick={() => onNavigate("/agents")}
           />
           <MetricCard
             label="Remaining balance"
             value={formatMoneyMinor(available, currency)}
             hint="Available wallet funds"
             accent="warning"
-            onClick={() => onNavigate("#/wallet")}
+            onClick={() => onNavigate("/wallet")}
           />
         </div>
 
@@ -182,7 +182,7 @@ export function AgencyDashboard({ onNavigate }: { onNavigate: (href: string) => 
             <button
               type="button"
               className="mt-4 bg-transparent p-0 text-left text-body font-semibold text-text-brand"
-              onClick={() => onNavigate("#/agents")}
+              onClick={() => onNavigate("/agents")}
             >
               Manage agents →
             </button>
@@ -196,7 +196,7 @@ export function AgencyDashboard({ onNavigate }: { onNavigate: (href: string) => 
               <button
                 type="button"
                 className="bg-transparent p-0 text-body font-semibold text-text-brand"
-                onClick={() => onNavigate("#/calls")}
+                onClick={() => onNavigate("/calls")}
               >
                 View call log →
               </button>
