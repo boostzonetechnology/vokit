@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
     parse_uuid,
+    require_platform_perm,
     require_principal,
 )
 from control_plane.identity.api.views import CsrfAPIView
@@ -26,13 +27,6 @@ from shared_kernel.http.correlation import get_correlation_id
 from shared_kernel.http.envelope import success
 from shared_kernel.ids import new_uuid7
 from tenant.schema import CURRENT_VERSION
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _tenant_payload(
@@ -59,7 +53,7 @@ def _tenant_payload(
 
 class TenantCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "tenants.view")
+        require_platform_perm(request, "tenant.view")
         rows = []
         for tenant in tenant_repo().list():
             mapped = database_repo().get_for_tenant(tenant.id)
@@ -67,7 +61,7 @@ class TenantCollectionView(CsrfAPIView):
         return success(rows)
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "tenants.provision")
+        require_platform_perm(request, "tenant.provision")
         database = request.data.get("database") or {}
         if "name" not in database:
             raise DomainError("validation_error", "database.name is required.")
@@ -91,7 +85,7 @@ class TenantCollectionView(CsrfAPIView):
 
 class TenantDetailView(CsrfAPIView):
     def get(self, request: Request, tenant_id: str) -> Response:
-        _require_platform_perm(request, "tenants.view")
+        require_platform_perm(request, "tenant.view")
         identifier = parse_uuid(tenant_id, field="tenant_id")
         tenant = tenant_repo().get(identifier)
         if tenant is None:
@@ -102,7 +96,7 @@ class TenantDetailView(CsrfAPIView):
 
 class TenantProvisionRetryView(CsrfAPIView):
     def post(self, request: Request, tenant_id: str) -> Response:
-        _require_platform_perm(request, "tenants.provision")
+        require_platform_perm(request, "tenant.provision")
         tenant = provisioner().resume(parse_uuid(tenant_id, field="tenant_id"))
         mapped = database_repo().get_for_tenant(tenant.id)
         return success(_tenant_payload(tenant, mapped))
@@ -110,7 +104,7 @@ class TenantProvisionRetryView(CsrfAPIView):
 
 class TenantMigrationView(CsrfAPIView):
     def post(self, request: Request, tenant_id: str) -> Response:
-        _require_platform_perm(request, "tenants.migrate")
+        require_platform_perm(request, "tenant.migrate")
         job = migrator().execute(
             MigrateTenantCommand(
                 tenant_id=parse_uuid(tenant_id, field="tenant_id"),
@@ -134,7 +128,7 @@ class TenantMigrationView(CsrfAPIView):
 
 class TenantMigrationBatchView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "tenants.migrate")
+        require_platform_perm(request, "tenant.migrate")
         raw_ids = request.data.get("tenant_ids") or []
         raw_canary = request.data.get("canary_ids") or []
         tenant_ids = [parse_uuid(item, field="tenant_id") for item in raw_ids]

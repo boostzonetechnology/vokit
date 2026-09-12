@@ -24,6 +24,11 @@ class MembershipBinding:
 
 
 def validate_membership_binding(binding: MembershipBinding) -> None:
+    """Validate role namespace and scope constraints.
+
+    ADR-007: assert_role_matches_principal now queries the DB Role record
+    (with static-set fallback for offline unit tests).
+    """
     assert_role_matches_principal(binding.role, binding.principal_type)
     if binding.principal_type is PrincipalType.PLATFORM:
         if binding.tenant_id is not None or binding.customer_id is not None:

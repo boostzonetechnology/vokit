@@ -8,9 +8,8 @@ from control_plane.billing.infrastructure.container import invoice_index
 from control_plane.commission.api.views import _payout_public, _wallet_payload
 from control_plane.commission.domain.types import LedgerKind
 from control_plane.commission.infrastructure.container import ledger, payouts
-from control_plane.identity.api.auth import parse_uuid, require_principal
+from control_plane.identity.api.auth import parse_uuid, require_platform_perm
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.identity.infrastructure.clock import SystemClock
 from control_plane.tenancy.application.create_agency import CreateAgencyCommand
 from control_plane.tenancy.application.notes import CreateAgencyNoteCommand
@@ -30,13 +29,6 @@ from control_plane.tenancy.infrastructure.container import (
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _capabilities_from(
@@ -100,7 +92,7 @@ def _agency_payload(tenant: TenantRecord) -> dict[str, object]:
 
 class AgencyCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "agencies.view")
+        require_platform_perm(request, "agency.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -124,7 +116,7 @@ class AgencyCollectionView(CsrfAPIView):
         return success([_agency_payload(row) for row in sliced], page=page)
 
     def post(self, request: Request) -> Response:
-        context = _require_platform_perm(request, "agencies.create")
+        context = require_platform_perm(request, "agency.create")
         db = request.data.get("database") or {}
         if not isinstance(db, dict):
             raise DomainError("validation_error", "database must be an object.")
@@ -157,14 +149,14 @@ class AgencyCollectionView(CsrfAPIView):
 
 class AgencyDetailView(CsrfAPIView):
     def get(self, request: Request, agency_id: str) -> Response:
-        _require_platform_perm(request, "agencies.view")
+        require_platform_perm(request, "agency.view")
         tenant = tenant_repo().get(parse_uuid(agency_id, field="agency_id"))
         if tenant is None:
             raise DomainError("not_found", "Resource not found.", http_status=404)
         return success(_agency_payload(tenant))
 
     def patch(self, request: Request, agency_id: str) -> Response:
-        context = _require_platform_perm(request, "agencies.manage")
+        context = require_platform_perm(request, "agency.update")
         tenant = update_agency_profile().execute(
             parse_uuid(agency_id, field="agency_id"),
             display_name=request.data.get("display_name"),
@@ -177,7 +169,7 @@ class AgencyDetailView(CsrfAPIView):
 
 class AgencyStatusView(CsrfAPIView):
     def post(self, request: Request, agency_id: str) -> Response:
-        context = _require_platform_perm(request, "agencies.manage")
+        context = require_platform_perm(request, "agency.update")
         tenant = change_agency_status().execute(
             parse_uuid(agency_id, field="agency_id"),
             str(request.data.get("action") or ""),
@@ -190,7 +182,7 @@ class AgencyStatusView(CsrfAPIView):
 
 class AgencyCapabilitiesView(CsrfAPIView):
     def post(self, request: Request, agency_id: str) -> Response:
-        _require_platform_perm(request, "agencies.manage")
+        require_platform_perm(request, "agency.update")
         tenant_id = parse_uuid(agency_id, field="agency_id")
         current = tenant_repo().get(tenant_id)
         if current is None:
@@ -204,9 +196,7 @@ class AgencyCapabilitiesView(CsrfAPIView):
 
 class AgencyCommissionView(CsrfAPIView):
     def post(self, request: Request, agency_id: str) -> Response:
-        context = require_principal(request, PrincipalType.PLATFORM)
-        if "commission.edit" not in context.permissions:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        context = require_platform_perm(request, "commission.edit")
         tenant = set_commission_rate().execute(
             parse_uuid(agency_id, field="agency_id"),
             int(request.data.get("commission_rate_bps") or -1),
@@ -218,7 +208,7 @@ class AgencyCommissionView(CsrfAPIView):
 
 class AgencyFinanceView(CsrfAPIView):
     def get(self, request: Request, agency_id: str) -> Response:
-        _require_platform_perm(request, "billing.view")
+        require_platform_perm(request, "billing.view")
         tenant_id = parse_uuid(agency_id, field="agency_id")
         if tenant_repo().get(tenant_id) is None:
             raise DomainError("not_found", "Resource not found.", http_status=404)
@@ -248,7 +238,7 @@ class AgencyFinanceView(CsrfAPIView):
 
 class AgencyNotesView(CsrfAPIView):
     def get(self, request: Request, agency_id: str) -> Response:
-        _require_platform_perm(request, "agencies.view")
+        require_platform_perm(request, "agency.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -271,7 +261,7 @@ class AgencyNotesView(CsrfAPIView):
         )
 
     def post(self, request: Request, agency_id: str) -> Response:
-        context = _require_platform_perm(request, "agencies.manage")
+        context = require_platform_perm(request, "agency.update")
         note = create_agency_note().execute(
             CreateAgencyNoteCommand(
                 tenant_id=parse_uuid(agency_id, field="agency_id"),
@@ -296,7 +286,7 @@ class AgencyNotesView(CsrfAPIView):
 
 class AgencyReassignCustomerView(CsrfAPIView):
     def post(self, request: Request, agency_id: str) -> Response:
-        _require_platform_perm(request, "agencies.manage")
+        require_platform_perm(request, "agency.update")
         parse_uuid(agency_id, field="agency_id")
         raise DomainError(
             "customer_reassign_forbidden",

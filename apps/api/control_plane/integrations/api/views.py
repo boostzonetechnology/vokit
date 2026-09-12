@@ -3,33 +3,17 @@ from __future__ import annotations
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from control_plane.identity.api.auth import parse_optional_uuid, parse_uuid, require_principal
+from control_plane.identity.api.auth import (
+    parse_optional_uuid,
+    parse_uuid,
+    require_agency_perm,
+    require_customer_perm,
+    require_platform_perm,
+)
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.integrations.infrastructure.container import integration_control
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_customer_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.CUSTOMER)
-    if permission not in context.permissions or context.membership.customer_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _bool_field(data: dict, name: str) -> bool:
@@ -41,13 +25,13 @@ def _bool_field(data: dict, name: str) -> bool:
 
 class PlatformProviderCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "integrations.review")
+        require_platform_perm(request, "integration.view")
         return success(integration_control().providers())
 
 
 class PlatformConnectionCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "integrations.review")
+        require_platform_perm(request, "integration.view")
         return success(
             integration_control().list_connections(
                 tenant_id=parse_optional_uuid(
@@ -64,7 +48,7 @@ class PlatformConnectionCollectionView(CsrfAPIView):
 
 class PlatformConnectionDisableView(CsrfAPIView):
     def post(self, request: Request, connection_id: str) -> Response:
-        _require_platform_perm(request, "integrations.review")
+        require_platform_perm(request, "integration.view")
         return success(
             integration_control().disable(
                 connection_id=parse_uuid(connection_id, field="connection_id")
@@ -74,7 +58,7 @@ class PlatformConnectionDisableView(CsrfAPIView):
 
 class AgencyConnectionCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "integrations.manage")
+        context = require_agency_perm(request, "integration.view")
         customer_id = parse_uuid(
             request.query_params.get("customer_id"), field="customer_id"
         )
@@ -88,7 +72,7 @@ class AgencyConnectionCollectionView(CsrfAPIView):
         )
 
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "integrations.manage")
+        context = require_agency_perm(request, "integration.create")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             integration_control().connect(
@@ -106,7 +90,7 @@ class AgencyConnectionCollectionView(CsrfAPIView):
 
 class AgencyConnectionSettingsView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "integrations.manage")
+        context = require_agency_perm(request, "integration.update")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             integration_control().set_self_service(
@@ -119,7 +103,7 @@ class AgencyConnectionSettingsView(CsrfAPIView):
 
 class AgencyConnectionTestView(CsrfAPIView):
     def post(self, request: Request, connection_id: str) -> Response:
-        context = _require_agency_perm(request, "integrations.manage")
+        context = require_agency_perm(request, "integration.view")
         return success(
             integration_control().test_connection(
                 tenant_id=context.membership.tenant_id,
@@ -132,7 +116,7 @@ class AgencyConnectionTestView(CsrfAPIView):
 
 class AgencyConnectionDisconnectView(CsrfAPIView):
     def post(self, request: Request, connection_id: str) -> Response:
-        context = _require_agency_perm(request, "integrations.manage")
+        context = require_agency_perm(request, "integration.delete")
         return success(
             integration_control().disconnect(
                 tenant_id=context.membership.tenant_id,
@@ -145,7 +129,7 @@ class AgencyConnectionDisconnectView(CsrfAPIView):
 
 class AgencyWebhookCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "webhooks.manage")
+        context = require_agency_perm(request, "webhook.view")
         customer_id = parse_uuid(
             request.query_params.get("customer_id"), field="customer_id"
         )
@@ -159,7 +143,7 @@ class AgencyWebhookCollectionView(CsrfAPIView):
         )
 
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "webhooks.manage")
+        context = require_agency_perm(request, "webhook.create")
         data = request.data if isinstance(request.data, dict) else {}
         events = data.get("events") if isinstance(data.get("events"), list) else []
         return success(
@@ -177,7 +161,7 @@ class AgencyWebhookCollectionView(CsrfAPIView):
 
 class AgencyWebhookRotateView(CsrfAPIView):
     def post(self, request: Request, endpoint_id: str) -> Response:
-        context = _require_agency_perm(request, "webhooks.manage")
+        context = require_agency_perm(request, "webhook.update")
         return success(
             integration_control().rotate_secret(
                 tenant_id=context.membership.tenant_id,
@@ -190,7 +174,7 @@ class AgencyWebhookRotateView(CsrfAPIView):
 
 class AgencyWebhookDeliveryCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "webhooks.manage")
+        context = require_agency_perm(request, "webhook.view")
         return success(
             integration_control().list_deliveries(
                 tenant_id=context.membership.tenant_id,
@@ -205,7 +189,7 @@ class AgencyWebhookDeliveryCollectionView(CsrfAPIView):
 
 class AgencyWebhookReplayView(CsrfAPIView):
     def post(self, request: Request, delivery_id: str) -> Response:
-        context = _require_agency_perm(request, "webhooks.manage")
+        context = require_agency_perm(request, "webhook.create")
         return success(
             integration_control().replay(
                 tenant_id=context.membership.tenant_id,
@@ -218,7 +202,7 @@ class AgencyWebhookReplayView(CsrfAPIView):
 
 class CustomerConnectionCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "integrations.view")
+        context = require_customer_perm(request, "integration.view")
         return success(
             integration_control().list_connections(
                 tenant_id=context.membership.tenant_id,
@@ -229,7 +213,7 @@ class CustomerConnectionCollectionView(CsrfAPIView):
         )
 
     def post(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "integrations.connect")
+        context = require_customer_perm(request, "integration.connect")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             integration_control().connect(
@@ -247,7 +231,7 @@ class CustomerConnectionCollectionView(CsrfAPIView):
 
 class CustomerConnectionTestView(CsrfAPIView):
     def post(self, request: Request, connection_id: str) -> Response:
-        context = _require_customer_perm(request, "integrations.view")
+        context = require_customer_perm(request, "integration.view")
         return success(
             integration_control().test_connection(
                 tenant_id=context.membership.tenant_id,

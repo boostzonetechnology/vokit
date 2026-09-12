@@ -1,153 +1,115 @@
-"""Role and permission catalogs. Namespaces cannot be mixed (RBAC-005, RBAC-006)."""
+"""
+Role namespace catalogs and DB-backed permission helpers.
+
+ADR-007: ROLE_PERMISSIONS static dict is removed. Permissions are now stored
+in identity_roles / identity_role_permissions and loaded from DB at runtime.
+
+Kept static:
+  PLATFORM_ROLES, AGENCY_ROLES, CUSTOMER_ROLES  — namespace membership of
+  system roles; used by namespace_for_role() with DB fallback for custom roles.
+
+namespace_for_role()      — static lookup for system roles; DB fallback.
+assert_role_matches_principal() — checks via DB Role record.
+permissions_for_role(slug) — DB query; returns frozenset[str].
+"""
 
 from __future__ import annotations
 
+from control_plane.identity.domain.permission_catalog import PERMISSION_CATALOG
 from control_plane.identity.domain.types import PrincipalType
 from shared_kernel.errors import DomainError
 
-# Sensitive permissions stay explicit even when unused by a given role (SA18-003).
-PLATFORM_PERMISSIONS = frozenset(
-    {
-        "users.invite",
-        "users.disable",
-        "tenants.view",
-        "tenants.provision",
-        "tenants.migrate",
-        "tenants.route",
-        "agencies.view",
-        "agencies.create",
-        "agencies.manage",
-        "customers.view",
-        "customers.create",
-        "plans.manage",
-        "billing.view",
-        "kyc.review",
-        "risk.review",
-        "agents.review",
-        "numbers.review",
-        "calls.review",
-        "transfers.review",
-        "recordings.review",
-        "integrations.review",
-        "audit.view",
-        "settings.manage",
-        "notifications.manage",
-        "payout.approve",
-        "wallet.adjust",
-        "commission.edit",
-        "impersonation.use",
-    }
+# ---------------------------------------------------------------------------
+# Static namespace sets — system roles
+# ---------------------------------------------------------------------------
+
+PLATFORM_ROLES: frozenset[str] = frozenset(
+    {"super_admin", "finance_admin", "compliance_kyc", "support_admin"}
 )
-AGENCY_PERMISSIONS = frozenset(
-    {
-        "team.invite",
-        "team.disable",
-        "customers.manage",
-        "agents.manage",
-        "numbers.manage",
-        "transfers.manage",
-        "calls.view",
-        "recordings.view",
-        "recordings.hold",
-        "integrations.manage",
-        "webhooks.manage",
-        "notices.configure",
-        "wallet.view",
-        "payout.request",
-    }
+AGENCY_ROLES: frozenset[str] = frozenset(
+    {"agency_owner", "agency_admin", "agency_agent_builder", "agency_finance"}
 )
-CUSTOMER_PERMISSIONS = frozenset(
-    {
-        "team.invite",
-        "team.disable",
-        "billing.pay",
-        "agents.view",
-        "calls.view",
-        "recordings.view",
-        "risk.verify",
-        "knowledge.view",
-        "integrations.view",
-        "integrations.connect",
-        "notices.configure",
-    }
+CUSTOMER_ROLES: frozenset[str] = frozenset(
+    {"customer_owner", "customer_admin", "customer_analyst"}
 )
 
-ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
-    "super_admin": PLATFORM_PERMISSIONS,
-    "finance_admin": frozenset({"payout.approve", "wallet.adjust", "billing.view"}),
-    "compliance_kyc": frozenset({"kyc.review", "risk.review", "recordings.review"}),
-    "support_admin": frozenset(),
-    "agency_owner": AGENCY_PERMISSIONS,
-    "agency_admin": frozenset(
-        {
-            "team.invite",
-            "team.disable",
-            "customers.manage",
-            "agents.manage",
-            "numbers.manage",
-            "transfers.manage",
-            "calls.view",
-            "recordings.view",
-            "integrations.manage",
-            "webhooks.manage",
-            "notices.configure",
-        }
-    ),
-    "agency_agent_builder": frozenset(
-        {"agents.manage", "transfers.manage", "integrations.manage"}
-    ),
-    "agency_finance": frozenset({"wallet.view", "payout.request"}),
-    "customer_owner": CUSTOMER_PERMISSIONS,
-    "customer_admin": frozenset(
-        {
-            "team.invite",
-            "team.disable",
-            "billing.pay",
-            "agents.view",
-            "calls.view",
-            "recordings.view",
-            "risk.verify",
-            "knowledge.view",
-            "integrations.view",
-            "integrations.connect",
-            "notices.configure",
-        }
-    ),
-    "customer_analyst": frozenset(
-        {"agents.view", "calls.view", "recordings.view", "integrations.view"}
-    ),
-}
+# ---------------------------------------------------------------------------
+# Backward-compat permission code sets (derived from catalog, not static)
+# Preferred for namespace-disjointness assertions and tests.
+# ---------------------------------------------------------------------------
 
-PLATFORM_ROLES = frozenset({"super_admin", "finance_admin", "compliance_kyc", "support_admin"})
-AGENCY_ROLES = frozenset({"agency_owner", "agency_admin", "agency_agent_builder", "agency_finance"})
-CUSTOMER_ROLES = frozenset({"customer_owner", "customer_admin", "customer_analyst"})
+PLATFORM_PERMISSIONS: frozenset[str] = frozenset(
+    s.code for s in PERMISSION_CATALOG if s.namespace == "platform"
+)
+AGENCY_PERMISSIONS: frozenset[str] = frozenset(
+    s.code for s in PERMISSION_CATALOG if s.namespace == "agency"
+)
+CUSTOMER_PERMISSIONS: frozenset[str] = frozenset(
+    s.code for s in PERMISSION_CATALOG if s.namespace == "customer"
+)
 
 
 def namespace_for_role(role: str) -> PrincipalType:
+    """Return the principal namespace for a role slug.
+
+    Uses static sets for known system roles; falls back to DB for custom roles.
+    Raises DomainError("invalid_role") if the role is unknown in both sources.
+    """
     if role in PLATFORM_ROLES:
         return PrincipalType.PLATFORM
     if role in AGENCY_ROLES:
         return PrincipalType.AGENCY
     if role in CUSTOMER_ROLES:
         return PrincipalType.CUSTOMER
-    raise DomainError("invalid_role", "Unknown role.")
+    # DB fallback for custom roles
+    from control_plane.identity.models import Role as RoleModel  # lazy import
 
-
-def permissions_for_role(role: str) -> frozenset[str]:
-    perms = ROLE_PERMISSIONS.get(role)
-    if perms is None:
+    row = RoleModel.objects.filter(slug=role).first()
+    if row is None:
         raise DomainError("invalid_role", "Unknown role.")
-    namespace = namespace_for_role(role)
-    catalog = {
-        PrincipalType.PLATFORM: PLATFORM_PERMISSIONS,
-        PrincipalType.AGENCY: AGENCY_PERMISSIONS,
-        PrincipalType.CUSTOMER: CUSTOMER_PERMISSIONS,
-    }[namespace]
-    if not perms.issubset(catalog):
-        raise DomainError("invalid_role", "Role mixes permission namespaces.")
-    return perms
+    return PrincipalType(row.namespace)
 
 
 def assert_role_matches_principal(role: str, principal_type: PrincipalType) -> None:
-    if namespace_for_role(role) != principal_type:
+    """Raise DomainError if the role does not belong to the given namespace.
+
+    Prefers DB lookup (authoritative) with static-set fallback for offline unit tests.
+    """
+    from control_plane.identity.models import Role as RoleModel  # lazy import
+
+    row = RoleModel.objects.filter(slug=role).first()
+    if row is not None:
+        actual = PrincipalType(row.namespace)
+        if actual is not principal_type:
+            raise DomainError(
+                "invalid_role", "Role does not belong to this permission namespace."
+            )
+        return
+    # Fallback: static namespace sets (used when RBAC tables not yet seeded)
+    if namespace_for_role(role) is not principal_type:
         raise DomainError("invalid_role", "Role does not belong to this permission namespace.")
+
+
+def permissions_for_role(slug: str) -> frozenset[str]:
+    """Load the effective permission code set for a role slug from DB.
+
+    Returns an empty frozenset for super_admin (bypass, no pivot rows).
+    Raises DomainError("invalid_role") if the role slug is not found.
+    """
+    from control_plane.identity.models import (  # lazy imports
+        Role as RoleModel,
+    )
+    from control_plane.identity.models import (
+        RolePermission as RolePermissionModel,
+    )
+
+    role_row = RoleModel.objects.filter(slug=slug).first()
+    if role_row is None:
+        raise DomainError("invalid_role", f"Unknown role: {slug!r}.")
+
+    codes = (
+        RolePermissionModel.objects.filter(role_id=role_row.id)
+        .select_related("permission")
+        .values_list("permission__code", flat=True)
+    )
+    return frozenset(codes)

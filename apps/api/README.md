@@ -47,6 +47,15 @@ Demo users from `seed_phase2_demo` (password `Phase2-Demo!ok`):
 
 Session cookie: `vokit_session` (HttpOnly). CSRF cookie: `vokit_csrf`.
 
+RBAC (ADR-007 — dynamic DB roles/permissions):
+
+- `GET/POST /api/v1/platform/permissions` + `POST .../permissions/sync`
+- `GET/POST /api/v1/platform/roles` + `GET/PATCH/DELETE .../roles/{id}`
+- `GET /api/v1/agency/roles` / `GET /api/v1/customer/roles` (read-only invite catalogs)
+- `python manage.py sync_permissions` / `seed_system_roles` (or `ensure_rbac_seeded`)
+- `super_admin` bypasses permission checks; session includes `is_super_admin`
+- Flow doc: `docs/flows/RBAC-ROLES-PERMISSIONS.md`
+
 Invitation tokens are emailed and still returned on the invite API for lab/accept flows. Do not put tokens in in-app bodies or logs.
 
 Agencies and customers (Agency = physical DB; customer is a child scope):

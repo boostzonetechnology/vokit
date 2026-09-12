@@ -21,6 +21,8 @@ from control_plane.customers.infrastructure.container import (
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
     parse_uuid,
+    require_agency_perm,
+    require_platform_perm,
     require_principal,
 )
 from control_plane.identity.api.views import CsrfAPIView
@@ -30,13 +32,6 @@ from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
 from tenant.lifecycle.domain import TenantCustomer
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _ban_keys(data: dict) -> tuple[BanKey, ...]:
@@ -79,7 +74,7 @@ def _index_payload(row) -> dict[str, object]:
 
 class PlatformCustomerCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "customers.view")
+        require_platform_perm(request, "customer.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -101,7 +96,7 @@ class PlatformCustomerCollectionView(CsrfAPIView):
         return success([_index_payload(row) for row in sliced], page=page)
 
     def post(self, request: Request) -> Response:
-        context = _require_platform_perm(request, "customers.create")
+        context = require_platform_perm(request, "customer.create")
         created = create_customer().execute(
             CreateCustomerCommand(
                 display_name=str(request.data.get("display_name") or ""),
@@ -126,7 +121,7 @@ class PlatformCustomerCollectionView(CsrfAPIView):
 
 class PlatformCustomerDetailView(CsrfAPIView):
     def get(self, request: Request, customer_id: str) -> Response:
-        _require_platform_perm(request, "customers.view")
+        require_platform_perm(request, "customer.view")
         identifier = parse_uuid(customer_id, field="customer_id")
         indexed = customer_index().get(identifier)
         if indexed is None:
@@ -155,7 +150,7 @@ class PlatformCustomerDetailView(CsrfAPIView):
 
 class PlatformCustomerStatusView(CsrfAPIView):
     def post(self, request: Request, customer_id: str) -> Response:
-        context = _require_platform_perm(request, "customers.create")
+        context = require_platform_perm(request, "customer.update")
         identifier = parse_uuid(customer_id, field="customer_id")
         indexed = customer_index().get(identifier)
         if indexed is None:
@@ -174,7 +169,7 @@ class PlatformCustomerStatusView(CsrfAPIView):
 
 class PlatformCustomerUsageView(CsrfAPIView):
     def get(self, request: Request, customer_id: str) -> Response:
-        _require_platform_perm(request, "customers.view")
+        require_platform_perm(request, "customer.view")
         snapshot = get_customer_usage().execute(
             parse_uuid(customer_id, field="customer_id")
         )
@@ -196,7 +191,7 @@ class PlatformCustomerUsageView(CsrfAPIView):
 
 class PlatformCustomerMinutesAdjustmentView(CsrfAPIView):
     def post(self, request: Request, customer_id: str) -> Response:
-        context = _require_platform_perm(request, "customers.create")
+        context = require_platform_perm(request, "customer.update")
         raw_minutes = request.data.get("minutes")
         try:
             minutes = int(raw_minutes)
@@ -230,12 +225,9 @@ class PlatformCustomerMinutesAdjustmentView(CsrfAPIView):
 
 class AgencyCustomerCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = require_principal(request, PrincipalType.AGENCY)
-        if "customers.manage" not in context.permissions:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        context = require_agency_perm(request, "customer.view")
         tenant_id = context.membership.tenant_id
-        if tenant_id is None:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        assert tenant_id is not None
         parse_optional_uuid(request.query_params.get("tenant_id"), field="tenant_id")
         limit, offset = parse_page(
             request.query_params.get("limit"),
@@ -246,12 +238,9 @@ class AgencyCustomerCollectionView(CsrfAPIView):
         return success([_customer_payload(row) for row in sliced], page=page)
 
     def post(self, request: Request) -> Response:
-        context = require_principal(request, PrincipalType.AGENCY)
-        if "customers.manage" not in context.permissions:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        context = require_agency_perm(request, "customer.create")
         tenant_id = context.membership.tenant_id
-        if tenant_id is None:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        assert tenant_id is not None
         created = create_customer().execute(
             CreateCustomerCommand(
                 display_name=str(request.data.get("display_name") or ""),
@@ -272,12 +261,9 @@ class AgencyCustomerCollectionView(CsrfAPIView):
 
 class AgencyCustomerDetailView(CsrfAPIView):
     def get(self, request: Request, customer_id: str) -> Response:
-        context = require_principal(request, PrincipalType.AGENCY)
-        if "customers.manage" not in context.permissions:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        context = require_agency_perm(request, "customer.view")
         tenant_id = context.membership.tenant_id
-        if tenant_id is None:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        assert tenant_id is not None
         parse_optional_uuid(request.query_params.get("tenant_id"), field="tenant_id")
         row = lifecycle().get_customer(
             tenant_id, parse_uuid(customer_id, field="customer_id")
@@ -289,12 +275,9 @@ class AgencyCustomerDetailView(CsrfAPIView):
 
 class AgencyCustomerStatusView(CsrfAPIView):
     def post(self, request: Request, customer_id: str) -> Response:
-        context = require_principal(request, PrincipalType.AGENCY)
-        if "customers.manage" not in context.permissions:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        context = require_agency_perm(request, "customer.update")
         tenant_id = context.membership.tenant_id
-        if tenant_id is None:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        assert tenant_id is not None
         row = change_customer_status().execute(
             customer_id=parse_uuid(customer_id, field="customer_id"),
             tenant_id=tenant_id,
@@ -327,7 +310,7 @@ class CustomerAccountView(CsrfAPIView):
 
 class PlatformBanKeyView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "customers.create")
+        require_platform_perm(request, "customer.create")
         ban_index().add(
             BanKey(
                 kind=str(request.data.get("kind") or ""),

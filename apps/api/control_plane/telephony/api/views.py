@@ -3,9 +3,13 @@ from __future__ import annotations
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from control_plane.identity.api.auth import parse_uuid, require_principal
+from control_plane.identity.api.auth import (
+    parse_uuid,
+    require_agency_perm,
+    require_customer_perm,
+    require_platform_perm,
+)
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.telephony.application.assign import AssignNumberCommand
 from control_plane.telephony.application.destinations import CreateDestinationCommand
 from control_plane.telephony.application.ports import PhoneNumberRecord, ReservationRecord
@@ -35,18 +39,6 @@ from tenant.media.domain import TransferDestinationRecord
 from tenant.numbers.domain import NumberAssignmentRecord
 
 
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _page(request: Request) -> tuple[int, int]:
@@ -116,7 +108,7 @@ def _assignment_payload(row: NumberAssignmentRecord) -> dict[str, object]:
 
 class PlatformNumberCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "numbers.review")
+        require_platform_perm(request, "number.view")
         status_raw = str(request.query_params.get("status") or "").strip()
         try:
             status = NumberStatus(status_raw) if status_raw else None
@@ -135,13 +127,13 @@ class PlatformNumberCollectionView(CsrfAPIView):
         return success([_number_payload(row) for row in slice_rows], page=page)
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "numbers.review")
+        require_platform_perm(request, "number.view")
         data = request.data if isinstance(request.data, dict) else {}
         if bool(data.get("purchase")):
             row = purchase_number().execute(
                 PurchaseNumberCommand(
                     e164=str(data.get("e164") or ""),
-                    actor_id=_require_platform_perm(request, "numbers.review").user.id,
+                    actor_id=require_platform_perm(request, "number.view").user.id,
                     idempotency_key=str(request.headers.get("Idempotency-Key") or ""),
                 )
             )
@@ -162,7 +154,7 @@ class PlatformNumberCollectionView(CsrfAPIView):
 
 class PlatformNumberReleaseView(CsrfAPIView):
     def post(self, request: Request, number_id: str) -> Response:
-        _require_platform_perm(request, "numbers.review")
+        require_platform_perm(request, "number.view")
         data = request.data if isinstance(request.data, dict) else {}
         row = release_number().execute(
             ReleaseNumberCommand(
@@ -178,7 +170,7 @@ class PlatformNumberReleaseView(CsrfAPIView):
 
 class PlatformNumberReconcileView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "numbers.review")
+        require_platform_perm(request, "number.view")
         result = reconcile_numbers().execute()
         return success(
             {
@@ -191,7 +183,7 @@ class PlatformNumberReconcileView(CsrfAPIView):
 
 class AgencyNumberSearchView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "numbers.manage")
+        context = require_agency_perm(request, "number.view")
         result = search_numbers().execute(
             country=str(request.query_params.get("country") or ""),
             area=str(request.query_params.get("area") or ""),
@@ -224,7 +216,7 @@ class AgencyNumberSearchView(CsrfAPIView):
 
 class AgencyNumberCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "numbers.manage")
+        context = require_agency_perm(request, "number.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         assigned = numbers().list(status=NumberStatus.ASSIGNED, tenant_id=tenant_id)
@@ -244,7 +236,7 @@ class AgencyNumberCollectionView(CsrfAPIView):
 
 class AgencyNumberReserveView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "numbers.manage")
+        context = require_agency_perm(request, "number.create")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         data = request.data if isinstance(request.data, dict) else {}
@@ -261,7 +253,7 @@ class AgencyNumberReserveView(CsrfAPIView):
 
 class AgencyNumberAssignView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "numbers.manage")
+        context = require_agency_perm(request, "number.update")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         data = request.data if isinstance(request.data, dict) else {}
@@ -293,7 +285,7 @@ class AgencyNumberAssignView(CsrfAPIView):
 
 class AgencyNumberReleaseView(CsrfAPIView):
     def post(self, request: Request, number_id: str) -> Response:
-        context = _require_agency_perm(request, "numbers.manage")
+        context = require_agency_perm(request, "number.delete")
         data = request.data if isinstance(request.data, dict) else {}
         row = release_number().execute(
             ReleaseNumberCommand(
@@ -343,20 +335,9 @@ def _call_payload(row: TenantCallRecord) -> dict[str, object]:
     }
 
 
-def _require_customer_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.CUSTOMER)
-    if (
-        permission not in context.permissions
-        or context.membership.tenant_id is None
-        or context.membership.customer_id is None
-    ):
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
 class AgencyTransferCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "transfers.manage")
+        context = require_agency_perm(request, "transfer.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         customer_id = request.query_params.get("customer_id")
@@ -369,7 +350,7 @@ class AgencyTransferCollectionView(CsrfAPIView):
         return success([_destination_payload(row) for row in sliced], page=page)
 
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "transfers.manage")
+        context = require_agency_perm(request, "transfer.create")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         data = request.data if isinstance(request.data, dict) else {}
@@ -392,7 +373,7 @@ class AgencyTransferCollectionView(CsrfAPIView):
 
 class AgencyTransferDisableView(CsrfAPIView):
     def post(self, request: Request, destination_id: str) -> Response:
-        context = _require_agency_perm(request, "transfers.manage")
+        context = require_agency_perm(request, "transfer.update")
         row = manage_destinations().disable(
             destination_id=parse_uuid(destination_id, field="destination_id"),
             tenant_id=context.membership.tenant_id,
@@ -403,7 +384,7 @@ class AgencyTransferDisableView(CsrfAPIView):
 
 class PlatformTransferCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "transfers.review")
+        require_platform_perm(request, "transfer.view")
         from control_plane.telephony.infrastructure.repositories import (
             DjangoTransferIndexRepository,
         )
@@ -430,7 +411,7 @@ class PlatformTransferCollectionView(CsrfAPIView):
 
 class PlatformTransferDisableView(CsrfAPIView):
     def post(self, request: Request, destination_id: str) -> Response:
-        _require_platform_perm(request, "transfers.review")
+        require_platform_perm(request, "transfer.view")
         data = request.data if isinstance(request.data, dict) else {}
         if not bool(data.get("confirm")):
             raise DomainError("validation_error", "confirm is required.")
@@ -444,7 +425,7 @@ class PlatformTransferDisableView(CsrfAPIView):
 
 class AgencyCallCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "calls.view")
+        context = require_agency_perm(request, "call.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         customer_id = request.query_params.get("customer_id")
@@ -459,7 +440,7 @@ class AgencyCallCollectionView(CsrfAPIView):
 
 class AgencyOutboundCallView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "calls.view")
+        context = require_agency_perm(request, "call.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         data = request.data if isinstance(request.data, dict) else {}
@@ -475,7 +456,7 @@ class AgencyOutboundCallView(CsrfAPIView):
 
 class CustomerCallCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "calls.view")
+        context = require_customer_perm(request, "call.view")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         rows = voice_control().list_tenant_calls(
@@ -489,7 +470,7 @@ class CustomerCallCollectionView(CsrfAPIView):
 
 class PlatformCallCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "calls.review")
+        require_platform_perm(request, "call.view")
         tenant_id = request.query_params.get("agency_id")
         customer_id = request.query_params.get("customer_id")
         rows = voice_control().list_index_calls(

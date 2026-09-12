@@ -1,3 +1,5 @@
+"""Authentication context and centralised permission helpers (ADR-007)."""
+
 from __future__ import annotations
 
 import uuid
@@ -6,7 +8,6 @@ from dataclasses import dataclass
 from rest_framework.request import Request
 
 from control_plane.identity.application.ports import MembershipRecord, UserRecord
-from control_plane.identity.domain.roles import permissions_for_role
 from control_plane.identity.domain.types import MembershipStatus, PrincipalType, UserStatus
 from control_plane.identity.infrastructure.container import memberships, users
 from shared_kernel.errors import DomainError
@@ -18,8 +19,31 @@ class AuthContext:
     membership: MembershipRecord
 
     @property
+    def is_super_admin(self) -> bool:
+        return (
+            self.membership.principal_type is PrincipalType.PLATFORM
+            and self.membership.role == "super_admin"
+        )
+
+    @property
     def permissions(self) -> frozenset[str]:
-        return permissions_for_role(self.membership.role)
+        """DB-backed permission codes. super_admin returns empty (bypass in require_*)."""
+        if self.is_super_admin:
+            return frozenset()
+        if self.membership.role_id is not None:
+            from control_plane.identity.models import RolePermission
+
+            return frozenset(
+                RolePermission.objects.filter(role_id=self.membership.role_id).values_list(
+                    "permission__code", flat=True
+                )
+            )
+        from control_plane.identity.domain.roles import permissions_for_role
+
+        try:
+            return permissions_for_role(self.membership.role)
+        except DomainError:
+            return frozenset()
 
 
 def django_user(request: Request):
@@ -53,6 +77,33 @@ def require_principal(request: Request, principal_type: PrincipalType) -> AuthCo
     return context
 
 
+def require_platform_perm(request: Request, perm: str) -> AuthContext:
+    context = require_principal(request, PrincipalType.PLATFORM)
+    if context.is_super_admin:
+        return context
+    if perm not in context.permissions:
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+    return context
+
+
+def require_agency_perm(request: Request, perm: str) -> AuthContext:
+    context = require_principal(request, PrincipalType.AGENCY)
+    if context.membership.tenant_id is None:
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+    if perm not in context.permissions:
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+    return context
+
+
+def require_customer_perm(request: Request, perm: str) -> AuthContext:
+    context = require_principal(request, PrincipalType.CUSTOMER)
+    if context.membership.customer_id is None:
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+    if perm not in context.permissions:
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+    return context
+
+
 def parse_uuid(value: object, *, field: str) -> uuid.UUID:
     try:
         return uuid.UUID(str(value))
@@ -67,6 +118,8 @@ def parse_optional_uuid(value: object, *, field: str) -> uuid.UUID | None:
 
 
 def session_payload(user: UserRecord, membership: MembershipRecord) -> dict[str, object]:
+    ctx = AuthContext(user=user, membership=membership)
+    is_sa = ctx.is_super_admin
     return {
         "user": {
             "id": str(user.id),
@@ -81,5 +134,11 @@ def session_payload(user: UserRecord, membership: MembershipRecord) -> dict[str,
             "customer_id": str(membership.customer_id) if membership.customer_id else None,
             "status": membership.status.value,
         },
-        "permissions": sorted(permissions_for_role(membership.role)),
+        "role": {
+            "id": str(membership.role_id) if membership.role_id else None,
+            "slug": membership.role,
+            "namespace": membership.principal_type.value,
+        },
+        "permissions": [] if is_sa else sorted(ctx.permissions),
+        "is_super_admin": is_sa,
     }

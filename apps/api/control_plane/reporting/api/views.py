@@ -24,8 +24,8 @@ def _window(request: Request):
 class PlatformDashboardView(CsrfAPIView):
     def get(self, request: Request) -> Response:
         context = require_principal(request, PrincipalType.PLATFORM)
-        allowed = {"agencies.view", "billing.view", "calls.review"}
-        if not (allowed & context.permissions):
+        allowed = {"agency.view", "billing.view", "call.view"}
+        if not context.is_super_admin and not (allowed & context.permissions):
             raise DomainError("forbidden", "Not permitted.", http_status=403)
         return success(
             dashboards().platform(

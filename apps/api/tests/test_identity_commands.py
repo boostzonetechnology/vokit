@@ -25,5 +25,6 @@ def test_bootstrap_platform_owner() -> None:
         password="Phase2-Owner!ok",
     )
     user = User.objects.get(email="owner@vokit.test")
-    assert user.membership.role == "super_admin"
+    # ADR-007: role is now a FK; access slug via .role.slug
+    assert user.membership.role.slug == "super_admin"
     assert user.membership.principal_type == "platform"

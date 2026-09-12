@@ -12,8 +12,9 @@ from control_plane.identity.demo import (
     DEMO_PLATFORM_EMAIL,
 )
 from control_plane.identity.domain.types import MembershipStatus, PrincipalType
+from control_plane.identity.infrastructure.rbac_seed import ensure_rbac_seeded
 from control_plane.identity.infrastructure.repositories import DjangoMembershipRepository
-from control_plane.identity.models import User
+from control_plane.identity.models import Role, User
 from shared_kernel.ids import new_uuid7
 
 
@@ -21,6 +22,9 @@ class Command(BaseCommand):
     help = "Seed Phase 2 demo platform, agency, and customer users."
 
     def handle(self, *args, **options) -> None:
+        # Ensure RBAC tables are populated before looking up roles.
+        ensure_rbac_seeded()
+
         repo = DjangoMembershipRepository()
         specs = (
             (DEMO_PLATFORM_EMAIL, PrincipalType.PLATFORM, "super_admin", None, None),
@@ -33,20 +37,23 @@ class Command(BaseCommand):
                 DEMO_CUSTOMER_ID,
             ),
         )
-        for email, principal, role, tenant_id, customer_id in specs:
+        for email, principal, role_slug, tenant_id, customer_id in specs:
             user = User.objects.filter(email=email).first()
             if user is None:
                 user = User.objects.create_user(email=email, password=DEMO_PASSWORD)
                 self.stdout.write(self.style.SUCCESS(f"Created {email}"))
             else:
                 self.stdout.write(self.style.WARNING(f"User {email} already exists."))
+
             if repo.get_for_user(user.id) is None:
+                role_row = Role.objects.filter(slug=role_slug).first()
                 repo.create(
                     MembershipRecord(
                         id=new_uuid7(),
                         user_id=user.id,
                         principal_type=principal,
-                        role=role,
+                        role=role_slug,
+                        role_id=role_row.id if role_row else None,
                         tenant_id=tenant_id,
                         customer_id=customer_id,
                         status=MembershipStatus.ACTIVE,

@@ -8,3 +8,4 @@ These describe **what runs today**, not backlog wishes. SRS and ADRs remain auth
 |---|---|
 | [Agency create + MySQL provisioning](AGENCY-CREATE-MYSQL.md) | Super Admin creates an agency, provisions a dedicated MySQL DB/user, invites the owner |
 | [Super Admin Customers](CUSTOMER-SUPER-ADMIN.md) | SA3 create/invite/status/usage/minutes + open deferrals |
+| [Roles & permissions (RBAC)](RBAC-ROLES-PERMISSIONS.md) | Dynamic DB roles/permissions, sync, invite-by-slug, super_admin bypass (ADR-007) |

@@ -48,10 +48,15 @@ class DisableUser:
 
     def _assert_scope(self, actor: MembershipRecord, target: MembershipRecord) -> None:
         if actor.principal_type.value == "platform":
-            if "users.disable" not in permissions_for_role(actor.role):
+            # super_admin bypasses all permission checks (ADR-007).
+            if actor.role == "super_admin":
+                return
+            # ADR-007: new code for platform user disable is user.delete
+            if "user.delete" not in permissions_for_role(actor.role):
                 raise DomainError("forbidden", "Not permitted.", http_status=403)
             return
-        if "team.disable" not in permissions_for_role(actor.role):
+        # ADR-007: new code for team disable is team.delete
+        if "team.delete" not in permissions_for_role(actor.role):
             raise DomainError("forbidden", "Not permitted.", http_status=403)
         if actor.tenant_id is None or actor.tenant_id != target.tenant_id:
             raise DomainError("not_found", "Resource not found.", http_status=404)

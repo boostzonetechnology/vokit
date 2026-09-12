@@ -10,5 +10,6 @@ Canonical location for Vokit ADRs.
 | [ADR-004](ADR-004-v1-implementation-stack.md) | Django/DRF, Celery, React, UUID, `/api/v1/` | Accepted |
 | [ADR-005](ADR-005-external-kyc-provider.md) | External agency KYC via provider API keys | Accepted |
 | [ADR-006](ADR-006-transfer-voicemail-media-contracts.md) | Queue/SIP-client/voicemail without rewriting Edge `{to}` | Accepted |
+| [ADR-007](ADR-007-dynamic-rbac-roles-permissions.md) | Dynamic DB-backed RBAC: roles, permissions, super_admin bypass | Accepted |
 
 This directory is the only ADR location.

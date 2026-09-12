@@ -28,41 +28,20 @@ from control_plane.agents.infrastructure.container import (
     template_versions,
     templates,
 )
-from control_plane.identity.api.auth import parse_optional_uuid, parse_uuid, require_principal
+from control_plane.identity.api.auth import (
+    parse_optional_uuid,
+    parse_uuid,
+    require_agency_perm,
+    require_customer_perm,
+    require_platform_perm,
+)
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.risk.application.create_agent import CreateAgentCommand
 from control_plane.risk.infrastructure.container import create_agent, tenant_agents
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
 from tenant.agents.domain import TenantAgent
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_customer_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.CUSTOMER)
-    membership = context.membership
-    if (
-        permission not in context.permissions
-        or membership.tenant_id is None
-        or membership.customer_id is None
-    ):
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _agent_payload(row: TenantAgent) -> dict[str, object]:
@@ -190,7 +169,7 @@ def _optional_uuid(data: dict, name: str):
 
 class PlatformAgentCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         limit, offset = parse_page(
             request.query_params.get("limit"), request.query_params.get("offset")
         )
@@ -209,7 +188,7 @@ class PlatformAgentCollectionView(CsrfAPIView):
         return success([_index_payload(row) for row in rows], page=page)
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         agent = create_agent().execute(
             CreateAgentCommand(
                 customer_id=parse_uuid(request.data.get("customer_id"), field="customer_id"),
@@ -223,7 +202,7 @@ class PlatformAgentCollectionView(CsrfAPIView):
 
 class PlatformAgentPublishView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         agent = publish_agent().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             actor_tenant_id=None,
@@ -234,7 +213,7 @@ class PlatformAgentPublishView(CsrfAPIView):
 
 class PlatformTemplateCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         limit, offset = parse_page(
             request.query_params.get("limit"), request.query_params.get("offset")
         )
@@ -242,7 +221,7 @@ class PlatformTemplateCollectionView(CsrfAPIView):
         return success([_template_payload(row) for row in rows], page=page)
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         selected = tuple(
             parse_uuid(item, field="selected_tenant_ids")
             for item in (request.data.get("selected_agency_ids") or [])
@@ -270,11 +249,11 @@ class PlatformTemplateCollectionView(CsrfAPIView):
 
 class PlatformInstructionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         return success({"body": global_instructions().get()})
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         from control_plane.agents.domain.policies import assert_no_secrets
 
         body = str(request.data.get("body") or "")
@@ -284,7 +263,7 @@ class PlatformInstructionView(CsrfAPIView):
 
 class PlatformKnowledgeView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         agency_id = parse_optional_uuid(
             request.query_params.get("agency_id"), field="agency_id"
         )
@@ -308,7 +287,7 @@ class PlatformKnowledgeView(CsrfAPIView):
         return success(rows)
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "agents.review")
+        require_platform_perm(request, "agent.view")
         from uuid import UUID
 
         result = ingest_knowledge().execute(
@@ -327,7 +306,7 @@ class PlatformKnowledgeView(CsrfAPIView):
 
 class AgencyAgentCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         limit, offset = parse_page(
@@ -340,7 +319,7 @@ class AgencyAgentCollectionView(CsrfAPIView):
         return success([_agent_payload(row) for row in rows], page=page)
 
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.create")
         tenant_id = context.membership.tenant_id
         template_id = request.data.get("template_id")
         if template_id:
@@ -365,7 +344,7 @@ class AgencyAgentCollectionView(CsrfAPIView):
 
 class AgencyAgentDetailView(CsrfAPIView):
     def get(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         agent = tenant_agents().get_agent(tenant_id, parse_uuid(agent_id, field="agent_id"))
@@ -374,7 +353,7 @@ class AgencyAgentDetailView(CsrfAPIView):
         return success(_agent_payload(agent))
 
     def patch(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.update")
         agent = configure_agent().execute(
             _configure_command(
                 parse_uuid(agent_id, field="agent_id"),
@@ -388,7 +367,7 @@ class AgencyAgentDetailView(CsrfAPIView):
 
 class AgencyAgentPublishView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.update")
         agent = publish_agent().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             actor_tenant_id=context.membership.tenant_id,
@@ -399,7 +378,7 @@ class AgencyAgentPublishView(CsrfAPIView):
 
 class AgencyAgentPauseView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.update")
         agent = pause_agent().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             actor_tenant_id=context.membership.tenant_id,
@@ -410,7 +389,7 @@ class AgencyAgentPauseView(CsrfAPIView):
 
 class AgencyAgentCloneView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.create")
         agent = clone_agent().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             actor_tenant_id=context.membership.tenant_id,
@@ -421,7 +400,7 @@ class AgencyAgentCloneView(CsrfAPIView):
 
 class AgencyAgentResolvedView(CsrfAPIView):
     def get(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         agent = tenant_agents().get_agent(tenant_id, parse_uuid(agent_id, field="agent_id"))
@@ -439,7 +418,7 @@ class AgencyAgentResolvedView(CsrfAPIView):
 
 class AgencyAgentRoutingView(CsrfAPIView):
     def get(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         try:
@@ -458,7 +437,7 @@ class AgencyAgentRoutingView(CsrfAPIView):
 
 class AgencyAgentTestSessionView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.update")
         result = start_test_session().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             actor_tenant_id=context.membership.tenant_id,
@@ -471,7 +450,7 @@ class AgencyAgentTestSessionView(CsrfAPIView):
 
 class AgencyTemplateCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         visible = []
@@ -491,14 +470,14 @@ class AgencyTemplateCollectionView(CsrfAPIView):
 
 class AgencyInstructionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         row = tenant_agents().get_instruction(tenant_id, "agency", tenant_id)
         return success({"scope": "agency", "body": row.body if row else ""})
 
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.update")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         return success(
@@ -515,7 +494,7 @@ class AgencyInstructionView(CsrfAPIView):
 
 class AgencyKnowledgeView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         rows = [
@@ -531,7 +510,7 @@ class AgencyKnowledgeView(CsrfAPIView):
         return success(rows)
 
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.update")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         scope = str(request.data.get("scope") or "agency")
@@ -554,7 +533,7 @@ class AgencyKnowledgeView(CsrfAPIView):
 
 class AgencyKnowledgeAttachView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.update")
         attach_knowledge().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             source_id=parse_uuid(request.data.get("source_id"), field="source_id"),
@@ -567,7 +546,7 @@ class AgencyKnowledgeAttachView(CsrfAPIView):
 
 class CustomerAgentDetailView(CsrfAPIView):
     def get(self, request: Request, agent_id: str) -> Response:
-        context = _require_customer_perm(request, "agents.view")
+        context = require_customer_perm(request, "agent.view")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         agent = tenant_agents().get_agent(
@@ -578,7 +557,7 @@ class CustomerAgentDetailView(CsrfAPIView):
         return success(_agent_payload(agent))
 
     def patch(self, request: Request, agent_id: str) -> Response:
-        context = _require_customer_perm(request, "agents.view")
+        context = require_customer_perm(request, "agent.view")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         current = tenant_agents().get_agent(
@@ -606,7 +585,7 @@ class CustomerAgentDetailView(CsrfAPIView):
 
 class CustomerKnowledgeView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "knowledge.view")
+        context = require_customer_perm(request, "knowledge.view")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         rows = [

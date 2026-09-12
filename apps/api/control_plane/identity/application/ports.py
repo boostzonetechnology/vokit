@@ -22,14 +22,33 @@ class UserRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class RoleRecord:
+    id: uuid.UUID
+    namespace: str
+    slug: str
+    display_name: str
+    is_system: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PermissionRecord:
+    id: uuid.UUID
+    namespace: str
+    code: str
+    description: str
+    is_sensitive: bool
+
+
+@dataclass(frozen=True, slots=True)
 class MembershipRecord:
     id: uuid.UUID
     user_id: uuid.UUID
     principal_type: PrincipalType
-    role: str
+    role: str  # slug — preserved for backward compatibility
     tenant_id: uuid.UUID | None
     customer_id: uuid.UUID | None
     status: MembershipStatus
+    role_id: uuid.UUID | None = None  # FK to identity_roles; None only for legacy / unmigrated rows
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,13 +56,14 @@ class InvitationRecord:
     id: uuid.UUID
     email: str
     principal_type: PrincipalType
-    role: str
+    role: str  # slug — preserved for backward compatibility
     tenant_id: uuid.UUID | None
     customer_id: uuid.UUID | None
     token_hash: str
     status: InvitationStatus
     expires_at: datetime
     invited_by_id: uuid.UUID | None
+    role_id: uuid.UUID | None = None  # FK to identity_roles; None only for legacy rows
 
 
 class UserRepository(Protocol):
@@ -81,6 +101,17 @@ class InvitationRepository(Protocol):
         tenant_id: uuid.UUID | None,
         customer_id: uuid.UUID | None,
     ) -> list[InvitationRecord]: ...
+
+
+class RoleRepository(Protocol):
+    def get_by_slug(self, slug: str) -> RoleRecord | None: ...
+    def get_by_id(self, role_id: uuid.UUID) -> RoleRecord | None: ...
+    def list_permissions(self, role_id: uuid.UUID) -> frozenset[str]: ...
+
+
+class PermissionRepository(Protocol):
+    def get_by_code(self, namespace: str, code: str) -> PermissionRecord | None: ...
+    def list_for_namespace(self, namespace: str) -> list[PermissionRecord]: ...
 
 
 class PasswordHasher(Protocol):
