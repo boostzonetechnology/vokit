@@ -47,7 +47,8 @@ def wrap_email_html(
             </td>
           </tr>
           <tr>
-            <td align="center" style="padding:0 0 24px;font-size:12px;line-height:1.5;color:#9ca3af;">
+            <td align="center"
+                style="padding:0 0 24px;font-size:12px;line-height:1.5;color:#9ca3af;">
               If the button does not work, copy and paste this link into your browser:<br/>
               <a href="{safe_url}" style="color:#6557f5;word-break:break-all;">{safe_url}</a>
             </td>
@@ -62,7 +63,8 @@ def wrap_email_html(
   <title>{safe_title}</title>
 </head>
 <body style="margin:0;padding:0;background:#f3f4f6;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:32px 12px;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+         style="background:#f3f4f6;padding:32px 12px;">
     <tr>
       <td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
@@ -76,7 +78,8 @@ def wrap_email_html(
           </tr>
           <tr>
             <td align="center" style="padding-bottom:24px;">
-              <svg width="88" height="72" viewBox="0 0 88 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <svg width="88" height="72" viewBox="0 0 88 72"
+                   xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <rect x="10" y="18" width="60" height="42" rx="6" fill="#e5e7eb"/>
                 <path d="M10 26 L40 46 L70 26" fill="none" stroke="#d1d5db" stroke-width="4"/>
                 <circle cx="64" cy="22" r="14" fill="#22c55e"/>
