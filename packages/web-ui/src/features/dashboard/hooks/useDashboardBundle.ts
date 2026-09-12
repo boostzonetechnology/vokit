@@ -180,14 +180,16 @@ export function useDashboardBundle(
         return;
       }
 
-      const [invoiceRows, methodRows] = await Promise.all([
+      const [invoiceRows, methodRows, callRows, agentRows] = await Promise.all([
         safeGet<InvoiceRow>("/api/v1/customer/invoices"),
         safeGet<PaymentMethodRow>("/api/v1/customer/payment-methods"),
+        safeGet<CallRow>("/api/v1/customer/calls"),
+        safeGet<AgentRow>("/api/v1/customer/agents"),
       ]);
       if (!active) return;
       setData(dashboard);
-      setCalls([]);
-      setAgents([]);
+      setCalls(callRows);
+      setAgents(agentRows);
       setAgencies([]);
       setInvoices(invoiceRows);
       setPayouts([]);

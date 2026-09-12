@@ -199,6 +199,7 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
         pick(byRoute, "agents", "Agents", portal),
         pick(byRoute, "calls", "Calls", portal),
         pick(byRoute, "knowledge", "Knowledge", portal),
+        pick(byRoute, "integrations", "Integrations", portal),
       ],
     },
     {
@@ -214,9 +215,10 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
       id: "account",
       label: "Account",
       items: [
-        pick(byRoute, "account", "Account", portal),
+        pick(byRoute, "account", "Profile", portal),
         pick(byRoute, "team", "Team", portal),
         pick(byRoute, "notifications", "Notifications", portal),
+        pick(byRoute, "preferences", "Settings", portal),
       ],
     },
   ];

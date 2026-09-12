@@ -95,7 +95,7 @@ export function portalNav(portal: Portal): NavItem[] {
     { href: "/notifications", label: "Notifications", path: "/api/v1/customer/notifications" },
     {
       href: "/preferences",
-      label: "Preferences",
+      label: "Settings",
       path: "/api/v1/customer/notification-preferences",
     },
   ];
