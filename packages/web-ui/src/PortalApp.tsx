@@ -32,6 +32,14 @@ function isAcceptInviteRoute(route: string): boolean {
   return route === "accept-invite" || route.startsWith("accept-invite?");
 }
 
+function isLoginRoute(route: string): boolean {
+  return route === "login";
+}
+
+function isPublicAuthRoute(route: string): boolean {
+  return isLoginRoute(route) || isAcceptInviteRoute(route);
+}
+
 /** One-time migration for bookmarks that still use hash URLs. */
 function LegacyHashRedirect() {
   const navigate = useNavigate();
@@ -51,6 +59,7 @@ export function PortalApp({ portal, title }: { portal: Portal; title: string }) 
       <LegacyHashRedirect />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={<PortalAppContent portal={portal} title={title} />} />
         <Route path="/*" element={<PortalAppContent portal={portal} title={title} />} />
       </Routes>
     </BrowserRouter>
@@ -99,6 +108,7 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
     try {
       await login(email, password);
       await refresh();
+      navigate("/dashboard", { replace: true });
     } catch (cause) {
       const apiError = cause as ApiError;
       setError(apiError.message || "Sign-in failed.");
@@ -118,6 +128,7 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
     }
     setSession(null);
     setView("login");
+    navigate("/login", { replace: true });
   }
 
   const active =
@@ -146,6 +157,9 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
   }
 
   if (view === "login" || view === "unauthenticated") {
+    if (!isLoginRoute(route)) {
+      return <Navigate to="/login" replace />;
+    }
     return (
       <LoginScreen
         portal={portal}
@@ -182,6 +196,10 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
 
   if (!session) {
     return null;
+  }
+
+  if (isPublicAuthRoute(route)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (

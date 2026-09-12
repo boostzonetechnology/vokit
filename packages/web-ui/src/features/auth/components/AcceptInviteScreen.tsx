@@ -58,7 +58,7 @@ export function AcceptInviteScreen({ portal }: { portal: Portal }) {
     try {
       await apiSend("/api/v1/auth/invitations/accept", "POST", { token, password });
       setMessage("Invitation accepted. Redirecting to sign in…");
-      window.setTimeout(() => navigate("/", { replace: true }), 900);
+      window.setTimeout(() => navigate("/login", { replace: true }), 900);
     } catch (cause) {
       setError(isApiError(cause) ? cause.message : "Could not accept invitation.");
     } finally {
