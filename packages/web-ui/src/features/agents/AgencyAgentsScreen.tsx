@@ -4,6 +4,7 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { VoicePickerFields } from "@/features/agents/components/VoicePickerFields";
 import { useAgencyAgentsDirectory } from "./hooks/useAgencyAgentsDirectory";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 
@@ -46,11 +47,19 @@ export function AgencyAgentsScreen() {
   const [tab, setTab] = useState<Tab>("configure");
   const [showCreate, setShowCreate] = useState(false);
   const [createMode, setCreateMode] = useState<"scratch" | "template">("scratch");
+  const [voiceId, setVoiceId] = useState("");
+  const [language, setLanguage] = useState("");
 
   useEffect(() => {
     if (!selectedId) return;
     void loadAgentDetail(selectedId);
   }, [selectedId, loadAgentDetail]);
+
+  useEffect(() => {
+    if (!selectedDetail) return;
+    setVoiceId(selectedDetail.voice_id || "");
+    setLanguage(selectedDetail.language || "");
+  }, [selectedDetail]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -107,9 +116,8 @@ export function AgencyAgentsScreen() {
     try {
       await configureAgent(selectedId, {
         display_name: String(form.get("display_name") || ""),
-        language: String(form.get("language") || ""),
-        voice_provider: String(form.get("voice_provider") || ""),
-        voice_id: String(form.get("voice_id") || ""),
+        language,
+        voice_id: voiceId,
         timezone: String(form.get("timezone") || ""),
         greeting: String(form.get("greeting") || ""),
         instructions: String(form.get("instructions") || ""),
@@ -365,28 +373,19 @@ export function AgencyAgentsScreen() {
                     name="display_name"
                     defaultValue={detail.display_name || ""}
                   />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <FormField
-                      label="Language"
-                      name="language"
-                      defaultValue={detail.language || ""}
-                    />
-                    <FormField
-                      label="Timezone"
-                      name="timezone"
-                      defaultValue={detail.timezone || ""}
-                    />
-                    <FormField
-                      label="Voice provider"
-                      name="voice_provider"
-                      defaultValue={detail.voice_provider || ""}
-                    />
-                    <FormField
-                      label="Voice id"
-                      name="voice_id"
-                      defaultValue={detail.voice_id || ""}
-                    />
-                  </div>
+                  <FormField
+                    label="Timezone"
+                    name="timezone"
+                    defaultValue={detail.timezone || ""}
+                  />
+                  <VoicePickerFields
+                    portal="agency"
+                    voiceId={voiceId}
+                    language={language}
+                    onVoiceIdChange={setVoiceId}
+                    onLanguageChange={setLanguage}
+                    disabled={busy}
+                  />
                   <FormField
                     label="Greeting"
                     name="greeting"

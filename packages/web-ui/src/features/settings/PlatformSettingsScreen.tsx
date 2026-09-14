@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
+import { ProvidersSettingsPanel } from "@/features/settings/components/ProvidersSettingsPanel";
 import { usePlatformSettings } from "./hooks/usePlatformSettings";
 import { FEATURE_FLAGS, SETTING_GROUPS, type SettingRow } from "./types";
 
@@ -34,6 +35,7 @@ export function PlatformSettingsScreen() {
     busy,
     reload,
     updateSetting,
+    updateSettingsBatch,
     setAgencyFlag,
   } = usePlatformSettings();
 
@@ -95,7 +97,8 @@ export function PlatformSettingsScreen() {
     { id: "security", label: "Security" },
   ];
 
-  const activeGroup = SETTING_GROUPS.find((group) => group.id === tab);
+  const activeGroup =
+    tab === "providers" ? undefined : SETTING_GROUPS.find((group) => group.id === tab);
 
   return (
     <section className="mx-auto max-w-[1200px]">
@@ -146,6 +149,16 @@ export function PlatformSettingsScreen() {
 
       {loading ? (
         <p className="m-0 text-body text-text-muted">Loading settings…</p>
+      ) : null}
+
+      {!loading && tab === "providers" ? (
+        <div className="mb-4">
+          <ProvidersSettingsPanel
+            byKey={byKey}
+            busy={busy}
+            onSaveBatch={updateSettingsBatch}
+          />
+        </div>
       ) : null}
 
       {activeGroup ? (
@@ -245,15 +258,6 @@ export function PlatformSettingsScreen() {
               <ApiNote>
                 SA19-002 (Should): payout.hold_days and payout.sla_business_days are configurable.
                 Holiday calendar configuration is not available yet.
-              </ApiNote>
-            </div>
-          ) : null}
-          {tab === "providers" ? (
-            <div className="mt-4">
-              <ApiNote>
-                SA19-003: telephony/AI provider names and secret refs plus email sender are
-                configurable. Secrets are write-only (GET returns masked). Dedicated payment
-                processor settings are not in this catalog yet.
               </ApiNote>
             </div>
           ) : null}

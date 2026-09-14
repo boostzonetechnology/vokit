@@ -2,6 +2,7 @@ import { FormEvent, useState, type ReactNode } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { VoicePickerFields } from "@/features/agents/components/VoicePickerFields";
 import { usePlatformTemplates } from "./hooks/usePlatformTemplates";
 import {
   AGENT_TYPES,
@@ -50,6 +51,8 @@ export function PlatformTemplatesScreen() {
   const [tools, setTools] = useState<string[]>([]);
   const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
   const [visibility, setVisibility] = useState("global");
+  const [voiceId, setVoiceId] = useState("");
+  const [language, setLanguage] = useState("en");
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,9 +68,9 @@ export function PlatformTemplatesScreen() {
         selected_agency_ids: visibility === "selected" ? selectedAgencies : [],
         agent_type: String(form.get("agent_type") || "custom"),
         instructions: String(form.get("instructions") || ""),
-        voice_provider: String(form.get("voice_provider") || ""),
-        voice_id: String(form.get("voice_id") || ""),
-        language: String(form.get("language") || "en"),
+        voice_provider: "",
+        voice_id: voiceId,
+        language,
         tools,
         fallback_behavior: String(form.get("fallback_behavior") || "message"),
       });
@@ -76,6 +79,8 @@ export function PlatformTemplatesScreen() {
       setTools([]);
       setSelectedAgencies([]);
       setVisibility("global");
+      setVoiceId("");
+      setLanguage("en");
       setTab("metadata");
     } catch {
       /* message in hook */
@@ -162,9 +167,6 @@ export function PlatformTemplatesScreen() {
                   ))}
                 </select>
               </label>
-              <Field label="Voice provider" name="voice_provider" />
-              <Field label="Voice id" name="voice_id" />
-              <Field label="Default language" name="language" defaultValue="en" />
               <label className="m-0 grid gap-1.5 font-normal">
                 <span className="text-body-sm text-text-muted">Fallback</span>
                 <select
@@ -177,6 +179,21 @@ export function PlatformTemplatesScreen() {
                   <option value="hangup">hangup</option>
                 </select>
               </label>
+            </div>
+
+            <div className="rounded-xl border border-border-default bg-canvas p-4">
+              <p className="mt-0 mb-3 text-body-sm text-text-muted">
+                Voice defaults use the platform active TTS catalog. Agent voice_provider is not used
+                at runtime.
+              </p>
+              <VoicePickerFields
+                portal="platform"
+                voiceId={voiceId}
+                language={language}
+                onVoiceIdChange={setVoiceId}
+                onLanguageChange={setLanguage}
+                disabled={busy}
+              />
             </div>
 
             <label className="m-0 grid gap-1.5 font-normal">
