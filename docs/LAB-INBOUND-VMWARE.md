@@ -636,7 +636,7 @@ Local settings default `LIVE_FLAGS_ENABLED_BY_DEFAULT=true`, so `flags.calling_l
 
 Click **Edit**, set the value, fill **reason** (API requires `reason`), save.
 
-That UI group does **not** list `voice.*.api_key` or `telephony.*_model`. Save keys with PATCH (same session cookie as the portal, or curl below). Pick vendors you actually have keys for. Example mix that the Pipecat mapper already supports:
+**Settings → Providers** also lists encrypted `voice.*.api_key` rows and optional `telephony.*_model`. Secrets show as masked (`has_value`); paste a new key only when rotating. Pick vendors you actually have keys for. Example mix that the Pipecat mapper already supports:
 
 - STT `deepgram`
 - TTS `cartesia`
@@ -761,7 +761,7 @@ Django routes (tests and `control_plane/telephony/api/urls.py`):
 - `POST /api/v1/agency/phone-numbers/reservations` body `{ "number_id", "agent_id" }`
 - `POST /api/v1/agency/phone-numbers/assignments` body `{ "reservation_id", "confirm": true }` header **`Idempotency-Key`** (required)
 
-The Agency **Numbers** screen (`AgencyNumbersScreen`) search/reserve UI exists, but `useAgencyNumbers.ts` currently posts to `/api/v1/agency/phone-numbers/reserve` and `/assign`, which **are not registered**. Use the API paths above (or the same paths from browser DevTools). Platform **Stock** UI is correct.
+The Agency **Numbers** screen (`AgencyNumbersScreen`) search/reserve/assign UI posts `/reservations` and `/assignments` (same paths as Django). Platform **Stock** UI is also correct. The PowerShell below is optional if you prefer API.
 
 Agency-login PowerShell:
 
@@ -1057,8 +1057,8 @@ This is lab evidence only. It is not Phase 19 production GO.
 | Bootstrap `admitted` but no speech | Platform `telephony.*_provider` empty or keys missing — Pipecat mapper throws `UnsupportedProviderError` / provider ErrorFrame. Confirm `GET /api/v1/platform/tts/voices` and bootstrap `providers.*.api_key` |
 | Audio one-way | Codec must be ulaw; RTP ranges (Asterisk 30000–40000, edge 10000–20000); Windows UDP 10000–20000; Ubuntu UDP 30000–40000; `SIP_PUBLIC_IP` = Windows host-only IP |
 | `CURL` missing in Asterisk | `apt install asterisk-modules`; `core show function CURL` — §13.1 |
-| Agency Numbers **Reserve** fails | UI posts `/reserve` and `/assign`; Django expects `/reservations` and `/assignments` (§11.3) |
-| Settings UI has no API key fields | Providers tab has no `voice.*.api_key`; PATCH as in §10.3 |
+| Agency Numbers **Reserve** fails | Confirm `useAgencyNumbers` posts `/reservations` and `/assignments`; Django has no `/reserve` or `/assign` |
+| Settings secret not stored | Providers → vendor card stores `voice.*.api_key` masked; empty PATCH is rejected. Optional script in §10.3 |
 | `voice_provider` on the agent | Stored but ignored. TTS vendor is `telephony.tts_provider` only |
 
 ---
