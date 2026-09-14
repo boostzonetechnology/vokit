@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiGet, apiSend, isApiError } from "@/api";
 import { asList } from "@/features/platform/lib/list";
+import { listCustomerRoles } from "@/features/rbac/services/rbac.service";
+import type { RoleRecord } from "@/features/rbac/types/rbac.types";
 
 export type CustomerTeamMember = {
   id: string;
@@ -10,12 +12,6 @@ export type CustomerTeamMember = {
   role?: string;
   status?: string;
 };
-
-export const CUSTOMER_ROLES = [
-  { value: "customer_owner", label: "Owner" },
-  { value: "customer_admin", label: "Admin" },
-  { value: "customer_analyst", label: "Analyst" },
-] as const;
 
 export type CustomerAccount = {
   display_name?: string;
@@ -29,6 +25,7 @@ export type CustomerAccount = {
 
 export function useCustomerTeam() {
   const [members, setMembers] = useState<CustomerTeamMember[]>([]);
+  const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -39,8 +36,12 @@ export function useCustomerTeam() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = asList<CustomerTeamMember>(await apiGet<unknown>("/api/v1/customer/team"));
+      const [rows, roleRows] = await Promise.all([
+        asList<CustomerTeamMember>(await apiGet<unknown>("/api/v1/customer/team")),
+        listCustomerRoles().catch(() => [] as RoleRecord[]),
+      ]);
       setMembers(rows);
+      setRoles(roleRows);
       setError("");
     } catch (cause) {
       setError(isApiError(cause) ? cause.message : "Failed to load team.");
@@ -100,6 +101,7 @@ export function useCustomerTeam() {
 
   return {
     members: filtered,
+    roles,
     selected,
     selectedId,
     setSelectedId,

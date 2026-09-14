@@ -4,8 +4,9 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
-import { AGENCY_ROLES, useAgencyTeam } from "@/features/users/hooks/useAgencyTeam";
+import { useAgencyTeam } from "@/features/users/hooks/useAgencyTeam";
 
 function statusTone(status?: string): BadgeTone {
   const value = (status ?? "").toLowerCase();
@@ -16,8 +17,13 @@ function statusTone(status?: string): BadgeTone {
 }
 
 export function AgencyTeamScreen() {
+  const { can } = usePermissions();
+  const canInvite = can("team.create");
+  const canRevoke = can("team.delete");
+
   const {
     members,
+    roles,
     selected,
     selectedId,
     setSelectedId,
@@ -35,6 +41,8 @@ export function AgencyTeamScreen() {
   } = useAgencyTeam();
 
   const [showInvite, setShowInvite] = useState(false);
+  const defaultRole =
+    roles.find((role) => role.slug === "agency_admin")?.slug ?? roles[0]?.slug ?? "";
 
   async function onInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,16 +67,18 @@ export function AgencyTeamScreen() {
             Team
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            Invite, roles, revoke · AG13
+            Invite, roles, revoke · AG13 · Roles from GET /agency/roles
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton variant="secondary" onClick={() => void reload()}>
             Refresh
           </ActionButton>
-          <ActionButton variant="outline" onClick={() => setShowInvite((v) => !v)}>
-            {showInvite ? "Close" : "Invite user"}
-          </ActionButton>
+          {canInvite ? (
+            <ActionButton variant="outline" onClick={() => setShowInvite((v) => !v)}>
+              {showInvite ? "Close" : "Invite user"}
+            </ActionButton>
+          ) : null}
         </div>
       </div>
 
@@ -83,22 +93,32 @@ export function AgencyTeamScreen() {
         </p>
       ) : null}
 
-      {showInvite ? (
+      {showInvite && canInvite ? (
         <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => void onInvite(event)}>
             <FormField label="Email" name="email" type="email" required />
-            <FormSelect label="Role" name="role" required defaultValue="agency_admin">
-              {AGENCY_ROLES.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
+            <FormSelect
+              label="Role"
+              name="role"
+              required
+              key={defaultRole || "empty"}
+              defaultValue={defaultRole}
+              disabled={!roles.length}
+            >
+              {roles.map((role) => (
+                <option key={role.id} value={role.slug}>
+                  {role.display_name || role.slug}
                 </option>
               ))}
             </FormSelect>
-            <ActionButton type="submit" disabled={busy}>
+            <ActionButton type="submit" disabled={busy || !roles.length}>
               Send invite
             </ActionButton>
           </form>
-          <ApiNote>AG13-001 / AG13-002 — invite with an allowed agency role.</ApiNote>
+          <ApiNote>
+            AG13-001 / AG13-002 — invite with a role from GET /api/v1/agency/roles (requires
+            team.view).
+          </ApiNote>
         </article>
       ) : null}
 
@@ -117,9 +137,9 @@ export function AgencyTeamScreen() {
           onChange={(event) => setRoleFilter(event.target.value)}
         >
           <option value="">All roles</option>
-          {AGENCY_ROLES.map((role) => (
-            <option key={role.value} value={role.value}>
-              {role.label}
+          {roles.map((role) => (
+            <option key={role.id} value={role.slug}>
+              {role.display_name || role.slug}
             </option>
           ))}
         </FormSelect>
@@ -183,7 +203,7 @@ export function AgencyTeamScreen() {
                   </dd>
                 </div>
               </dl>
-              {selected.status !== "disabled" ? (
+              {canRevoke && selected.status !== "disabled" ? (
                 <ActionButton
                   variant="outline"
                   disabled={busy}

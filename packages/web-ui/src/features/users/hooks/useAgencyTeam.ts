@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiGet, apiSend, isApiError } from "@/api";
 import { asList } from "@/features/platform/lib/list";
+import { listAgencyRoles } from "@/features/rbac/services/rbac.service";
+import type { RoleRecord } from "@/features/rbac/types/rbac.types";
 
 export type TeamMember = {
   id: string;
@@ -14,15 +16,9 @@ export type TeamMember = {
   status?: string;
 };
 
-export const AGENCY_ROLES = [
-  { value: "agency_owner", label: "Owner" },
-  { value: "agency_admin", label: "Admin" },
-  { value: "agency_agent_builder", label: "Agent builder" },
-  { value: "agency_finance", label: "Finance" },
-] as const;
-
 export function useAgencyTeam() {
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -34,8 +30,12 @@ export function useAgencyTeam() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = asList<TeamMember>(await apiGet<unknown>("/api/v1/agency/team"));
+      const [rows, roleRows] = await Promise.all([
+        asList<TeamMember>(await apiGet<unknown>("/api/v1/agency/team")),
+        listAgencyRoles().catch(() => [] as RoleRecord[]),
+      ]);
       setMembers(rows);
+      setRoles(roleRows);
       setError("");
     } catch (cause) {
       setError(isApiError(cause) ? cause.message : "Failed to load team.");
@@ -99,6 +99,7 @@ export function useAgencyTeam() {
 
   return {
     members: filtered,
+    roles,
     selected,
     selectedId,
     setSelectedId,

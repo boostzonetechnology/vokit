@@ -47,6 +47,12 @@ export function portalNav(portal: Portal): NavItem[] {
       },
       { href: "/audit", label: "Audit", path: "/api/v1/platform/audit-events" },
       { href: "/users", label: "Users", path: "/api/v1/platform/users" },
+      { href: "/roles", label: "Roles", path: "/api/v1/platform/roles" },
+      {
+        href: "/permissions",
+        label: "Permissions",
+        path: "/api/v1/platform/permissions",
+      },
       { href: "/settings", label: "Settings", path: "/api/v1/platform/settings" },
     ];
   }

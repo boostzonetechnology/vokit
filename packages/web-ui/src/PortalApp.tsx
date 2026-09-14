@@ -20,6 +20,8 @@ import {
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginScreen } from "@/features/auth/components/LoginScreen";
 import { AcceptInviteScreen } from "@/features/auth/components/AcceptInviteScreen";
+import { SessionProvider } from "@/features/auth/context/SessionContext";
+import { HighRiskRouteGate } from "@/features/rbac/components/HighRiskRouteGate";
 import { AgencyDashboard } from "@/features/dashboard/AgencyDashboard";
 import { CustomerDashboard } from "@/features/dashboard/CustomerDashboard";
 import { PlatformDashboard } from "@/features/dashboard/PlatformDashboard";
@@ -203,25 +205,29 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
   }
 
   return (
-    <AppShell
-      portal={portal}
-      title={title}
-      nav={nav}
-      route={route}
-      session={session}
-      onLogout={() => void onLogout()}
-    >
-      {route === "dashboard" ? (
-        portal === "platform" ? (
-          <PlatformDashboard onNavigate={go} />
-        ) : portal === "agency" ? (
-          <AgencyDashboard onNavigate={go} />
-        ) : (
-          <CustomerDashboard onNavigate={go} />
-        )
-      ) : (
-        renderProductScreen(portal, route, active.path, active.label)
-      )}
-    </AppShell>
+    <SessionProvider session={session}>
+      <AppShell
+        portal={portal}
+        title={title}
+        nav={nav}
+        route={route}
+        session={session}
+        onLogout={() => void onLogout()}
+      >
+        <HighRiskRouteGate portal={portal} route={route}>
+          {route === "dashboard" ? (
+            portal === "platform" ? (
+              <PlatformDashboard onNavigate={go} />
+            ) : portal === "agency" ? (
+              <AgencyDashboard onNavigate={go} />
+            ) : (
+              <CustomerDashboard onNavigate={go} />
+            )
+          ) : (
+            renderProductScreen(portal, route, active.path, active.label)
+          )}
+        </HighRiskRouteGate>
+      </AppShell>
+    </SessionProvider>
   );
 }

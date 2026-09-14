@@ -59,6 +59,16 @@ const PlatformAuditScreen = lazy(() =>
 const PlatformUsersScreen = lazy(() =>
   import("@/features/users/PlatformUsersScreen").then((m) => ({ default: m.PlatformUsersScreen })),
 );
+const PlatformRolesScreen = lazy(() =>
+  import("@/features/rbac/components/PlatformRolesScreen").then((m) => ({
+    default: m.PlatformRolesScreen,
+  })),
+);
+const PlatformPermissionsScreen = lazy(() =>
+  import("@/features/rbac/components/PlatformPermissionsScreen").then((m) => ({
+    default: m.PlatformPermissionsScreen,
+  })),
+);
 const PlatformSettingsScreen = lazy(() =>
   import("@/features/settings/PlatformSettingsScreen").then((m) => ({
     default: m.PlatformSettingsScreen,
@@ -180,6 +190,18 @@ export function renderPlatformProductScreen(route: string): ReactNode | null {
       return (
         <Lazy>
           <PlatformUsersScreen />
+        </Lazy>
+      );
+    case "roles":
+      return (
+        <Lazy>
+          <PlatformRolesScreen />
+        </Lazy>
+      );
+    case "permissions":
+      return (
+        <Lazy>
+          <PlatformPermissionsScreen />
         </Lazy>
       );
     case "settings":

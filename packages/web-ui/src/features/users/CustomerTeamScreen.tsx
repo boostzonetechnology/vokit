@@ -4,12 +4,9 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
-import {
-  CUSTOMER_ROLES,
-  useCustomerAccount,
-  useCustomerTeam,
-} from "./hooks/useCustomerTeam";
+import { useCustomerAccount, useCustomerTeam } from "./hooks/useCustomerTeam";
 
 function statusTone(status?: string): BadgeTone {
   const value = (status ?? "").toLowerCase();
@@ -20,8 +17,13 @@ function statusTone(status?: string): BadgeTone {
 }
 
 export function CustomerTeamScreen() {
+  const { can } = usePermissions();
+  const canInvite = can("team.create");
+  const canRevoke = can("team.delete");
+
   const {
     members,
+    roles,
     selected,
     selectedId,
     setSelectedId,
@@ -37,6 +39,8 @@ export function CustomerTeamScreen() {
   } = useCustomerTeam();
 
   const [showInvite, setShowInvite] = useState(false);
+  const defaultRole =
+    roles.find((role) => role.slug === "customer_admin")?.slug ?? roles[0]?.slug ?? "";
 
   async function onInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,16 +65,18 @@ export function CustomerTeamScreen() {
             Team
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            Invite & manage customer users · CU8-001
+            Invite & manage customer users · CU8-001 · Roles from GET /customer/roles
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <ActionButton variant="secondary" onClick={() => void reload()}>
             Refresh
           </ActionButton>
-          <ActionButton variant="outline" onClick={() => setShowInvite((v) => !v)}>
-            {showInvite ? "Close" : "Invite user"}
-          </ActionButton>
+          {canInvite ? (
+            <ActionButton variant="outline" onClick={() => setShowInvite((v) => !v)}>
+              {showInvite ? "Close" : "Invite user"}
+            </ActionButton>
+          ) : null}
         </div>
       </div>
 
@@ -85,18 +91,25 @@ export function CustomerTeamScreen() {
         </p>
       ) : null}
 
-      {showInvite ? (
+      {showInvite && canInvite ? (
         <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => void onInvite(event)}>
             <FormField label="Email" name="email" type="email" required />
-            <FormSelect label="Role" name="role" required defaultValue="customer_admin">
-              {CUSTOMER_ROLES.map((role) => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
+            <FormSelect
+              label="Role"
+              name="role"
+              required
+              key={defaultRole || "empty"}
+              defaultValue={defaultRole}
+              disabled={!roles.length}
+            >
+              {roles.map((role) => (
+                <option key={role.id} value={role.slug}>
+                  {role.display_name || role.slug}
                 </option>
               ))}
             </FormSelect>
-            <ActionButton type="submit" disabled={busy}>
+            <ActionButton type="submit" disabled={busy || !roles.length}>
               Send invite
             </ActionButton>
           </form>
@@ -157,7 +170,7 @@ export function CustomerTeamScreen() {
               <p className="m-0 text-sm text-text-muted">
                 {selected.email} · {selected.role}
               </p>
-              {selected.status !== "disabled" ? (
+              {canRevoke && selected.status !== "disabled" ? (
                 <ActionButton
                   variant="outline"
                   disabled={busy}
