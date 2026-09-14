@@ -300,7 +300,7 @@ export function CustomerInvoicesScreen({
                         disabled={busy}
                         onClick={() => void payInvoice(selectedInvoice.id)}
                       >
-                        Pay with Stripe
+                        Pay invoice
                       </ActionButton>
                     ) : null}
                     <ActionButton
@@ -316,8 +316,9 @@ export function CustomerInvoicesScreen({
                     </pre>
                   ) : null}
                   <ApiNote>
-                    CU5-002 / CU5-004 — pay creates a processor intent; receipts are invoice JSON
-                    until a PDF endpoint ships.
+                    CU5-002 / CU5-004 — pay opens the lab processor; the invoice stays
+                    open until a signed webhook settles. Receipts are invoice JSON until
+                    a PDF endpoint ships.
                   </ApiNote>
                 </div>
               )}

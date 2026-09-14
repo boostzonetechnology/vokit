@@ -899,8 +899,6 @@ class VoiceControl:
             tts["voice_id"] = agent.voice_id
         if agent.language:
             tts["language"] = agent.language
-        if agent.voice_provider:
-            tts["provider_code"] = agent.voice_provider
         return {
             "stt": dict(self._providers.stt),
             "tts": tts,

@@ -47,6 +47,7 @@ class LotKind(StrEnum):
 class ProcessorSlug(StrEnum):
     STRIPE = "stripe"
     BRAINTREE = "braintree"
+    SANDBOX = "sandbox"
 
 
 class ProcessorEventStatus(StrEnum):

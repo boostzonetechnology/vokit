@@ -292,3 +292,32 @@ def test_support_admin_cannot_review_kyc() -> None:
     _login(client, "support@vokit.test")
     listed = client.get("/api/v1/platform/kyc/cases")
     assert listed.status_code == 403
+
+
+@pytest.mark.django_db
+def test_rejected_webhook_keeps_payout_blocked() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "KYC R", "kyc_r", "or-kyc@vokit.test")
+    agency_id = agency.json()["data"]["id"]
+    _user("agency-kycr@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
+    agency_client = _client()
+    _login(agency_client, "agency-kycr@vokit.test")
+    session = _post(agency_client, "/api/v1/agency/kyc/session", {})
+    assert session.status_code == 201
+    hook = _webhook(
+        {
+            "event_id": str(new_uuid7()),
+            "session_id": session.json()["data"]["session_id"],
+            "status": "rejected",
+            "reason_code": "rejected",
+        }
+    )
+    assert hook.status_code == 200
+    status = agency_client.get("/api/v1/agency/kyc")
+    assert status.json()["data"]["status"] == "rejected"
+    assert status.json()["data"]["payout_eligible"] is False
+    denied = _post(agency_client, "/api/v1/agency/payouts", {})
+    assert denied.status_code == 409
+    assert denied.json()["error"]["code"] == "payout_kyc_unverified"

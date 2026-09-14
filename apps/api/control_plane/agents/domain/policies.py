@@ -141,7 +141,6 @@ def publish_failures(
     customer_status: CustomerStatus | None,
     has_subscription: bool,
     resolved_instructions: str,
-    voice_provider: str,
     voice_id: str,
     language: str,
     recording_disclosure: bool | None,
@@ -155,7 +154,7 @@ def publish_failures(
         failures.append("subscription_required")
     if not resolved_instructions.strip():
         failures.append("instructions_required")
-    if not voice_provider.strip() or not voice_id.strip() or not language.strip():
+    if not voice_id.strip() or not language.strip():
         failures.append("voice_required")
     if recording_disclosure is None:
         failures.append("compliance_required")

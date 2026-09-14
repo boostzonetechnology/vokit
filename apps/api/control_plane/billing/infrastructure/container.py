@@ -9,6 +9,7 @@ from control_plane.billing.application.assign_subscription import AssignSubscrip
 from control_plane.billing.application.create_plan import CreatePlan
 from control_plane.billing.application.create_topup import CreateTopUp
 from control_plane.billing.application.pay_invoice import PayInvoice
+from control_plane.billing.application.ports import PaymentProcessor
 from control_plane.billing.application.settle_payment import SettlePayment
 from control_plane.billing.infrastructure.repositories import (
     DjangoBillingIdempotencyRepository,
@@ -27,6 +28,7 @@ from control_plane.tenancy.infrastructure.container import (
     tenant_repo,
 )
 from providers.billing.braintree import BraintreePaymentAdapter
+from providers.billing.sandbox import SandboxPaymentAdapter
 from providers.billing.stripe import StripePaymentAdapter
 from tenant.billing.service import TenantBillingService
 
@@ -153,11 +155,13 @@ def adjust_customer_minutes():
     )
 
 
-def payment_processor(slug: str) -> StripePaymentAdapter | BraintreePaymentAdapter:
+def payment_processor(slug: str) -> PaymentProcessor:
     if slug == "stripe":
         return StripePaymentAdapter()
     if slug == "braintree":
         return BraintreePaymentAdapter()
+    if slug == "sandbox":
+        return SandboxPaymentAdapter()
     from shared_kernel.errors import DomainError
 
     raise DomainError("not_found", "Resource not found.", http_status=404)

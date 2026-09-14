@@ -15,6 +15,7 @@ Architecture: [ADR-008](../../adr/ADR-008-secret-management-kms-path.md) (Secret
 | Provider API / OAuth refs | A — SecretRef | Adapters resolve at call time |
 | Tenant DB passwords | B — App vault | Per-tenant re-encrypt via vault |
 | MFA TOTP secrets | B — App vault | Salt `identity_mfa_totp`; re-wrap all active/pending methods |
+| Voice vendor API keys | B — App vault | Salt `voice_provider_api_key`; PATCH overwrite on `voice.*.api_key` |
 | Session `DJANGO_SECRET_KEY` | Master | Session invalidation expected; Family B ciphertext needs re-wrap or dual-key until KMS envelope |
 
 ## After rotation
@@ -31,4 +32,4 @@ Architecture: [ADR-008](../../adr/ADR-008-secret-management-kms-path.md) (Secret
 3. Drop old key acceptance only after zero `secret_missing` / BadSignature on MFA login verify.
 4. Never log TOTP secrets, recovery codes, or challenge tokens.
 
-Until KMS lands, treat `DJANGO_SECRET_KEY` as the vault master for salts `tenant_db_pwd` and `identity_mfa_totp`.
+Until KMS lands, treat `DJANGO_SECRET_KEY` as the vault master for salts `tenant_db_pwd`, `identity_mfa_totp`, and `voice_provider_api_key`.

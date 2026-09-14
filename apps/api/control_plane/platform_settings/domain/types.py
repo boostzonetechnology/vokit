@@ -40,6 +40,9 @@ SETTING_CATALOG: dict[str, SettingSpec] = {
     "telephony.stt_provider": SettingSpec("telephony.stt_provider", "", False, "str"),
     "telephony.tts_provider": SettingSpec("telephony.tts_provider", "", False, "str"),
     "telephony.llm_provider": SettingSpec("telephony.llm_provider", "", False, "str"),
+    "telephony.stt_model": SettingSpec("telephony.stt_model", "", False, "str"),
+    "telephony.tts_model": SettingSpec("telephony.tts_model", "", False, "str"),
+    "telephony.llm_model": SettingSpec("telephony.llm_model", "", False, "str"),
     "telephony.stt_api_key_ref": SettingSpec(
         "telephony.stt_api_key_ref", "VOICE_STT_API_KEY", True, "str"
     ),
@@ -49,6 +52,12 @@ SETTING_CATALOG: dict[str, SettingSpec] = {
     "telephony.llm_api_key_ref": SettingSpec(
         "telephony.llm_api_key_ref", "VOICE_LLM_API_KEY", True, "str"
     ),
+    "voice.deepgram.api_key": SettingSpec("voice.deepgram.api_key", "", True, "str"),
+    "voice.cartesia.api_key": SettingSpec("voice.cartesia.api_key", "", True, "str"),
+    "voice.elevenlabs.api_key": SettingSpec("voice.elevenlabs.api_key", "", True, "str"),
+    "voice.openai.api_key": SettingSpec("voice.openai.api_key", "", True, "str"),
+    "voice.grok.api_key": SettingSpec("voice.grok.api_key", "", True, "str"),
+    "voice.anthropic.api_key": SettingSpec("voice.anthropic.api_key", "", True, "str"),
     "ai.default_voice": SettingSpec("ai.default_voice", "", False, "str"),
     "compliance.recording_retention_days": SettingSpec(
         "compliance.recording_retention_days", 30, False, "int"

@@ -18,6 +18,11 @@ from control_plane.platform_settings.domain.policies import (
     public_value,
 )
 from control_plane.platform_settings.domain.types import SETTING_CATALOG
+from control_plane.platform_settings.domain.voice_catalog import (
+    api_key_setting_for,
+    is_voice_secret_key,
+)
+from control_plane.platform_settings.infrastructure.voice_vault import VoiceProviderVault
 from shared_kernel.errors import DomainError
 from shared_kernel.logging import log_event
 
@@ -120,6 +125,10 @@ class PlatformSettingsControl:
         if not cleaned_reason:
             raise DomainError("validation_error", "reason is required.")
         coerced = coerce_value(spec, value)
+        if is_voice_secret_key(spec.key):
+            if not str(coerced):
+                raise DomainError("validation_error", "API key is required.")
+            coerced = VoiceProviderVault().encrypt(str(coerced))
         before = self._settings.get(spec.key)
         self._settings.upsert(
             SettingRecord(
@@ -146,6 +155,50 @@ class PlatformSettingsControl:
         )
         log_event(logger, "settings.changed", outcome="success", key=spec.key)
         return self.snapshot()
+
+    def stored_value(self, key: str) -> object:
+        self.ensure_defaults()
+        spec = SETTING_CATALOG[key]
+        row = self._settings.get(key)
+        if row is None:
+            return spec.default
+        return row.value
+
+    def decrypted_vendor_key(self, vendor: str) -> str:
+        setting_key = api_key_setting_for(vendor)
+        if not setting_key:
+            return ""
+        stored = self.stored_value(setting_key)
+        if stored in (None, ""):
+            return ""
+        return VoiceProviderVault().decrypt(str(stored))
+
+    def voice_runtime(self) -> dict[str, dict[str, str]]:
+        stt = str(self.stored_value("telephony.stt_provider") or "").strip().lower()
+        tts = str(self.stored_value("telephony.tts_provider") or "").strip().lower()
+        llm = str(self.stored_value("telephony.llm_provider") or "").strip().lower()
+        default_voice = str(self.stored_value("ai.default_voice") or "").strip()
+        return {
+            "stt": {
+                "provider_code": stt,
+                "api_key": self.decrypted_vendor_key(stt) if stt else "",
+                "model": str(self.stored_value("telephony.stt_model") or "").strip(),
+                "language": "en",
+            },
+            "tts": {
+                "provider_code": tts,
+                "api_key": self.decrypted_vendor_key(tts) if tts else "",
+                "model": str(self.stored_value("telephony.tts_model") or "").strip(),
+                "language": "en",
+                "voice_id": default_voice,
+            },
+            "llm": {
+                "provider_code": llm,
+                "api_key": self.decrypted_vendor_key(llm) if llm else "",
+                "model": str(self.stored_value("telephony.llm_model") or "").strip(),
+                "language": "en",
+            },
+        }
 
     def set_agency_flag(
         self,

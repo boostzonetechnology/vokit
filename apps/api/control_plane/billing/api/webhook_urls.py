@@ -17,4 +17,10 @@ urlpatterns = [
         {"processor": "braintree"},
         name="billing-braintree-webhook",
     ),
+    path(
+        "sandbox/v1/",
+        PaymentWebhookView.as_view(),
+        {"processor": "sandbox"},
+        name="billing-sandbox-webhook",
+    ),
 ]

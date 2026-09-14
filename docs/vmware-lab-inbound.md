@@ -21,10 +21,12 @@ Default host-only IPs: VM `192.168.56.100`, Windows `192.168.56.1`.
 
 1. Align `VOKIT_INTERNAL_TELEPHONY_TOKEN` and `VOKIT_MEDIA_WS_TOKEN` across
    `apps/api/.env`, `packages/vokit-sip-edge/.env`, `packages/pipecat-voice/.env`.
-2. `SIP_EDGE_CONTROL_URL=http://127.0.0.1:8090`
-3. `.\scripts\dev-stack.ps1`
-4. `cargo build --release` in `packages/vokit-sip-edge` then `.\scripts\dev-voice.ps1`
-5. Allow UDP 5071 and RTP 10000–20000 from the VM in Windows Firewall
+   Asterisk uses header `X-Vokit-Internal-Token`, not `Authorization`.
+2. Include `192.168.56.1` in `DJANGO_ALLOWED_HOSTS` (local settings also append it).
+3. `SIP_EDGE_CONTROL_URL=http://127.0.0.1:8090`
+4. `.\scripts\dev-stack.ps1`
+5. `cargo build --release` in `packages/vokit-sip-edge` then `.\scripts\dev-voice.ps1`
+6. Allow UDP 5071 and RTP 10000–20000 from the VM in Windows Firewall
 
 ## VMware checklist
 
