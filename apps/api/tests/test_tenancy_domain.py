@@ -50,7 +50,7 @@ def test_platform_route_requires_permission_and_explicit_id() -> None:
         principal_type=PrincipalType.PLATFORM,
         membership_tenant_id=None,
         claimed_tenant_id=TENANT_B,
-        permissions=frozenset({"tenants.route"}),
+        permissions=frozenset({"tenant.route"}),
     )
     assert resolved == TENANT_B
 

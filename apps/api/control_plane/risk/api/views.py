@@ -5,9 +5,13 @@ from rest_framework.response import Response
 
 from control_plane.customers.domain.policies import customer_not_found
 from control_plane.customers.infrastructure.container import customer_index
-from control_plane.identity.api.auth import parse_uuid, require_principal
+from control_plane.identity.api.auth import (
+    parse_uuid,
+    require_agency_perm,
+    require_customer_perm,
+    require_platform_perm,
+)
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.risk.application.create_agent import CreateAgentCommand
 from control_plane.risk.application.override import OverrideRiskCommand
 from control_plane.risk.application.ports import RiskCaseRecord
@@ -25,32 +29,6 @@ from control_plane.risk.infrastructure.container import (
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_customer_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.CUSTOMER)
-    membership = context.membership
-    if (
-        permission not in context.permissions
-        or membership.tenant_id is None
-        or membership.customer_id is None
-    ):
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _case_payload(row: RiskCaseRecord) -> dict[str, object]:
@@ -106,7 +84,7 @@ def _int_field(data: dict, name: str) -> int:
 
 class PlatformRiskCaseCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "risk.review")
+        require_platform_perm(request, "risk.review")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -122,7 +100,7 @@ class PlatformRiskCaseCollectionView(CsrfAPIView):
 
 class PlatformRiskOverrideView(CsrfAPIView):
     def post(self, request: Request, case_id: str) -> Response:
-        _require_platform_perm(request, "risk.review")
+        require_platform_perm(request, "risk.review")
         try:
             status = RiskStatus(str(request.data.get("status") or "").strip())
         except ValueError as exc:
@@ -140,7 +118,7 @@ class PlatformRiskOverrideView(CsrfAPIView):
 
 class AgencyCustomerRiskView(CsrfAPIView):
     def get(self, request: Request, customer_id: str) -> Response:
-        context = _require_agency_perm(request, "customers.manage")
+        context = require_agency_perm(request, "customer.update")
         customer = customer_index().get(parse_uuid(customer_id, field="customer_id"))
         if customer is None or customer.tenant_id != context.membership.tenant_id:
             raise customer_not_found()
@@ -155,7 +133,7 @@ class AgencyCustomerRiskView(CsrfAPIView):
 
 class AgencyCustomerRiskOverrideView(CsrfAPIView):
     def post(self, request: Request, customer_id: str) -> Response:
-        _require_agency_perm(request, "customers.manage")
+        require_agency_perm(request, "customer.update")
         parse_uuid(customer_id, field="customer_id")
         assert_agency_cannot_override()
         return success({})
@@ -163,7 +141,7 @@ class AgencyCustomerRiskOverrideView(CsrfAPIView):
 
 class AgencyCustomerAgentCollectionView(CsrfAPIView):
     def get(self, request: Request, customer_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         customer = customer_index().get(parse_uuid(customer_id, field="customer_id"))
@@ -179,7 +157,7 @@ class AgencyCustomerAgentCollectionView(CsrfAPIView):
         return success([_agent_payload(row) for row in rows], page=page)
 
     def post(self, request: Request, customer_id: str) -> Response:
-        context = _require_agency_perm(request, "agents.manage")
+        context = require_agency_perm(request, "agent.create")
         agent = create_agent().execute(
             CreateAgentCommand(
                 customer_id=parse_uuid(customer_id, field="customer_id"),
@@ -193,7 +171,7 @@ class AgencyCustomerAgentCollectionView(CsrfAPIView):
 
 class CustomerRiskView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "risk.verify")
+        context = require_customer_perm(request, "risk.verify")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         case = risk_cases().get_for_customer(membership.customer_id)
@@ -206,7 +184,7 @@ class CustomerRiskView(CsrfAPIView):
 
 class CustomerVerificationView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "risk.verify")
+        context = require_customer_perm(request, "risk.verify")
         membership = context.membership
         assert membership.customer_id is not None
         case = risk_cases().get_for_customer(membership.customer_id)
@@ -226,7 +204,7 @@ class CustomerVerificationView(CsrfAPIView):
         )
 
     def post(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "risk.verify")
+        context = require_customer_perm(request, "risk.verify")
         membership = context.membership
         assert membership.customer_id is not None
         record = submit_verification().execute(
@@ -258,7 +236,7 @@ class CustomerVerificationView(CsrfAPIView):
 
 class CustomerAgentCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "agents.view")
+        context = require_customer_perm(request, "agent.view")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         limit, offset = parse_page(

@@ -3,33 +3,16 @@ from __future__ import annotations
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from control_plane.identity.api.auth import parse_uuid, require_principal
+from control_plane.identity.api.auth import (
+    parse_uuid,
+    require_agency_perm,
+    require_customer_perm,
+    require_platform_perm,
+)
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.recordings.infrastructure.container import recording_control
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_customer_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.CUSTOMER)
-    if permission not in context.permissions or context.membership.customer_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _bool_field(data: dict, name: str, default: bool | None = None) -> bool:
@@ -41,7 +24,7 @@ def _bool_field(data: dict, name: str, default: bool | None = None) -> bool:
 
 class PlatformCallArtifactCollectionView(CsrfAPIView):
     def get(self, request: Request, call_id: str) -> Response:
-        _require_platform_perm(request, "recordings.review")
+        require_platform_perm(request, "recording.view")
         return success(
             recording_control().list_for_call(
                 call_id=parse_uuid(call_id, field="call_id"),
@@ -54,7 +37,7 @@ class PlatformCallArtifactCollectionView(CsrfAPIView):
 
 class PlatformCallArtifactAccessView(CsrfAPIView):
     def post(self, request: Request, call_id: str, artifact_id: str) -> Response:
-        context = _require_platform_perm(request, "recordings.review")
+        context = require_platform_perm(request, "recording.view")
         return success(
             recording_control().grant_access(
                 call_id=parse_uuid(call_id, field="call_id"),
@@ -69,7 +52,7 @@ class PlatformCallArtifactAccessView(CsrfAPIView):
 
 class PlatformCallArtifactHoldView(CsrfAPIView):
     def post(self, request: Request, call_id: str, artifact_id: str) -> Response:
-        _require_platform_perm(request, "recordings.review")
+        require_platform_perm(request, "recording.view")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             recording_control().set_hold(
@@ -85,7 +68,7 @@ class PlatformCallArtifactHoldView(CsrfAPIView):
 
 class PlatformCallArtifactDeleteView(CsrfAPIView):
     def post(self, request: Request, call_id: str, artifact_id: str) -> Response:
-        _require_platform_perm(request, "recordings.review")
+        require_platform_perm(request, "recording.view")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             recording_control().delete(
@@ -101,7 +84,7 @@ class PlatformCallArtifactDeleteView(CsrfAPIView):
 
 class AgencyCallArtifactCollectionView(CsrfAPIView):
     def get(self, request: Request, call_id: str) -> Response:
-        context = _require_agency_perm(request, "recordings.view")
+        context = require_agency_perm(request, "recording.view")
         return success(
             recording_control().list_for_call(
                 call_id=parse_uuid(call_id, field="call_id"),
@@ -114,7 +97,7 @@ class AgencyCallArtifactCollectionView(CsrfAPIView):
 
 class AgencyCallArtifactAccessView(CsrfAPIView):
     def post(self, request: Request, call_id: str, artifact_id: str) -> Response:
-        context = _require_agency_perm(request, "recordings.view")
+        context = require_agency_perm(request, "recording.view")
         return success(
             recording_control().grant_access(
                 call_id=parse_uuid(call_id, field="call_id"),
@@ -129,7 +112,7 @@ class AgencyCallArtifactAccessView(CsrfAPIView):
 
 class AgencyCallArtifactHoldView(CsrfAPIView):
     def post(self, request: Request, call_id: str, artifact_id: str) -> Response:
-        context = _require_agency_perm(request, "recordings.hold")
+        context = require_agency_perm(request, "recording.hold")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             recording_control().set_hold(
@@ -145,7 +128,7 @@ class AgencyCallArtifactHoldView(CsrfAPIView):
 
 class AgencyCallArtifactDeleteView(CsrfAPIView):
     def post(self, request: Request, call_id: str, artifact_id: str) -> Response:
-        context = _require_agency_perm(request, "recordings.hold")
+        context = require_agency_perm(request, "recording.hold")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             recording_control().delete(
@@ -161,7 +144,7 @@ class AgencyCallArtifactDeleteView(CsrfAPIView):
 
 class CustomerCallArtifactCollectionView(CsrfAPIView):
     def get(self, request: Request, call_id: str) -> Response:
-        context = _require_customer_perm(request, "recordings.view")
+        context = require_customer_perm(request, "recording.view")
         return success(
             recording_control().list_for_call(
                 call_id=parse_uuid(call_id, field="call_id"),
@@ -174,7 +157,7 @@ class CustomerCallArtifactCollectionView(CsrfAPIView):
 
 class CustomerCallArtifactAccessView(CsrfAPIView):
     def post(self, request: Request, call_id: str, artifact_id: str) -> Response:
-        context = _require_customer_perm(request, "recordings.view")
+        context = require_customer_perm(request, "recording.view")
         return success(
             recording_control().grant_access(
                 call_id=parse_uuid(call_id, field="call_id"),

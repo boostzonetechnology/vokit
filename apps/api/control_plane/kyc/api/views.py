@@ -6,7 +6,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from control_plane.identity.api.auth import parse_uuid, require_principal
+from control_plane.identity.api.auth import parse_uuid, require_platform_perm, require_principal
 from control_plane.identity.api.views import CsrfAPIView
 from control_plane.identity.domain.types import PrincipalType
 from control_plane.kyc.application.override_case import OverrideKycCommand
@@ -30,13 +30,6 @@ from control_plane.tenancy.infrastructure.container import tenant_repo
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _case_payload(case: KycCaseRecord, *, privileged: bool) -> dict[str, object]:
@@ -104,12 +97,10 @@ class AgencyKycSessionView(CsrfAPIView):
 
 class AgencyPayoutView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = require_principal(request, PrincipalType.AGENCY)
-        if "payout.request" not in context.permissions:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        from control_plane.identity.api.auth import require_agency_perm
+        context = require_agency_perm(request, "payout.request")
         tenant_id = context.membership.tenant_id
-        if tenant_id is None:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        assert tenant_id is not None
         result = request_payout().execute(tenant_id)
         return success(
             {
@@ -123,7 +114,7 @@ class AgencyPayoutView(CsrfAPIView):
 
 class PlatformKycCaseCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "kyc.review")
+        require_platform_perm(request, "kyc.review")
         status_raw = str(request.query_params.get("status") or "").strip()
         try:
             status = KycStatus(status_raw) if status_raw else None
@@ -143,7 +134,7 @@ class PlatformKycCaseCollectionView(CsrfAPIView):
 
 class PlatformKycOverrideView(CsrfAPIView):
     def post(self, request: Request, case_id: str) -> Response:
-        _require_platform_perm(request, "kyc.review")
+        require_platform_perm(request, "kyc.review")
         raw_status = request.data.get("status")
         status = None
         if raw_status not in (None, ""):
@@ -164,7 +155,7 @@ class PlatformKycOverrideView(CsrfAPIView):
 
 class PlatformKycSettingsView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "kyc.review")
+        require_platform_perm(request, "kyc.review")
         row = kyc_settings().get()
         return success(
             {
@@ -176,7 +167,7 @@ class PlatformKycSettingsView(CsrfAPIView):
         )
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "kyc.review")
+        require_platform_perm(request, "kyc.review")
         current = kyc_settings().get()
         record = KycSettingsRecord(
             provider_slug=str(request.data.get("provider_slug") or current.provider_slug),

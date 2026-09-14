@@ -29,7 +29,7 @@ def resolve_route_tenant_id(
             )
         return membership_tenant_id
     if principal_type is PrincipalType.PLATFORM:
-        if "tenants.route" not in permissions:
+        if "tenant.route" not in permissions:
             raise DomainError("forbidden", "Not permitted.", http_status=403)
         if claimed_tenant_id is None:
             raise DomainError("validation_error", "tenant_id is required for platform routing.")

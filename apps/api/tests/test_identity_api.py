@@ -74,12 +74,16 @@ def test_email_unique_at_storage() -> None:
 
 @pytest.mark.django_db
 def test_user_cannot_hold_platform_and_tenant_membership() -> None:
+    from control_plane.identity.models import Role
+
     user = _create_user("only-one@vokit.test", principal=PrincipalType.PLATFORM, role="super_admin")
+    agency_role = Role.objects.get(slug="agency_owner")
     with pytest.raises(IntegrityError):
+        # ADR-007: role is now a FK; must pass Role instance not slug string
         Membership.objects.create(
             user=user,
             principal_type="agency",
-            role="agency_owner",
+            role=agency_role,
             tenant_id=DEMO_AGENCY_TENANT_ID,
             status="active",
         )
@@ -97,7 +101,9 @@ def test_login_logout_and_session() -> None:
     assert login.status_code == 200
     body = login.json()["data"]
     assert body["membership"]["principal_type"] == "platform"
-    assert "users.invite" in body["permissions"]
+    # ADR-007: super_admin has is_super_admin=True; permissions list is empty (bypass).
+    assert body["is_super_admin"] is True
+    assert body["permissions"] == []
     session = client.get("/api/v1/auth/session")
     assert session.status_code == 200
     logout = _post(client, "/api/v1/auth/logout", {})

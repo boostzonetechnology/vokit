@@ -44,11 +44,78 @@ class User(AbstractBaseUser):
         return self.status == "active"
 
 
+# ---------------------------------------------------------------------------
+# RBAC — ADR-007
+# ---------------------------------------------------------------------------
+
+
+class Permission(models.Model):
+    """A fine-grained capability. Codes: {module}.{action}, e.g. agent.view."""
+
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    namespace = models.CharField(max_length=32)  # platform | agency | customer
+    code = models.CharField(max_length=64)
+    description = models.CharField(max_length=255, blank=True)
+    is_sensitive = models.BooleanField(default=False)
+    is_custom = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "identity_permissions"
+        unique_together = [("namespace", "code")]
+
+    def __str__(self) -> str:
+        return f"{self.namespace}:{self.code}"
+
+
+class Role(models.Model):
+    """A named permission bundle. Slug is unique across all namespaces."""
+
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    namespace = models.CharField(max_length=32)  # platform | agency | customer
+    slug = models.CharField(max_length=64, unique=True)
+    display_name = models.CharField(max_length=128)
+    is_system = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "identity_roles"
+
+    def __str__(self) -> str:
+        return self.slug
+
+
+class RolePermission(models.Model):
+    """Pivot: role → permission. super_admin has no rows (bypass)."""
+
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="role_permissions")
+    permission = models.ForeignKey(
+        Permission, on_delete=models.CASCADE, related_name="role_permissions"
+    )
+
+    class Meta:
+        db_table = "identity_role_permissions"
+        unique_together = [("role", "permission")]
+
+
+# ---------------------------------------------------------------------------
+# Membership & Invitation (updated for ADR-007)
+# ---------------------------------------------------------------------------
+
+
 class Membership(models.Model):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="membership")
     principal_type = models.CharField(max_length=16)
-    role = models.CharField(max_length=64)
+    # role CharField removed; replaced by FK (DB column: role_id).
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="memberships",
+    )
     tenant_id = models.UUIDField(null=True, blank=True)
     customer_id = models.UUIDField(null=True, blank=True)
     status = models.CharField(max_length=16, default="active")
@@ -84,7 +151,14 @@ class Invitation(models.Model):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     email = models.EmailField()
     principal_type = models.CharField(max_length=16)
-    role = models.CharField(max_length=64)
+    # role CharField removed; replaced by FK (DB column: role_id).
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invitations",
+    )
     tenant_id = models.UUIDField(null=True, blank=True)
     customer_id = models.UUIDField(null=True, blank=True)
     token_hash = models.CharField(max_length=64, unique=True)

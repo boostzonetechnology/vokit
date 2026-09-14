@@ -11,7 +11,9 @@ from rest_framework.views import APIView
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
     parse_uuid,
+    require_agency_perm,
     require_auth,
+    require_platform_perm,
     require_principal,
     session_payload,
 )
@@ -148,7 +150,12 @@ class TeamListView(CsrfAPIView):
     principal_type: PrincipalType = PrincipalType.PLATFORM
 
     def get(self, request: Request) -> Response:
-        context = require_principal(request, self.principal_type)
+        if self.principal_type is PrincipalType.PLATFORM:
+            context = require_platform_perm(request, "user.view")
+        elif self.principal_type is PrincipalType.AGENCY:
+            context = require_agency_perm(request, "team.view")
+        else:
+            context = require_principal(request, self.principal_type)
         principal = self.principal_type
         tenant_id = context.membership.tenant_id
         customer_id = context.membership.customer_id
@@ -171,7 +178,12 @@ class TeamListView(CsrfAPIView):
         return success([_membership_item(emails.get(row.user_id, ""), row) for row in rows])
 
     def post(self, request: Request) -> Response:
-        context = require_principal(request, self.principal_type)
+        if self.principal_type is PrincipalType.PLATFORM:
+            context = require_platform_perm(request, "user.create")
+        elif self.principal_type is PrincipalType.AGENCY:
+            context = require_agency_perm(request, "team.create")
+        else:
+            context = require_principal(request, self.principal_type)
         binding = self._binding_from_session(context, request)
         record, token = invite_user().execute(
             InviteUserCommand(

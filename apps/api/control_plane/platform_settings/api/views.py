@@ -3,19 +3,11 @@ from __future__ import annotations
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from control_plane.identity.api.auth import parse_uuid, require_principal
+from control_plane.identity.api.auth import parse_uuid, require_platform_perm
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.platform_settings.infrastructure.container import platform_settings
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _client_ip(request: Request) -> str:
@@ -27,11 +19,11 @@ def _client_ip(request: Request) -> str:
 
 class PlatformSettingsView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "settings.manage")
+        require_platform_perm(request, "setting.view")
         return success(platform_settings().snapshot())
 
     def patch(self, request: Request) -> Response:
-        context = _require_platform_perm(request, "settings.manage")
+        context = require_platform_perm(request, "setting.update")
         data = request.data if isinstance(request.data, dict) else {}
         return success(
             platform_settings().update(
@@ -48,7 +40,7 @@ class PlatformSettingsView(CsrfAPIView):
 
 class PlatformAgencyFlagView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_platform_perm(request, "settings.manage")
+        context = require_platform_perm(request, "setting.update")
         data = request.data if isinstance(request.data, dict) else {}
         enabled = data.get("enabled")
         if type(enabled) is not bool:
