@@ -6,10 +6,11 @@
 
 | Variable | Django (`apps/api/.env`) | sip-edge | Pipecat | Asterisk |
 | --- | --- | --- | --- | --- |
-| `VOKIT_INTERNAL_TELEPHONY_TOKEN` | yes | — | yes | DID-resolve `Authorization` |
-| `VOKIT_MEDIA_WS_TOKEN` | yes | `media_token` in `SIP_NODE_MEDIA_BASE_URL` | yes | — |
+| `VOKIT_INTERNAL_TELEPHONY_TOKEN` | yes | — | yes | DID-resolve `X-Vokit-Internal-Token` |
+| `VOKIT_MEDIA_WS_TOKEN` | align with Pipecat/Edge (Django does not authenticate media WS) | `media_token` in `SIP_NODE_MEDIA_BASE_URL` | yes | — |
 | `SIP_EDGE_CONTROL_URL` | `http://127.0.0.1:8090` | listens `:8090` | — | — |
 | `SIP_NODE_MEDIA_BASE_URL` | — | `ws://127.0.0.1:8100/sip/media?media_token=…` | serves `/sip/media` | — |
+| `DJANGO_ALLOWED_HOSTS` | include Windows host-only IP (`192.168.56.1`) | — | — | curls that IP |
 
 Never put these tokens in React.
 

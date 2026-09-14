@@ -15,7 +15,7 @@ when Asterisk runs on the VM and Django / Pipecat / edge run on the Windows host
 **Required edit on VM only:** in `extensions.conf` globals, set:
 
 ```ini
-VOKIT_INTERNAL_TOKEN=<same as application/.env VOKIT_INTERNAL_TELEPHONY_TOKEN>
+VOKIT_INTERNAL_TOKEN=<same as apps/api/.env VOKIT_INTERNAL_TELEPHONY_TOKEN>
 ```
 
 Do not commit that real token into git.

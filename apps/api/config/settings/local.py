@@ -29,11 +29,19 @@ os.environ.setdefault("DJANGO_SECRET_KEY", "local-dev-only-not-for-production")
 
 SECRET_KEY = SecretRef("DJANGO_SECRET_KEY").resolve()
 DEBUG = _env_bool("DJANGO_DEBUG", True)
+# VMware lab Asterisk curls http://192.168.56.1:8000 (Host: 192.168.56.1).
+# Append even when DJANGO_ALLOWED_HOSTS is already set in .env so DID-resolve
+# is not 400 DisallowedHost. Production settings do not include this host.
+_LAB_VOICE_HOSTS = ("192.168.56.1",)
 ALLOWED_HOSTS = [
     part
     for part in _env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0").split(",")
     if part
 ]
+for _lab_host in _LAB_VOICE_HOSTS:
+    if _lab_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_lab_host)
+
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 CELERY_TASK_ALWAYS_EAGER = _env_bool("CELERY_TASK_ALWAYS_EAGER", True)
