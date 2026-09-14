@@ -192,6 +192,7 @@ CUSTOMER_PORTAL_PUBLIC_URL = _env(
     "CUSTOMER_PORTAL_PUBLIC_URL", "http://localhost:5175"
 )
 SIP_EDGE_CONTROL_URL = _env("SIP_EDGE_CONTROL_URL", "")
+# Unused at runtime. Live STT/TTS/LLM vendors and keys are platform_settings (ADR-008 §4b).
 VOICE_STT_PROVIDER = _env("VOICE_STT_PROVIDER", "")
 VOICE_STT_API_KEY_REF = _env("VOICE_STT_API_KEY_REF", "VOICE_STT_API_KEY")
 VOICE_TTS_PROVIDER = _env("VOICE_TTS_PROVIDER", "")

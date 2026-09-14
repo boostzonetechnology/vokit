@@ -196,7 +196,6 @@ class PublishAgent:
             customer_status=customer.status if customer else None,
             has_subscription=subscription is not None,
             resolved_instructions=resolved,
-            voice_provider=agent.voice_provider,
             voice_id=agent.voice_id,
             language=agent.language,
             recording_disclosure=agent.recording_disclosure,
