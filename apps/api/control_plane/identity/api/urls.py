@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from django.urls import path
 
+from control_plane.identity.api.rbac_views import (
+    AgencyRoleListView,
+    CustomerRoleListView,
+    PlatformPermissionCollectionView,
+    PlatformPermissionSyncView,
+    PlatformRoleCollectionView,
+    PlatformRoleDetailView,
+)
 from control_plane.identity.api.views import (
     AcceptInvitationView,
     CsrfView,
@@ -38,6 +46,22 @@ urlpatterns = [
     ),
     path("platform/invitations", InvitationListView.as_view(), name="platform-invitations"),
     path(
+        "platform/permissions",
+        PlatformPermissionCollectionView.as_view(),
+        name="platform-permissions",
+    ),
+    path(
+        "platform/permissions/sync",
+        PlatformPermissionSyncView.as_view(),
+        name="platform-permissions-sync",
+    ),
+    path("platform/roles", PlatformRoleCollectionView.as_view(), name="platform-roles"),
+    path(
+        "platform/roles/<str:role_id>",
+        PlatformRoleDetailView.as_view(),
+        name="platform-role-detail",
+    ),
+    path(
         "agency/me",
         MeView.as_view(principal_type=PrincipalType.AGENCY),
         name="agency-me",
@@ -52,6 +76,7 @@ urlpatterns = [
         DisableUserView.as_view(principal_type=PrincipalType.AGENCY),
         name="agency-team-disable",
     ),
+    path("agency/roles", AgencyRoleListView.as_view(), name="agency-roles"),
     path(
         "customer/me",
         MeView.as_view(principal_type=PrincipalType.CUSTOMER),
@@ -67,4 +92,5 @@ urlpatterns = [
         DisableUserView.as_view(principal_type=PrincipalType.CUSTOMER),
         name="customer-team-disable",
     ),
+    path("customer/roles", CustomerRoleListView.as_view(), name="customer-roles"),
 ]

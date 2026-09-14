@@ -5,7 +5,14 @@ from rest_framework.response import Response
 
 from control_plane.audit.application.record import RecordAuditCommand
 from control_plane.audit.infrastructure.container import record_audit
-from control_plane.identity.api.auth import parse_optional_uuid, parse_uuid, require_principal
+from control_plane.identity.api.auth import (
+    parse_optional_uuid,
+    parse_uuid,
+    require_agency_perm,
+    require_customer_perm,
+    require_platform_perm,
+    require_principal,
+)
 from control_plane.identity.api.views import CsrfAPIView
 from control_plane.identity.domain.types import PrincipalType
 from control_plane.notifications.application.service import DispatchCommand
@@ -17,34 +24,13 @@ from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
 
 
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_customer_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.CUSTOMER)
-    if permission not in context.permissions or context.membership.customer_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
 class PlatformTemplateCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "notifications.manage")
+        require_platform_perm(request, "notification.view")
         return success(notifications().list_templates())
 
     def post(self, request: Request) -> Response:
-        context = _require_platform_perm(request, "notifications.manage")
+        context = require_platform_perm(request, "notification.update")
         data = request.data if isinstance(request.data, dict) else {}
         payload = notifications().update_template(
             event_type=str(data.get("event_type") or ""),
@@ -68,7 +54,7 @@ class PlatformTemplateCollectionView(CsrfAPIView):
 
 class PlatformDeliveryCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "notifications.manage")
+        require_platform_perm(request, "notification.view")
         rows = notifications().list_deliveries()
         limit, offset = parse_page(
             request.query_params.get("limit"),
@@ -80,7 +66,7 @@ class PlatformDeliveryCollectionView(CsrfAPIView):
 
 class PlatformAnnouncementView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_platform_perm(request, "notifications.manage")
+        context = require_platform_perm(request, "notification.create")
         data = request.data if isinstance(request.data, dict) else {}
         title = str(data.get("title") or "").strip()
         body = str(data.get("body") or "").strip()
@@ -142,7 +128,7 @@ class InboxReadView(CsrfAPIView):
 
 class AgencyPreferenceView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "notices.configure")
+        context = require_agency_perm(request, "notice.update")
         return success(
             notifications().list_preferences(
                 scope=PreferenceScope.AGENCY,
@@ -153,7 +139,7 @@ class AgencyPreferenceView(CsrfAPIView):
         )
 
     def put(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "notices.configure")
+        context = require_agency_perm(request, "notice.update")
         data = request.data if isinstance(request.data, dict) else {}
         items = data.get("preferences")
         if type(items) is not list:
@@ -171,7 +157,7 @@ class AgencyPreferenceView(CsrfAPIView):
 
 class CustomerPreferenceView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "notices.configure")
+        context = require_customer_perm(request, "notice.update")
         return success(
             notifications().list_preferences(
                 scope=PreferenceScope.CUSTOMER,
@@ -182,7 +168,7 @@ class CustomerPreferenceView(CsrfAPIView):
         )
 
     def put(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "notices.configure")
+        context = require_customer_perm(request, "notice.update")
         data = request.data if isinstance(request.data, dict) else {}
         items = data.get("preferences")
         if type(items) is not list:

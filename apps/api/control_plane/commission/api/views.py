@@ -29,27 +29,17 @@ from control_plane.commission.infrastructure.container import (
     reverse_commission,
     upload_proof,
 )
-from control_plane.identity.api.auth import parse_optional_uuid, parse_uuid, require_principal
+from control_plane.identity.api.auth import (
+    parse_optional_uuid,
+    parse_uuid,
+    require_agency_perm,
+    require_platform_perm,
+)
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.identity.infrastructure.clock import SystemClock
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _wallet_payload(tenant_id, now) -> dict[str, object]:
@@ -146,7 +136,7 @@ def _receipt_payload(row) -> dict[str, object]:
 
 class AgencyWalletView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "wallet.view")
+        context = require_agency_perm(request, "wallet.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         now = SystemClock().now()
@@ -167,7 +157,7 @@ class AgencyWalletView(CsrfAPIView):
 
 class AgencyPayoutCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "wallet.view")
+        context = require_agency_perm(request, "wallet.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         limit, offset = parse_page(
@@ -178,7 +168,7 @@ class AgencyPayoutCollectionView(CsrfAPIView):
         return success([_payout_public(row) for row in rows], page=page)
 
     def post(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "payout.request")
+        context = require_agency_perm(request, "payout.request")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         raw = request.data.get("amount_minor", 0)
@@ -202,7 +192,7 @@ class AgencyPayoutCollectionView(CsrfAPIView):
 
 class AgencyPayoutReceiptView(CsrfAPIView):
     def get(self, request: Request, payout_id: str) -> Response:
-        context = _require_agency_perm(request, "wallet.view")
+        context = require_agency_perm(request, "wallet.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         payout = payouts().get(parse_uuid(payout_id, field="payout_id"))
@@ -213,13 +203,13 @@ class AgencyPayoutReceiptView(CsrfAPIView):
 
 class AgencyPayoutProofView(CsrfAPIView):
     def get(self, request: Request, payout_id: str) -> Response:
-        _require_agency_perm(request, "wallet.view")
+        require_agency_perm(request, "wallet.view")
         raise DomainError("not_found", "Resource not found.", http_status=404)
 
 
 class PlatformWalletView(CsrfAPIView):
     def get(self, request: Request, agency_id: str) -> Response:
-        _require_platform_perm(request, "billing.view")
+        require_platform_perm(request, "billing.view")
         tenant_id = parse_uuid(agency_id, field="agency_id")
         now = SystemClock().now()
         return success({"agency_id": str(tenant_id), "buckets": _wallet_payload(tenant_id, now)})
@@ -227,7 +217,7 @@ class PlatformWalletView(CsrfAPIView):
 
 class PlatformPayoutCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "billing.view")
+        require_platform_perm(request, "billing.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -248,7 +238,7 @@ class PlatformPayoutCollectionView(CsrfAPIView):
 
 class PlatformPayoutActionView(CsrfAPIView):
     def post(self, request: Request, payout_id: str) -> Response:
-        context = _require_platform_perm(request, "payout.approve")
+        context = require_platform_perm(request, "payout.approve")
         payout = decide_payout().execute(
             DecidePayoutCommand(
                 payout_id=parse_uuid(payout_id, field="payout_id"),
@@ -262,7 +252,7 @@ class PlatformPayoutActionView(CsrfAPIView):
 
 class PlatformPayoutProofView(CsrfAPIView):
     def get(self, request: Request, payout_id: str) -> Response:
-        _require_platform_perm(request, "payout.approve")
+        require_platform_perm(request, "payout.approve")
         proof = proofs().get(parse_uuid(payout_id, field="payout_id"))
         if proof is None:
             raise payout_not_found()
@@ -276,7 +266,7 @@ class PlatformPayoutProofView(CsrfAPIView):
         )
 
     def post(self, request: Request, payout_id: str) -> Response:
-        context = _require_platform_perm(request, "payout.approve")
+        context = require_platform_perm(request, "payout.approve")
         proof = upload_proof().execute(
             UploadProofCommand(
                 payout_id=parse_uuid(payout_id, field="payout_id"),
@@ -299,7 +289,7 @@ class PlatformPayoutProofView(CsrfAPIView):
 
 class PlatformPayoutMarkPaidView(CsrfAPIView):
     def post(self, request: Request, payout_id: str) -> Response:
-        context = _require_platform_perm(request, "payout.approve")
+        context = require_platform_perm(request, "payout.approve")
         payout = decide_payout().execute(
             DecidePayoutCommand(
                 payout_id=parse_uuid(payout_id, field="payout_id"),
@@ -313,7 +303,7 @@ class PlatformPayoutMarkPaidView(CsrfAPIView):
 
 class PlatformReverseCommissionView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_platform_perm(request, "commission.edit")
+        context = require_platform_perm(request, "commission.edit")
         entry = reverse_commission().execute(
             ReverseCommissionCommand(
                 payment_id=parse_uuid(request.data.get("payment_id"), field="payment_id"),
@@ -326,7 +316,7 @@ class PlatformReverseCommissionView(CsrfAPIView):
 
 class PlatformWalletAdjustView(CsrfAPIView):
     def post(self, request: Request, agency_id: str) -> Response:
-        context = _require_platform_perm(request, "wallet.adjust")
+        context = require_platform_perm(request, "wallet.adjust")
         raw = request.data.get("amount_minor")
         if type(raw) is bool or type(raw) is float or raw is None:
             raise DomainError("validation_error", "amount_minor must be an integer.")
@@ -348,7 +338,7 @@ class PlatformWalletAdjustView(CsrfAPIView):
 
 class PlatformWalletFreezeView(CsrfAPIView):
     def post(self, request: Request, agency_id: str) -> Response:
-        context = _require_platform_perm(request, "wallet.adjust")
+        context = require_platform_perm(request, "wallet.adjust")
         frozen = request.data.get("frozen")
         if type(frozen) is not bool:
             raise DomainError("validation_error", "frozen must be a boolean.")

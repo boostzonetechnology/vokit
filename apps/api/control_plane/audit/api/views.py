@@ -8,19 +8,11 @@ from rest_framework.response import Response
 from control_plane.audit.application.ports import AuditSearchQuery
 from control_plane.audit.domain.types import AuditSeverity
 from control_plane.audit.infrastructure.container import search_audit
-from control_plane.identity.api.auth import parse_optional_uuid, require_principal
+from control_plane.identity.api.auth import parse_optional_uuid, require_platform_perm
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _parse_time(raw: object, field: str) -> datetime | None:
@@ -34,7 +26,7 @@ def _parse_time(raw: object, field: str) -> datetime | None:
 
 class PlatformAuditCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "audit.view")
+        require_platform_perm(request, "audit.view")
         severity_raw = str(request.query_params.get("severity") or "").strip()
         severity = None
         if severity_raw:
@@ -96,7 +88,7 @@ class PlatformAuditCollectionView(CsrfAPIView):
 
 class PlatformAuditMutationView(CsrfAPIView):
     def patch(self, request: Request, event_id: str) -> Response:  # noqa: ARG002
-        _require_platform_perm(request, "audit.view")
+        require_platform_perm(request, "audit.view")
         raise DomainError(
             "audit_immutable",
             "Audit events cannot be edited or deleted.",
@@ -104,7 +96,7 @@ class PlatformAuditMutationView(CsrfAPIView):
         )
 
     def delete(self, request: Request, event_id: str) -> Response:  # noqa: ARG002
-        _require_platform_perm(request, "audit.view")
+        require_platform_perm(request, "audit.view")
         raise DomainError(
             "audit_immutable",
             "Audit events cannot be edited or deleted.",

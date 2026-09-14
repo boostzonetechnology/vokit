@@ -34,40 +34,15 @@ from control_plane.billing.infrastructure.container import (
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
     parse_uuid,
-    require_principal,
+    require_agency_perm,
+    require_customer_perm,
+    require_platform_perm,
 )
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
 from tenant.billing.domain import InvoiceRecord
-
-
-def _require_platform_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.PLATFORM)
-    if permission not in context.permissions:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_agency_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.AGENCY)
-    if permission not in context.permissions or context.membership.tenant_id is None:
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
-
-
-def _require_customer_perm(request: Request, permission: str):
-    context = require_principal(request, PrincipalType.CUSTOMER)
-    membership = context.membership
-    if (
-        permission not in context.permissions
-        or membership.tenant_id is None
-        or membership.customer_id is None
-    ):
-        raise DomainError("forbidden", "Not permitted.", http_status=403)
-    return context
 
 
 def _int_field(data: dict, name: str, default: int | None = None) -> int:
@@ -171,7 +146,7 @@ def _index_payload(row) -> dict[str, object]:
 
 class PlatformPlanCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "plans.manage")
+        require_platform_perm(request, "plan.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -180,7 +155,7 @@ class PlatformPlanCollectionView(CsrfAPIView):
         return success([_plan_payload(row) for row in rows], page=page)
 
     def post(self, request: Request) -> Response:
-        _require_platform_perm(request, "plans.manage")
+        require_platform_perm(request, "plan.create")
         plan, _version = create_plan().execute(
             CreatePlanCommand(name=str(request.data.get("name") or ""), **_plan_terms(request.data))
         )
@@ -189,7 +164,7 @@ class PlatformPlanCollectionView(CsrfAPIView):
 
 class PlatformPlanVersionView(CsrfAPIView):
     def post(self, request: Request, plan_id: str) -> Response:
-        _require_platform_perm(request, "plans.manage")
+        require_platform_perm(request, "plan.create")
         version = add_plan_version().execute(
             AddPlanVersionCommand(
                 plan_id=parse_uuid(plan_id, field="plan_id"),
@@ -201,7 +176,7 @@ class PlatformPlanVersionView(CsrfAPIView):
 
 class PlatformPlanVersionDetailView(CsrfAPIView):
     def patch(self, request: Request, version_id: str) -> Response:
-        _require_platform_perm(request, "plans.manage")
+        require_platform_perm(request, "plan.update")
         version = update_plan_version().execute(
             UpdatePlanVersionCommand(
                 version_id=parse_uuid(version_id, field="version_id"),
@@ -213,14 +188,14 @@ class PlatformPlanVersionDetailView(CsrfAPIView):
 
 class PlatformPlanArchiveView(CsrfAPIView):
     def post(self, request: Request, plan_id: str) -> Response:
-        _require_platform_perm(request, "plans.manage")
+        require_platform_perm(request, "plan.update")
         plan = archive_plan().execute(parse_uuid(plan_id, field="plan_id"))
         return success(_plan_payload(plan))
 
 
 class PlatformCustomerSubscriptionView(CsrfAPIView):
     def get(self, request: Request, customer_id: str) -> Response:
-        _require_platform_perm(request, "customers.view")
+        require_platform_perm(request, "customer.view")
         view = get_customer_subscription().execute(
             parse_uuid(customer_id, field="customer_id")
         )
@@ -242,7 +217,7 @@ class PlatformCustomerSubscriptionView(CsrfAPIView):
         )
 
     def post(self, request: Request, customer_id: str) -> Response:
-        _require_platform_perm(request, "customers.create")
+        require_platform_perm(request, "customer.create")
         invoice = assign_subscription().execute(
             AssignSubscriptionCommand(
                 customer_id=parse_uuid(customer_id, field="customer_id"),
@@ -258,7 +233,7 @@ class PlatformCustomerSubscriptionView(CsrfAPIView):
 
 class PlatformInvoiceCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "billing.view")
+        require_platform_perm(request, "billing.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -281,7 +256,7 @@ class PlatformInvoiceCollectionView(CsrfAPIView):
 
 class PlatformPaymentCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_platform_perm(request, "billing.view")
+        require_platform_perm(request, "billing.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -315,7 +290,7 @@ class PlatformDisputeCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
         from control_plane.risk.infrastructure.container import risk_events
 
-        _require_platform_perm(request, "billing.view")
+        require_platform_perm(request, "billing.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -336,7 +311,7 @@ class PlatformDisputeCollectionView(CsrfAPIView):
 
 class AgencyPlanCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_agency_perm(request, "customers.manage")
+        require_agency_perm(request, "customer.view")
         limit, offset = parse_page(
             request.query_params.get("limit"),
             request.query_params.get("offset"),
@@ -347,7 +322,7 @@ class AgencyPlanCollectionView(CsrfAPIView):
 
 class AgencyCustomerSubscriptionView(CsrfAPIView):
     def post(self, request: Request, customer_id: str) -> Response:
-        context = _require_agency_perm(request, "customers.manage")
+        context = require_agency_perm(request, "customer.update")
         invoice = assign_subscription().execute(
             AssignSubscriptionCommand(
                 customer_id=parse_uuid(customer_id, field="customer_id"),
@@ -363,7 +338,7 @@ class AgencyCustomerSubscriptionView(CsrfAPIView):
 
 class AgencyCustomerInvoiceCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_agency_perm(request, "customers.manage")
+        context = require_agency_perm(request, "customer.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         limit, offset = parse_page(
@@ -380,7 +355,7 @@ class AgencyCustomerInvoiceCollectionView(CsrfAPIView):
 
 class CustomerInvoiceCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "billing.pay")
+        context = require_customer_perm(request, "billing.pay")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         limit, offset = parse_page(
@@ -394,7 +369,7 @@ class CustomerInvoiceCollectionView(CsrfAPIView):
 
 class CustomerInvoicePayView(CsrfAPIView):
     def post(self, request: Request, invoice_id: str) -> Response:
-        context = _require_customer_perm(request, "billing.pay")
+        context = require_customer_perm(request, "billing.pay")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         intent = pay_invoice().execute(
@@ -421,7 +396,7 @@ class CustomerInvoicePayView(CsrfAPIView):
 
 class CustomerTopUpView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "billing.pay")
+        context = require_customer_perm(request, "billing.pay")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         invoice = create_topup().execute(
@@ -437,7 +412,7 @@ class CustomerTopUpView(CsrfAPIView):
 
 class CustomerUsageView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = _require_customer_perm(request, "billing.pay")
+        context = require_customer_perm(request, "billing.pay")
         membership = context.membership
         assert membership.tenant_id is not None and membership.customer_id is not None
         lots = tenant_billing().list_lots(membership.tenant_id, membership.customer_id)
@@ -474,7 +449,7 @@ class CustomerUsageView(CsrfAPIView):
 
 class CustomerPaymentMethodCollectionView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        _require_customer_perm(request, "billing.pay")
+        require_customer_perm(request, "billing.pay")
         return success([], page={"next": None, "limit": 50, "offset": 0})
 
 

@@ -91,12 +91,14 @@ class AcceptInvitation:
             )
             if not self._passwords.verify(command.password, user.password_hash):
                 raise DomainError("unauthenticated", "Invalid email or password.", http_status=401)
+        # Propagate role_id from the invitation so the membership FK is resolved.
         self._memberships.create(
             MembershipRecord(
                 id=new_uuid7(),
                 user_id=user.id,
                 principal_type=invitation.principal_type,
                 role=invitation.role,
+                role_id=invitation.role_id,  # FK resolved at invite-creation time
                 tenant_id=invitation.tenant_id,
                 customer_id=invitation.customer_id,
                 status=MembershipStatus.ACTIVE,

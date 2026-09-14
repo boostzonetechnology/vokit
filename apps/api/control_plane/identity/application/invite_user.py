@@ -69,6 +69,7 @@ class InviteUser:
             email=email,
             principal_type=command.binding.principal_type,
             role=command.binding.role,
+            # role_id resolved by DjangoInvitationRepository.create() from slug
             tenant_id=command.binding.tenant_id,
             customer_id=command.binding.customer_id,
             token_hash=hash_invitation_token(token),
@@ -83,10 +84,17 @@ class InviteUser:
         actor = command.actor_membership
         target = command.binding
         if actor.principal_type.value == "platform":
-            if "users.invite" not in permissions_for_role(actor.role):
+            # super_admin bypasses all permission checks (ADR-007).
+            if actor.role == "super_admin":
+                return
+            # ADR-007: new code for platform user invite is user.create
+            perms = permissions_for_role(actor.role)
+            if "user.create" not in perms:
                 raise DomainError("forbidden", "Not permitted.", http_status=403)
             return
-        if "team.invite" not in permissions_for_role(actor.role):
+        # ADR-007: new code for team invite is team.create
+        perms = permissions_for_role(actor.role)
+        if "team.create" not in perms:
             raise DomainError("forbidden", "Not permitted.", http_status=403)
         if actor.tenant_id is None or actor.tenant_id != target.tenant_id:
             raise DomainError("forbidden", "Not permitted.", http_status=403)
@@ -101,4 +109,3 @@ class InviteUser:
                 or target.customer_id != actor.customer_id
             ):
                 raise DomainError("forbidden", "Not permitted.", http_status=403)
-
