@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import models
 
+from shared_kernel.hard_delete import HardDeleteForbiddenModel
 from shared_kernel.ids import new_uuid7
 
 
@@ -17,7 +18,7 @@ class KycSettings(models.Model):
         db_table = "kyc_settings"
 
 
-class KycCase(models.Model):
+class KycCase(HardDeleteForbiddenModel):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     tenant = models.OneToOneField(
         "tenancy.Tenant",
@@ -41,7 +42,7 @@ class KycCase(models.Model):
         db_table = "kyc_cases"
 
 
-class KycProviderEvent(models.Model):
+class KycProviderEvent(HardDeleteForbiddenModel):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     event_id = models.CharField(max_length=128, unique=True)
     case = models.ForeignKey(

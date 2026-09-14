@@ -13,6 +13,7 @@ from control_plane.identity.api.auth import (
     parse_uuid,
     require_agency_perm,
     require_auth,
+    require_customer_perm,
     require_platform_perm,
     require_principal,
     session_payload,
@@ -106,7 +107,7 @@ class LoginView(CsrfAPIView):
         email = str(request.data.get("email") or "")
         password = str(request.data.get("password") or "")
         rate_key = f"{_client_ip(request)}:{email.strip().lower()[:128]}"
-        user, membership = authenticate_user(request._request).execute(
+        result = authenticate_user(request._request).execute(
             AuthenticateCommand(
                 email=email,
                 password=password,
@@ -114,7 +115,16 @@ class LoginView(CsrfAPIView):
                 privileged_mfa_required=platform_settings().mfa_required_privileged(),
             )
         )
-        return success(session_payload(user, membership))
+        if result.kind == "mfa_challenge":
+            return success(
+                {
+                    "mfa_required": True,
+                    "challenge_token": result.challenge_token,
+                    "methods": list(result.methods),
+                    "user_id": str(result.user.id),
+                }
+            )
+        return success(session_payload(result.user, result.membership))
 
 
 class LogoutView(CsrfAPIView):
@@ -155,7 +165,7 @@ class TeamListView(CsrfAPIView):
         elif self.principal_type is PrincipalType.AGENCY:
             context = require_agency_perm(request, "team.view")
         else:
-            context = require_principal(request, self.principal_type)
+            context = require_customer_perm(request, "team.view")
         principal = self.principal_type
         tenant_id = context.membership.tenant_id
         customer_id = context.membership.customer_id
@@ -183,7 +193,7 @@ class TeamListView(CsrfAPIView):
         elif self.principal_type is PrincipalType.AGENCY:
             context = require_agency_perm(request, "team.create")
         else:
-            context = require_principal(request, self.principal_type)
+            context = require_customer_perm(request, "team.create")
         binding = self._binding_from_session(context, request)
         record, token = invite_user().execute(
             InviteUserCommand(
@@ -236,7 +246,7 @@ class TeamListView(CsrfAPIView):
 
 class InvitationListView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = require_principal(request, PrincipalType.PLATFORM)
+        context = require_platform_perm(request, "user.view")
         rows = invitations().list_for_scope(
             principal_type=PrincipalType.PLATFORM,
             tenant_id=context.membership.tenant_id,
@@ -245,7 +255,7 @@ class InvitationListView(CsrfAPIView):
         return success([_invitation_item(row) for row in rows])
 
     def post(self, request: Request) -> Response:
-        context = require_principal(request, PrincipalType.PLATFORM)
+        context = require_platform_perm(request, "user.create")
         try:
             principal = PrincipalType(str(request.data.get("principal_type") or ""))
         except ValueError as exc:
@@ -280,7 +290,12 @@ class DisableUserView(CsrfAPIView):
     principal_type: PrincipalType = PrincipalType.PLATFORM
 
     def post(self, request: Request, user_id: str) -> Response:
-        context = require_principal(request, self.principal_type)
+        if self.principal_type is PrincipalType.PLATFORM:
+            context = require_platform_perm(request, "user.delete")
+        elif self.principal_type is PrincipalType.AGENCY:
+            context = require_agency_perm(request, "team.delete")
+        else:
+            context = require_customer_perm(request, "team.delete")
         revoked = disable_user(request._request).execute(
             DisableUserCommand(
                 actor_id=context.user.id,

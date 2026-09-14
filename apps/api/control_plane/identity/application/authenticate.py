@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from control_plane.identity.application.mfa import AuthSessionResult, MfaService
 from control_plane.identity.application.ports import (
     LoginRateLimiter,
-    MembershipRecord,
     MembershipRepository,
     PasswordHasher,
     SessionGateway,
-    UserRecord,
     UserRepository,
 )
 from control_plane.identity.domain.policies import (
@@ -26,7 +25,6 @@ class AuthenticateCommand:
     password: str
     rate_key: str
     privileged_mfa_required: bool = False
-    mfa_enrolled: bool = False
 
 
 class AuthenticateUser:
@@ -37,14 +35,16 @@ class AuthenticateUser:
         passwords: PasswordHasher,
         sessions: SessionGateway,
         limiter: LoginRateLimiter,
+        mfa: MfaService | None = None,
     ) -> None:
         self._users = users
         self._memberships = memberships
         self._passwords = passwords
         self._sessions = sessions
         self._limiter = limiter
+        self._mfa = mfa or MfaService(users=users, memberships=memberships)
 
-    def execute(self, command: AuthenticateCommand) -> tuple[UserRecord, MembershipRecord]:
+    def execute(self, command: AuthenticateCommand) -> AuthSessionResult:
         if not self._limiter.allow(command.rate_key):
             raise DomainError(
                 "rate_limited",
@@ -77,11 +77,18 @@ class AuthenticateUser:
         if membership is None or membership.status is not MembershipStatus.ACTIVE:
             self._limiter.register_failure(command.rate_key)
             raise DomainError("unauthenticated", "Invalid email or password.", http_status=401)
+
+        enrolled = self._mfa.user_has_active_mfa(user.id)
         assert_privileged_mfa(
             role=membership.role,
             required=command.privileged_mfa_required,
-            enrolled=command.mfa_enrolled,
+            enrolled=enrolled,
         )
+
+        if enrolled:
+            self._limiter.reset(command.rate_key)
+            return self._mfa.start_login_challenge(user, membership)
+
         self._sessions.create(user.id)
         self._limiter.reset(command.rate_key)
-        return user, membership
+        return AuthSessionResult(kind="session", user=user, membership=membership)

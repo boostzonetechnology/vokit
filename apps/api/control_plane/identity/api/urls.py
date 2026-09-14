@@ -2,6 +2,18 @@ from __future__ import annotations
 
 from django.urls import path
 
+from control_plane.identity.api.mfa_views import (
+    MfaChallengeSendView,
+    MfaChallengeVerifyView,
+    MfaEmailConfirmView,
+    MfaEmailEnrollView,
+    MfaMethodDisableView,
+    MfaMethodsView,
+    MfaRecoveryRegenerateView,
+    MfaTotpConfirmView,
+    MfaTotpEnrollView,
+    PlatformMfaResetView,
+)
 from control_plane.identity.api.rbac_views import (
     AgencyRoleListView,
     CustomerRoleListView,
@@ -29,6 +41,31 @@ urlpatterns = [
     path("auth/logout", LogoutView.as_view(), name="auth-logout"),
     path("auth/session", SessionView.as_view(), name="auth-session"),
     path("auth/invitations/accept", AcceptInvitationView.as_view(), name="auth-invite-accept"),
+    path("auth/mfa/methods", MfaMethodsView.as_view(), name="auth-mfa-methods"),
+    path("auth/mfa/totp/enroll", MfaTotpEnrollView.as_view(), name="auth-mfa-totp-enroll"),
+    path("auth/mfa/totp/confirm", MfaTotpConfirmView.as_view(), name="auth-mfa-totp-confirm"),
+    path("auth/mfa/email/enroll", MfaEmailEnrollView.as_view(), name="auth-mfa-email-enroll"),
+    path("auth/mfa/email/confirm", MfaEmailConfirmView.as_view(), name="auth-mfa-email-confirm"),
+    path(
+        "auth/mfa/methods/<str:method_id>/disable",
+        MfaMethodDisableView.as_view(),
+        name="auth-mfa-method-disable",
+    ),
+    path(
+        "auth/mfa/recovery/regenerate",
+        MfaRecoveryRegenerateView.as_view(),
+        name="auth-mfa-recovery-regenerate",
+    ),
+    path(
+        "auth/mfa/challenge/send",
+        MfaChallengeSendView.as_view(),
+        name="auth-mfa-challenge-send",
+    ),
+    path(
+        "auth/mfa/challenge/verify",
+        MfaChallengeVerifyView.as_view(),
+        name="auth-mfa-challenge-verify",
+    ),
     path(
         "platform/me",
         MeView.as_view(principal_type=PrincipalType.PLATFORM),
@@ -43,6 +80,11 @@ urlpatterns = [
         "platform/users/<str:user_id>/disable",
         DisableUserView.as_view(principal_type=PrincipalType.PLATFORM),
         name="platform-user-disable",
+    ),
+    path(
+        "platform/users/<str:user_id>/mfa/reset",
+        PlatformMfaResetView.as_view(),
+        name="platform-user-mfa-reset",
     ),
     path("platform/invitations", InvitationListView.as_view(), name="platform-invitations"),
     path(

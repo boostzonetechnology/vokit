@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import models
 
+from shared_kernel.hard_delete import HardDeleteForbiddenModel
 from shared_kernel.ids import new_uuid7
 
 
@@ -13,7 +14,7 @@ class WalletLock(models.Model):
         db_table = "commission_wallet_locks"
 
 
-class LedgerEntry(models.Model):
+class LedgerEntry(HardDeleteForbiddenModel):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     tenant_id = models.UUIDField()
     customer_id = models.UUIDField(null=True, blank=True)
@@ -50,7 +51,7 @@ class LedgerEntry(models.Model):
         ]
 
 
-class Payout(models.Model):
+class Payout(HardDeleteForbiddenModel):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     tenant_id = models.UUIDField()
     amount_minor = models.BigIntegerField()
@@ -71,7 +72,7 @@ class Payout(models.Model):
         ]
 
 
-class PayoutProof(models.Model):
+class PayoutProof(HardDeleteForbiddenModel):
     payout = models.OneToOneField(
         Payout,
         on_delete=models.PROTECT,

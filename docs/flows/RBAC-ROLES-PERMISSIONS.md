@@ -93,6 +93,24 @@ Cannot delete system roles. Cannot modify `super_admin`.
 
 Body still uses `"role": "<slug>"` (e.g. `agency_admin`). Server resolves slug → `role_id`.
 
+### Least-privilege hardening (Phase D)
+
+Kept **principal-only** (by design): `/me`, notification inbox, own customer account, tenant isolation lab endpoints.
+
+Now **permission-gated** (preserve seeded role access):
+
+| Surface | Permission(s) |
+|---|---|
+| Platform invitations list/create | `user.view` / `user.create` |
+| Disable user (platform / agency / customer) | `user.delete` / `team.delete` / `team.delete` |
+| Customer team list/invite | `team.view` / `team.create` |
+| Agency KYC status / start session | `kyc.view` / `kyc.start` (seeded on owner + admin) |
+| Dashboards | any of a small allow-set per portal (e.g. platform `agency.view`\|`billing.view`\|`call.view`) |
+
+`support_admin` (empty pivots) can no longer invite/disable platform users — intentional.
+
+Sync new catalog codes: `python manage.py sync_permissions` (or `ensure_rbac_seeded`).
+
 ---
 
 ## System role slugs (stable)

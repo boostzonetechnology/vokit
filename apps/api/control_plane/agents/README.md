@@ -7,7 +7,8 @@ drafts fail closed (`agent_not_routable`). Number assignment is Phase 10; Pipeca
 
 Templates clone into an independent agent plus a frozen instruction snapshot. Instruction
 precedence is Platform Safety → Template snapshot → Agency → Customer → Agent. Tools are
-allowlisted. Prompts that look like credentials return `422 secret_in_prompt`.
+allowlisted (`tools` JSON + domain allowlist = SRS **AgentAction**; no separate Action ORM).
+Prompts that look like credentials return `422 secret_in_prompt`.
 
 Knowledge is ingested by Django (hash embedding + Qdrant write, or in-process memory when
 `QDRANT_URL` is empty). Payload `group_id` is sealed as `global`, `agency:{tenant_id}`,

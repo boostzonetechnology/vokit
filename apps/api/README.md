@@ -201,4 +201,7 @@ Hardening:
 
 - Isolation / finance / voice / recording matrices are executable (`tests/test_phase17_matrices.py`)
 - `security.mfa_required_privileged` (default false) fails closed for privileged login until enrollment exists
+- MFA APIs: `/api/v1/auth/mfa/*` (TOTP + Email OTP + recovery + challenge verify); platform `.../mfa/reset`
+- MFA/OTP rate limits: send 5/10m, verify failures 10/5m (`429 rate_limited`); shared Redis cache for multi-worker
+- Docs: `docs/flows/auth/`
 - Impersonation is permission-catalogued only; no route is implemented
