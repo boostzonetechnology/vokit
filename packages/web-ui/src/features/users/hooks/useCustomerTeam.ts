@@ -2,22 +2,29 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiGet, apiSend, isApiError } from "@/api";
 import { asList } from "@/features/platform/lib/list";
-import { listAgencyRoles } from "@/features/rbac/services/rbac.service";
+import { listCustomerRoles } from "@/features/rbac/services/rbac.service";
 import type { RoleRecord } from "@/features/rbac/types/rbac.types";
 
-export type TeamMember = {
+export type CustomerTeamMember = {
   id: string;
   membership_id?: string;
   email?: string;
-  principal_type?: string;
   role?: string;
-  tenant_id?: string | null;
-  customer_id?: string | null;
   status?: string;
 };
 
-export function useAgencyTeam() {
-  const [members, setMembers] = useState<TeamMember[]>([]);
+export type CustomerAccount = {
+  display_name?: string;
+  legal_name?: string;
+  owner_email?: string;
+  phone?: string;
+  country?: string;
+  timezone?: string;
+  status?: string;
+};
+
+export function useCustomerTeam() {
+  const [members, setMembers] = useState<CustomerTeamMember[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
@@ -25,14 +32,13 @@ export function useAgencyTeam() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       const [rows, roleRows] = await Promise.all([
-        asList<TeamMember>(await apiGet<unknown>("/api/v1/agency/team")),
-        listAgencyRoles().catch(() => [] as RoleRecord[]),
+        asList<CustomerTeamMember>(await apiGet<unknown>("/api/v1/customer/team")),
+        listCustomerRoles().catch(() => [] as RoleRecord[]),
       ]);
       setMembers(rows);
       setRoles(roleRows);
@@ -50,16 +56,15 @@ export function useAgencyTeam() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return members.filter((row) => {
-      if (roleFilter && (row.role ?? "") !== roleFilter) return false;
-      if (!q) return true;
-      return [row.email, row.role, row.status, row.id]
+    if (!q) return members;
+    return members.filter((row) =>
+      [row.email, row.role, row.status, row.id]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(q);
-    });
-  }, [members, query, roleFilter]);
+        .includes(q),
+    );
+  }, [members, query]);
 
   const selected = members.find((row) => row.id === selectedId) ?? null;
 
@@ -67,10 +72,7 @@ export function useAgencyTeam() {
     setBusy(true);
     setMessage("");
     try {
-      await apiSend("/api/v1/agency/team", "POST", {
-        email: input.email,
-        role: input.role,
-      });
+      await apiSend("/api/v1/customer/team", "POST", input);
       setMessage("Invitation sent.");
       await reload();
     } catch (cause) {
@@ -85,8 +87,8 @@ export function useAgencyTeam() {
     setBusy(true);
     setMessage("");
     try {
-      await apiSend(`/api/v1/agency/team/${userId}/disable`, "POST", {});
-      setMessage("User access disabled and sessions revoked.");
+      await apiSend(`/api/v1/customer/team/${userId}/disable`, "POST", {});
+      setMessage("User access disabled.");
       if (selectedId === userId) setSelectedId("");
       await reload();
     } catch (cause) {
@@ -109,10 +111,33 @@ export function useAgencyTeam() {
     busy,
     query,
     setQuery,
-    roleFilter,
-    setRoleFilter,
     reload,
     invite,
     revoke,
   };
+}
+
+export function useCustomerAccount() {
+  const [account, setAccount] = useState<CustomerAccount | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiGet<CustomerAccount>("/api/v1/customer/account");
+      setAccount(data);
+      setError("");
+    } catch (cause) {
+      setError(isApiError(cause) ? cause.message : "Failed to load account.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return { account, error, loading, reload };
 }

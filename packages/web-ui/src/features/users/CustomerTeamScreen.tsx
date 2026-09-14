@@ -6,17 +6,17 @@ import { FormSelect } from "@/components/forms/FormSelect";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
-import { useAgencyTeam } from "@/features/users/hooks/useAgencyTeam";
+import { useCustomerAccount, useCustomerTeam } from "./hooks/useCustomerTeam";
 
 function statusTone(status?: string): BadgeTone {
   const value = (status ?? "").toLowerCase();
   if (value === "active" || value === "accepted") return "success";
   if (value === "invited" || value === "pending") return "warning";
-  if (value === "disabled" || value === "revoked") return "danger";
+  if (value === "disabled") return "danger";
   return "neutral";
 }
 
-export function AgencyTeamScreen() {
+export function CustomerTeamScreen() {
   const { can } = usePermissions();
   const canInvite = can("team.create");
   const canRevoke = can("team.delete");
@@ -33,16 +33,14 @@ export function AgencyTeamScreen() {
     busy,
     query,
     setQuery,
-    roleFilter,
-    setRoleFilter,
     reload,
     invite,
     revoke,
-  } = useAgencyTeam();
+  } = useCustomerTeam();
 
   const [showInvite, setShowInvite] = useState(false);
   const defaultRole =
-    roles.find((role) => role.slug === "agency_admin")?.slug ?? roles[0]?.slug ?? "";
+    roles.find((role) => role.slug === "customer_admin")?.slug ?? roles[0]?.slug ?? "";
 
   async function onInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,14 +58,14 @@ export function AgencyTeamScreen() {
   }
 
   return (
-    <section className="mx-auto max-w-[1200px]">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section className="mx-auto max-w-[1100px]">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
             Team
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            Invite, roles, revoke · AG13 · Roles from GET /agency/roles
+            Invite & manage customer users · CU8-001 · Roles from GET /customer/roles
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -115,34 +113,16 @@ export function AgencyTeamScreen() {
               Send invite
             </ActionButton>
           </form>
-          <ApiNote>
-            AG13-001 / AG13-002 — invite with a role from GET /api/v1/agency/roles (requires
-            team.view).
-          </ApiNote>
         </article>
       ) : null}
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2">
+      <div className="mb-4">
         <FormField
           label="Search"
           name="query"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Email, role…"
         />
-        <FormSelect
-          label="Role filter"
-          name="role_filter"
-          value={roleFilter}
-          onChange={(event) => setRoleFilter(event.target.value)}
-        >
-          <option value="">All roles</option>
-          {roles.map((role) => (
-            <option key={role.id} value={role.slug}>
-              {role.display_name || role.slug}
-            </option>
-          ))}
-        </FormSelect>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
@@ -155,7 +135,7 @@ export function AgencyTeamScreen() {
           ) : !members.length ? (
             <p className="m-0 text-body text-text-muted">No team members yet.</p>
           ) : (
-            <ul className="m-0 grid max-h-[520px] list-none gap-2 overflow-auto p-0">
+            <ul className="m-0 grid list-none gap-2 p-0">
               {members.map((row) => (
                 <li key={row.id}>
                   <button
@@ -169,7 +149,9 @@ export function AgencyTeamScreen() {
                   >
                     <div className="flex justify-between gap-2">
                       <span className="font-medium text-text-primary">{row.email}</span>
-                      <StatusBadge tone={statusTone(row.status)}>{row.status || "—"}</StatusBadge>
+                      <StatusBadge tone={statusTone(row.status)}>
+                        {row.status || "—"}
+                      </StatusBadge>
                     </div>
                     <p className="m-0 mt-1 text-sm text-text-muted">{row.role}</p>
                   </button>
@@ -180,54 +162,89 @@ export function AgencyTeamScreen() {
         </article>
 
         <article className="rounded-xl border border-border-default bg-surface p-4 shadow-subtle">
-          <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">Member detail</h2>
+          <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">Detail</h2>
           {!selected ? (
             <p className="m-0 text-body text-text-muted">Select a member.</p>
           ) : (
             <div className="grid gap-3">
-              <dl className="m-0 grid gap-2 text-sm">
-                <div>
-                  <dt className="text-text-muted">Email</dt>
-                  <dd className="m-0 text-text-primary">{selected.email}</dd>
-                </div>
-                <div>
-                  <dt className="text-text-muted">Role</dt>
-                  <dd className="m-0 text-text-primary">{selected.role}</dd>
-                </div>
-                <div>
-                  <dt className="text-text-muted">Status</dt>
-                  <dd className="m-0">
-                    <StatusBadge tone={statusTone(selected.status)}>
-                      {selected.status || "—"}
-                    </StatusBadge>
-                  </dd>
-                </div>
-              </dl>
+              <p className="m-0 text-sm text-text-muted">
+                {selected.email} · {selected.role}
+              </p>
               {canRevoke && selected.status !== "disabled" ? (
                 <ActionButton
                   variant="outline"
                   disabled={busy}
                   onClick={() => {
-                    if (
-                      window.confirm(
-                        `Disable access for ${selected.email}? Active sessions will be revoked.`,
-                      )
-                    ) {
+                    if (window.confirm(`Disable access for ${selected.email}?`)) {
                       void revoke(selected.id);
                     }
                   }}
                 >
-                  Revoke access
+                  Disable access
                 </ActionButton>
               ) : null}
-              <ApiNote>
-                AG13-003 — revoke disables the user and clears sessions. Role changes require a new
-                invite today.
-              </ApiNote>
             </div>
           )}
         </article>
       </div>
+    </section>
+  );
+}
+
+export function CustomerProfileScreen() {
+  const { account, error, loading, reload } = useCustomerAccount();
+
+  return (
+    <section className="mx-auto max-w-[800px]">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
+            Profile
+          </h1>
+          <p className="mt-1 mb-0 text-body text-text-muted">
+            Business & contact settings · CU8-003
+          </p>
+        </div>
+        <ActionButton variant="secondary" onClick={() => void reload()}>
+          Refresh
+        </ActionButton>
+      </div>
+
+      {error ? (
+        <p className="mb-4 text-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {loading ? (
+        <p className="text-body text-text-muted">Loading…</p>
+      ) : !account ? (
+        <p className="text-body text-text-muted">Account profile unavailable.</p>
+      ) : (
+        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          <dl className="m-0 grid gap-3 text-sm sm:grid-cols-2">
+            {(
+              [
+                ["Display name", account.display_name],
+                ["Legal name", account.legal_name],
+                ["Owner email", account.owner_email],
+                ["Phone", account.phone],
+                ["Country", account.country],
+                ["Timezone", account.timezone],
+                ["Status", account.status],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-text-muted">{label}</dt>
+                <dd className="m-0 text-text-primary">{value || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+          <ApiNote>
+            CU8-003 — profile is read-only until a customer account PATCH API is available.
+          </ApiNote>
+        </article>
+      )}
     </section>
   );
 }

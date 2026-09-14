@@ -20,6 +20,8 @@ import {
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginScreen } from "@/features/auth/components/LoginScreen";
 import { AcceptInviteScreen } from "@/features/auth/components/AcceptInviteScreen";
+import { SessionProvider } from "@/features/auth/context/SessionContext";
+import { HighRiskRouteGate } from "@/features/rbac/components/HighRiskRouteGate";
 import { AgencyDashboard } from "@/features/dashboard/AgencyDashboard";
 import { CustomerDashboard } from "@/features/dashboard/CustomerDashboard";
 import { PlatformDashboard } from "@/features/dashboard/PlatformDashboard";
@@ -30,6 +32,14 @@ type View = "loading" | "login" | "home" | "unauthenticated" | "forbidden";
 
 function isAcceptInviteRoute(route: string): boolean {
   return route === "accept-invite" || route.startsWith("accept-invite?");
+}
+
+function isLoginRoute(route: string): boolean {
+  return route === "login";
+}
+
+function isPublicAuthRoute(route: string): boolean {
+  return isLoginRoute(route) || isAcceptInviteRoute(route);
 }
 
 /** One-time migration for bookmarks that still use hash URLs. */
@@ -51,6 +61,7 @@ export function PortalApp({ portal, title }: { portal: Portal; title: string }) 
       <LegacyHashRedirect />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={<PortalAppContent portal={portal} title={title} />} />
         <Route path="/*" element={<PortalAppContent portal={portal} title={title} />} />
       </Routes>
     </BrowserRouter>
@@ -99,6 +110,7 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
     try {
       await login(email, password);
       await refresh();
+      navigate("/dashboard", { replace: true });
     } catch (cause) {
       const apiError = cause as ApiError;
       setError(apiError.message || "Sign-in failed.");
@@ -118,6 +130,7 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
     }
     setSession(null);
     setView("login");
+    navigate("/login", { replace: true });
   }
 
   const active =
@@ -146,6 +159,9 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
   }
 
   if (view === "login" || view === "unauthenticated") {
+    if (!isLoginRoute(route)) {
+      return <Navigate to="/login" replace />;
+    }
     return (
       <LoginScreen
         portal={portal}
@@ -184,26 +200,34 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
     return null;
   }
 
+  if (isPublicAuthRoute(route)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return (
-    <AppShell
-      portal={portal}
-      title={title}
-      nav={nav}
-      route={route}
-      session={session}
-      onLogout={() => void onLogout()}
-    >
-      {route === "dashboard" ? (
-        portal === "platform" ? (
-          <PlatformDashboard onNavigate={go} />
-        ) : portal === "agency" ? (
-          <AgencyDashboard onNavigate={go} />
-        ) : (
-          <CustomerDashboard onNavigate={go} />
-        )
-      ) : (
-        renderProductScreen(portal, route, active.path, active.label)
-      )}
-    </AppShell>
+    <SessionProvider session={session}>
+      <AppShell
+        portal={portal}
+        title={title}
+        nav={nav}
+        route={route}
+        session={session}
+        onLogout={() => void onLogout()}
+      >
+        <HighRiskRouteGate portal={portal} route={route}>
+          {route === "dashboard" ? (
+            portal === "platform" ? (
+              <PlatformDashboard onNavigate={go} />
+            ) : portal === "agency" ? (
+              <AgencyDashboard onNavigate={go} />
+            ) : (
+              <CustomerDashboard onNavigate={go} />
+            )
+          ) : (
+            renderProductScreen(portal, route, active.path, active.label)
+          )}
+        </HighRiskRouteGate>
+      </AppShell>
+    </SessionProvider>
   );
 }

@@ -16,7 +16,11 @@ export type SessionPayload = {
     customer_id: string | null;
     status: string;
   };
+  /** ADR-007: role FK summary; id may be null for legacy rows. */
+  role: { id: string | null; slug: string; namespace: string };
   permissions: string[];
+  /** When true, server bypasses permission checks; permissions[] is empty. */
+  is_super_admin: boolean;
 };
 
 export type DashboardCard = {
@@ -63,7 +67,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 export async function apiSend<T>(
   path: string,
-  method: "POST" | "PUT" | "PATCH",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   payload: Record<string, unknown> = {},
   headers: Record<string, string> = {},
 ): Promise<T> {
@@ -76,7 +80,7 @@ export async function apiSend<T>(
       "X-CSRFToken": csrf,
       ...headers,
     },
-    body: JSON.stringify(payload),
+    body: method === "DELETE" ? undefined : JSON.stringify(payload),
   });
   return parse<T>(response);
 }

@@ -1,7 +1,10 @@
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useMemo } from "react";
 import { NavLink } from "react-router-dom";
 
 import type { Portal, SessionPayload } from "@/api";
+import { usePermissions } from "@/features/auth/hooks/usePermissions";
+import { highRiskPermissionsForRoute } from "@/features/rbac/lib/highRiskNav";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/nav";
 import { portalNavGroups } from "./navGroups";
@@ -30,7 +33,22 @@ export function Sidebar({
   onToggle: () => void;
   onLogout: () => void;
 }) {
-  const groups = portalNavGroups(portal, nav);
+  const { canAny } = usePermissions();
+  const groups = useMemo(() => {
+    const raw = portalNavGroups(portal, nav);
+    return raw
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          const itemRoute = item.href.replace(/^\/+/, "");
+          const required = highRiskPermissionsForRoute(portal, itemRoute);
+          if (!required) return true;
+          return canAny(required);
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [portal, nav, canAny]);
+
   const productTitle = portal === "platform" ? "Vokit Platform" : title;
   const productMeta = portal === "platform" ? "v 1.0" : `${portal} portal`;
 

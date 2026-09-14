@@ -55,6 +55,8 @@ export function usePlatformUsers() {
     email: string;
     role: string;
     principal_type: string;
+    tenant_id?: string | null;
+    customer_id?: string | null;
   }) {
     setBusy(true);
     setMessage("");
@@ -63,6 +65,8 @@ export function usePlatformUsers() {
         email: input.email,
         role: input.role,
         principal_type: input.principal_type,
+        ...(input.tenant_id ? { tenant_id: input.tenant_id } : {}),
+        ...(input.customer_id ? { customer_id: input.customer_id } : {}),
       });
       setMessage(
         created.token
