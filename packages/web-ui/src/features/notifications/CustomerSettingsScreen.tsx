@@ -2,10 +2,11 @@ import { useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { MfaSettingsPanel } from "@/features/auth/components/MfaSettingsPanel";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useCustomerSettings } from "./hooks/useCustomerSettings";
 
-type Tab = "preferences" | "inbox";
+type Tab = "preferences" | "inbox" | "security";
 
 function readTone(readAt?: string | null): BadgeTone {
   return readAt ? "neutral" : "warning";
@@ -41,7 +42,7 @@ export function CustomerSettingsScreen({
             Settings
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            Notification preferences · CU8-002
+            Notification preferences and MFA · CU8-002
           </p>
         </div>
         <ActionButton variant="secondary" onClick={() => void reload()}>
@@ -73,10 +74,20 @@ export function CustomerSettingsScreen({
         >
           Inbox
         </ActionButton>
+        <ActionButton
+          variant={tab === "security" ? "secondary" : "outline"}
+          onClick={() => setTab("security")}
+        >
+          Security
+        </ActionButton>
       </div>
 
-      {loading ? (
+      {loading && tab !== "security" ? (
         <p className="text-body text-text-muted">Loading…</p>
+      ) : tab === "security" ? (
+        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          <MfaSettingsPanel />
+        </article>
       ) : tab === "inbox" ? (
         <article className="rounded-xl border border-border-default bg-surface p-4 shadow-subtle">
           <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">

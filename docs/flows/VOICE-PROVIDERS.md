@@ -60,3 +60,15 @@ Normalized: `{ provider, voices: [{ id, name, language }] }`.
 | GET | `/api/v1/customer/tts/voices` | customer `agent.view` |
 
 Publish still requires `voice_id` and `language`. It does not require `voice_provider`.
+
+## Provider model list (settings UI)
+
+Lists models for a **specific vendor** using that vendor’s stored Family B key (not hardcoded). Used after Super Admin saves an API key so the Model dropdown can be filled.
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/v1/platform/providers/{vendor}/models?capability=stt\|tts\|llm` | platform `setting.view` or `setting.update` (or super_admin) |
+
+Normalized: `{ provider, capability, models: [{ id, name }] }`.
+
+Fail-closed: `503` if vendor/capability invalid or key missing; `502` if vendor HTTP fails.

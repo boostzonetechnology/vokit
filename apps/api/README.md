@@ -186,6 +186,7 @@ Notifications / audit / settings (control plane only):
 - `GET /api/v1/platform/audit-events` — immutable search; PATCH/DELETE return `audit_immutable`
 - `GET/PATCH /api/v1/platform/settings` + `POST /platform/settings/flags` — hold days, flags, masked secrets
 - `GET /api/v1/{platform|agency|customer}/tts/voices` — active TTS vendor voices (encrypted keys stay server-side)
+- `GET /api/v1/platform/providers/{vendor}/models?capability=stt|tts|llm` — model catalog for that vendor’s stored key (settings UI)
 - `GET/POST /api/v1/platform/notification-templates` `/announcements` `/notification-deliveries`
 - `GET /api/v1/{platform|agency|customer}/notifications` — current-user inbox only
 - `GET/PUT /api/v1/{agency|customer}/notification-preferences` — mandatory KYC/billing/security/suspension locked

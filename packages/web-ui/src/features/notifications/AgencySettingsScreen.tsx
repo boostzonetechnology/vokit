@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { MfaSettingsPanel } from "@/features/auth/components/MfaSettingsPanel";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useAgencySettings } from "./hooks/useAgencySettings";
 
@@ -77,7 +78,7 @@ export function AgencySettingsScreen({ initialTab = "preferences" }: AgencySetti
         ))}
       </div>
 
-      {loading ? (
+      {loading && tab !== "security" ? (
         <p className="text-body text-text-muted" role="status">
           Loading…
         </p>
@@ -93,15 +94,7 @@ export function AgencySettingsScreen({ initialTab = "preferences" }: AgencySetti
         </article>
       ) : tab === "security" ? (
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-          <h2 className="m-0 mb-2 text-[1.05rem] font-semibold text-text-primary">Security</h2>
-          <p className="mt-0 mb-3 text-body text-text-muted">
-            Session list, password change and MFA enrollment are not yet exposed for agency
-            self-service. Use logout from the account menu to end the current session.
-          </p>
-          <ApiNote>
-            AG14-003 — security management UI will connect when session/password/MFA APIs are
-            available.
-          </ApiNote>
+          <MfaSettingsPanel />
         </article>
       ) : tab === "inbox" ? (
         <article className="rounded-xl border border-border-default bg-surface p-4 shadow-subtle">

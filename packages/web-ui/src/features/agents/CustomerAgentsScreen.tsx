@@ -5,6 +5,7 @@ import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
+import { useTtsVoices } from "@/features/agents/hooks/useTtsVoices";
 import { useCustomerAgents } from "./hooks/useCustomerAgents";
 
 function statusTone(status?: string): BadgeTone {
@@ -35,6 +36,16 @@ export function CustomerAgentsScreen() {
 
   const [showEdit, setShowEdit] = useState(false);
   const canEdit = Boolean(detail?.customer_can_edit);
+  const { provider: ttsProvider, voices: ttsVoices } = useTtsVoices("customer");
+
+  const voiceLabel = (() => {
+    if (!detail?.voice_id) return "—";
+    const match = ttsVoices.find((voice) => voice.id === detail.voice_id);
+    if (match) {
+      return `${match.name || match.id}${match.language ? ` (${match.language})` : ""}`;
+    }
+    return detail.voice_id;
+  })();
 
   const statusOptions = useMemo(
     () => [...new Set(agents.map((row) => (row.status ?? "").toLowerCase()).filter(Boolean))],
@@ -159,10 +170,12 @@ export function CustomerAgentsScreen() {
                   </dd>
                 </div>
                 <div>
+                  <dt className="text-text-muted">Platform TTS</dt>
+                  <dd className="m-0 text-text-primary">{ttsProvider || "—"}</dd>
+                </div>
+                <div>
                   <dt className="text-text-muted">Voice</dt>
-                  <dd className="m-0 text-text-primary">
-                    {detail.voice_provider || "—"} / {detail.voice_id || "—"}
-                  </dd>
+                  <dd className="m-0 text-text-primary">{voiceLabel}</dd>
                 </div>
                 <div>
                   <dt className="text-text-muted">Inbound / outbound</dt>

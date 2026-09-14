@@ -74,6 +74,11 @@ const PlatformSettingsScreen = lazy(() =>
     default: m.PlatformSettingsScreen,
   })),
 );
+const PlatformSecurityScreen = lazy(() =>
+  import("@/features/auth/components/PlatformSecurityScreen").then((m) => ({
+    default: m.PlatformSecurityScreen,
+  })),
+);
 const PlatformKycScreen = lazy(() =>
   import("@/features/kyc/PlatformKycScreen").then((m) => ({ default: m.PlatformKycScreen })),
 );
@@ -208,6 +213,12 @@ export function renderPlatformProductScreen(route: string): ReactNode | null {
       return (
         <Lazy>
           <PlatformSettingsScreen />
+        </Lazy>
+      );
+    case "security":
+      return (
+        <Lazy>
+          <PlatformSecurityScreen />
         </Lazy>
       );
     case "kyc":

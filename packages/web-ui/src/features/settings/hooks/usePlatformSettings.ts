@@ -58,6 +58,34 @@ export function usePlatformSettings() {
     }
   }
 
+  async function updateSettingsBatch(
+    updates: Array<{ key: string; value: unknown; reason: string }>,
+  ) {
+    if (!updates.length) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      for (const update of updates) {
+        await apiSend("/api/v1/platform/settings", "PATCH", {
+          key: update.key,
+          value: update.value,
+          reason: update.reason,
+        });
+      }
+      setMessage(
+        updates.length === 1
+          ? `Updated ${updates[0].key}.`
+          : `Saved ${updates.length} provider settings.`,
+      );
+      await reload();
+    } catch (cause) {
+      setMessage(isApiError(cause) ? cause.message : "Update failed.");
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function setAgencyFlag(input: {
     agency_id: string;
     flag: string;
@@ -90,6 +118,7 @@ export function usePlatformSettings() {
     busy,
     reload,
     updateSetting,
+    updateSettingsBatch,
     setAgencyFlag,
   };
 }

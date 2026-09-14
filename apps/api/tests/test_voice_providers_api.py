@@ -319,3 +319,39 @@ def test_tts_voices_require_active_tts_key_and_are_scoped() -> None:
     assert foreign.status_code == 403
     assert listed.call_count == 3
     assert listed.call_args.args[0] == "cartesia"
+
+
+@pytest.mark.django_db
+def test_provider_models_use_vendor_key_not_active_provider() -> None:
+    ctx = _ready_voice_stack()
+    missing = ctx["platform"].get(
+        "/api/v1/platform/providers/openai/models?capability=llm"
+    )
+    assert missing.status_code == 503
+    assert missing.json()["error"]["code"] == "secret_missing"
+    _setting(ctx["platform"], "voice.openai.api_key", "sk-openai-list")
+    # Active LLM can be a different vendor; catalog still uses OpenAI's stored key.
+    _setting(ctx["platform"], "telephony.llm_provider", "anthropic")
+    with patch(
+        "control_plane.platform_settings.application.provider_models.list_provider_models",
+        return_value={
+            "provider": "openai",
+            "capability": "llm",
+            "models": [{"id": "gpt-4o-mini", "name": "gpt-4o-mini"}],
+        },
+    ) as listed:
+        response = ctx["platform"].get(
+            "/api/v1/platform/providers/openai/models?capability=llm"
+        )
+        foreign = ctx["agency_client"].get(
+            "/api/v1/platform/providers/openai/models?capability=llm"
+        )
+        bad_cap = ctx["platform"].get(
+            "/api/v1/platform/providers/openai/models?capability=stt"
+        )
+    assert response.status_code == 200
+    assert response.json()["data"]["provider"] == "openai"
+    assert response.json()["data"]["models"][0]["id"] == "gpt-4o-mini"
+    assert foreign.status_code == 403
+    assert bad_cap.status_code == 400
+    assert listed.call_args.args == ("openai", "llm", "sk-openai-list")
