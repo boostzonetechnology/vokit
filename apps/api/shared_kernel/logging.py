@@ -26,6 +26,12 @@ FORBIDDEN_KEYS = frozenset(
         "signing_secret",
         "passwd",
         "credential",
+        "otp",
+        "totp",
+        "recovery_code",
+        "mfa",
+        "otpauth",
+        "challenge_token",
     }
 )
 

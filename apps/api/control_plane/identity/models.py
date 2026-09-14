@@ -181,3 +181,66 @@ class UserSession(models.Model):
 
     class Meta:
         db_table = "identity_user_sessions"
+
+
+# ---------------------------------------------------------------------------
+# MFA (SEC-013 / RBAC-008) — TOTP + Email OTP
+# ---------------------------------------------------------------------------
+
+
+class MfaMethod(models.Model):
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="mfa_methods")
+    method_type = models.CharField(max_length=16)  # totp | email
+    status = models.CharField(max_length=16, default="pending")  # pending|active|disabled
+    secret_ciphertext = models.CharField(max_length=1024, blank=True, default="")
+    email = models.EmailField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    disabled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "identity_mfa_methods"
+        indexes = [
+            models.Index(fields=["user", "status"], name="idx_mfa_method_user"),
+        ]
+
+
+class MfaChallenge(models.Model):
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="mfa_challenges")
+    purpose = models.CharField(max_length=16)  # login | enroll | disable
+    method = models.ForeignKey(
+        MfaMethod,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="challenges",
+    )
+    token_hash = models.CharField(max_length=64, unique=True)
+    code_hash = models.CharField(max_length=64, blank=True, default="")
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=5)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "identity_mfa_challenges"
+        indexes = [
+            models.Index(fields=["user", "purpose"], name="idx_mfa_chal_user"),
+        ]
+
+
+class MfaRecoveryCode(models.Model):
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="mfa_recovery_codes")
+    code_hash = models.CharField(max_length=64)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "identity_mfa_recovery_codes"
+        indexes = [
+            models.Index(fields=["user", "used_at"], name="idx_mfa_recovery_user"),
+        ]

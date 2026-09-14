@@ -1,4 +1,8 @@
-"""Secret references only. Models store the key name, never the plaintext."""
+"""Secret references only. Models store the key name, never the plaintext.
+
+V1 provider is env-only (ADR-008). Per-row secrets (tenant DB pwd, MFA TOTP)
+use app vaults — not SecretRef.
+"""
 
 from __future__ import annotations
 

@@ -11,6 +11,14 @@ from control_plane.reporting.infrastructure.container import dashboards
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 
+_PLATFORM_DASHBOARD_PERMS = frozenset({"agency.view", "billing.view", "call.view"})
+_AGENCY_DASHBOARD_PERMS = frozenset(
+    {"customer.view", "agent.view", "call.view", "wallet.view", "team.view", "kyc.view"}
+)
+_CUSTOMER_DASHBOARD_PERMS = frozenset(
+    {"agent.view", "call.view", "billing.pay", "team.view", "recording.view"}
+)
+
 
 def _window(request: Request):
     return parse_window(
@@ -21,12 +29,17 @@ def _window(request: Request):
     )
 
 
+def _require_any_perm(context, allowed: frozenset[str]) -> None:
+    if context.is_super_admin:
+        return
+    if not (allowed & context.permissions):
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+
+
 class PlatformDashboardView(CsrfAPIView):
     def get(self, request: Request) -> Response:
         context = require_principal(request, PrincipalType.PLATFORM)
-        allowed = {"agency.view", "billing.view", "call.view"}
-        if not context.is_super_admin and not (allowed & context.permissions):
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        _require_any_perm(context, _PLATFORM_DASHBOARD_PERMS)
         return success(
             dashboards().platform(
                 _window(request),
@@ -42,6 +55,7 @@ class AgencyDashboardView(CsrfAPIView):
         context = require_principal(request, PrincipalType.AGENCY)
         if context.membership.tenant_id is None:
             raise DomainError("forbidden", "Not permitted.", http_status=403)
+        _require_any_perm(context, _AGENCY_DASHBOARD_PERMS)
         return success(dashboards().agency(context.membership.tenant_id, _window(request)))
 
 
@@ -51,6 +65,7 @@ class CustomerDashboardView(CsrfAPIView):
         membership = context.membership
         if membership.tenant_id is None or membership.customer_id is None:
             raise DomainError("forbidden", "Not permitted.", http_status=403)
+        _require_any_perm(context, _CUSTOMER_DASHBOARD_PERMS)
         return success(
             dashboards().customer(
                 membership.tenant_id,

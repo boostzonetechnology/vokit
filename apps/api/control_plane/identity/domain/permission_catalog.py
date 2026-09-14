@@ -34,6 +34,12 @@ _PLATFORM: list[PermissionSpec] = [
     PermissionSpec("platform", "user.view", "List/view platform users"),
     PermissionSpec("platform", "user.create", "Invite a new platform user"),
     PermissionSpec("platform", "user.delete", "Disable a platform user"),
+    PermissionSpec(
+        "platform",
+        "mfa.reset",
+        "Reset another user's MFA methods (audited)",
+        is_sensitive=True,
+    ),
     # Tenancy
     PermissionSpec("platform", "tenant.view", "View tenant registry entries"),
     PermissionSpec("platform", "tenant.provision", "Provision a new tenant database"),
@@ -156,6 +162,9 @@ _AGENCY: list[PermissionSpec] = [
     PermissionSpec("agency", "payout.request", "Request a payout"),
     # Knowledge
     PermissionSpec("agency", "knowledge.view", "View knowledge bases"),
+    # KYC (agency self-service)
+    PermissionSpec("agency", "kyc.view", "View own agency KYC status"),
+    PermissionSpec("agency", "kyc.start", "Start or resume KYC provider session"),
 ]
 
 
@@ -220,12 +229,12 @@ ROLE_SEED_BUNDLES: dict[str, dict] = {
     "finance_admin": {
         "namespace": "platform",
         "display_name": "Finance Admin",
-        "permissions": frozenset({"payout.approve", "wallet.adjust", "billing.view"}),
+        "permissions": frozenset({"payout.approve", "wallet.adjust", "billing.view", "mfa.reset"}),
     },
     "compliance_kyc": {
         "namespace": "platform",
         "display_name": "Compliance / KYC",
-        "permissions": frozenset({"kyc.review", "risk.view", "recording.view"}),
+        "permissions": frozenset({"kyc.review", "risk.view", "recording.view", "mfa.reset"}),
     },
     "support_admin": {
         "namespace": "platform",
@@ -264,11 +273,12 @@ ROLE_SEED_BUNDLES: dict[str, dict] = {
                 "notice.view", "notice.update",
                 # knowledge
                 "knowledge.view",
+                # kyc self-service
+                "kyc.view", "kyc.start",
                 # NOTE: no wallet.view, payout.request, recording.hold
             }
         ),
-    },
-    "agency_agent_builder": {
+    },    "agency_agent_builder": {
         "namespace": "agency",
         "display_name": "Agency Agent Builder",
         "permissions": frozenset(

@@ -120,6 +120,9 @@ def parse_optional_uuid(value: object, *, field: str) -> uuid.UUID | None:
 def session_payload(user: UserRecord, membership: MembershipRecord) -> dict[str, object]:
     ctx = AuthContext(user=user, membership=membership)
     is_sa = ctx.is_super_admin
+    from control_plane.identity.infrastructure.mfa_repositories import DjangoMfaRepository
+
+    mfa_enrolled = DjangoMfaRepository().active_count(user.id) > 0
     return {
         "user": {
             "id": str(user.id),
@@ -141,4 +144,5 @@ def session_payload(user: UserRecord, membership: MembershipRecord) -> dict[str,
         },
         "permissions": [] if is_sa else sorted(ctx.permissions),
         "is_super_admin": is_sa,
+        "mfa_enrolled": mfa_enrolled,
     }

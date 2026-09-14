@@ -8,7 +8,10 @@ from control_plane.identity.application.accept_invitation import AcceptInvitatio
 from control_plane.identity.application.authenticate import AuthenticateUser
 from control_plane.identity.application.disable_user import DisableUser
 from control_plane.identity.application.invite_user import InviteUser
+from control_plane.identity.application.mfa import MfaService
 from control_plane.identity.infrastructure.clock import SystemClock
+from control_plane.identity.infrastructure.mfa_repositories import DjangoMfaRepository
+from control_plane.identity.infrastructure.mfa_vault import MfaSecretVault
 from control_plane.identity.infrastructure.passwords import DjangoPasswordHasher
 from control_plane.identity.infrastructure.rate_limit import CacheLoginRateLimiter
 from control_plane.identity.infrastructure.repositories import (
@@ -17,6 +20,7 @@ from control_plane.identity.infrastructure.repositories import (
     DjangoUserRepository,
 )
 from control_plane.identity.infrastructure.sessions import DjangoSessionGateway
+from control_plane.notifications.infrastructure.mailer import DjangoMailer
 
 INVITE_TTL = timedelta(days=7)
 
@@ -31,6 +35,16 @@ def memberships() -> DjangoMembershipRepository:
 
 def invitations() -> DjangoInvitationRepository:
     return DjangoInvitationRepository()
+
+
+def mfa_service() -> MfaService:
+    return MfaService(
+        repo=DjangoMfaRepository(),
+        vault=MfaSecretVault(),
+        mailer=DjangoMailer(),
+        users=users(),
+        memberships=memberships(),
+    )
 
 
 def invite_user() -> InviteUser:
@@ -67,6 +81,7 @@ def authenticate_user(request: HttpRequest) -> AuthenticateUser:
         DjangoPasswordHasher(),
         DjangoSessionGateway(request),
         CacheLoginRateLimiter(),
+        mfa_service(),
     )
 
 

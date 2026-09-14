@@ -6,9 +6,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from control_plane.identity.api.auth import parse_uuid, require_platform_perm, require_principal
+from control_plane.identity.api.auth import parse_uuid, require_agency_perm, require_platform_perm
 from control_plane.identity.api.views import CsrfAPIView
-from control_plane.identity.domain.types import PrincipalType
 from control_plane.kyc.application.override_case import OverrideKycCommand
 from control_plane.kyc.application.ports import (
     KycCaseRecord,
@@ -51,7 +50,7 @@ def _case_payload(case: KycCaseRecord, *, privileged: bool) -> dict[str, object]
 
 class AgencyKycView(CsrfAPIView):
     def get(self, request: Request) -> Response:
-        context = require_principal(request, PrincipalType.AGENCY)
+        context = require_agency_perm(request, "kyc.view")
         tenant_id = context.membership.tenant_id
         if tenant_id is None:
             raise DomainError("forbidden", "Not permitted.", http_status=403)
@@ -80,7 +79,7 @@ class AgencyKycView(CsrfAPIView):
 
 class AgencyKycSessionView(CsrfAPIView):
     def post(self, request: Request) -> Response:
-        context = require_principal(request, PrincipalType.AGENCY)
+        context = require_agency_perm(request, "kyc.start")
         tenant_id = context.membership.tenant_id
         if tenant_id is None:
             raise DomainError("forbidden", "Not permitted.", http_status=403)

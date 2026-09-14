@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-10  
 **Scope:** Authentication, RBAC, tenant routing, secrets, webhooks, uploads, payments, KYC, recordings.  
-**SoT:** SRS §25–26, `16-SECURITY-STANDARDS.md`, ADR-001–006.
+**SoT:** SRS §25–26, `16-SECURITY-STANDARDS.md`, ADR-001–008.
 
 This is a review of the implemented control plane, not a production go-live. Staging/canary evidence is Phase 18.
 
@@ -39,10 +39,28 @@ This is a review of the implemented control plane, not a production go-live. Sta
 
 ## MFA (RBAC-008 / SEC-013) — Should
 
-`security.mfa_required_privileged` defaults **off** for lab login.  
-When enabled, Super Admin / Finance / KYC / agency owner login fails closed (`mfa_required`) because enrollment/TOTP is not shipped yet.
+`security.mfa_required_privileged` defaults **off**.
 
-Production finance must not flip this on until an enrollment path exists **or** keep it off and accept the residual risk listed in `22-PRODUCTION-CHECKLIST.md`. Do not silently skip the check.
+When enabled, Super Admin / Finance / KYC / agency owner must have ≥1 active MFA method or login fails closed (`mfa_required`).
+
+**Enrollment is implemented** (TOTP + Email OTP + recovery codes + platform `mfa.reset`):
+
+- Flows: `docs/flows/auth/MFA_FLOW.md`
+- APIs under `/api/v1/auth/mfa/*`
+- Keep the flag off in lab until operators have enrolled (or use admin reset).
+
+Production finance must not flip the flag on without an enrollment path for each privileged operator.
+
+## Secrets (SEC-003 / SEC-015 / VKT-010)
+
+| Layer | Status |
+|---|---|
+| SecretRef env | KEEP — provider keys by name only |
+| Tenant DB vault | Family B signing vault |
+| MFA TOTP vault | Family B (`identity_mfa_totp`) — Phase E |
+| Production KMS | **Planned** in ADR-008; not implemented |
+
+Do not replace SecretRef until ADR-008 follow-up ships. Rotation: `runbooks/key-rotation.md`.
 
 ## Impersonation (SA3-006) — Should, not implemented
 
@@ -50,7 +68,7 @@ Production finance must not flip this on until an enrollment path exists **or** 
 
 ## Residual risks (do not treat as green)
 
-- Privileged MFA enrollment is not implemented.
+- Privileged MFA UI (portal Security Settings) may still be missing; backend MFA APIs exist.
 - Recording server and CRM OAuth adapters are still in-memory in this repo.
 - Email is Django SMTP/locmem, not a production ESP.
 - Invite accept token is still returned on the invite API for lab use.

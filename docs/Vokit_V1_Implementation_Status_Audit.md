@@ -391,11 +391,11 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | ------- | -------- | ------------------ | ---------------------------------------------------- | ---- | --- | --------------- | --------------- | --------------- | --------------- | --------------- |
 | VKT-001 | Sprint 1 | Foundation         | Baseline implementation traceability                 | Must | 2   | PARTIAL         | PARTIAL         | N/A             | N/A             | PARTIAL         |
 | VKT-002 | Sprint 1 | Foundation         | Define tenant ownership model                        | Must | 5   | COMPLETE        | COMPLETE        | N/A             | COMPLETE        | COMPLETE        |
-| VKT-003 | Sprint 1 | Foundation         | Create core identity and tenancy tables              | Must | 5   | PARTIAL         | PARTIAL         | N/A             | N/A             | PARTIAL         |
+| VKT-003 | Sprint 1 | Foundation         | Create core identity and tenancy tables              | Must | 5   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
 | VKT-004 | Sprint 1 | Foundation         | Create commercial and financial tables               | Must | 8   | PARTIAL         | PARTIAL         | N/A             | N/A             | COMPLETE        |
 | VKT-005 | Sprint 1 | Foundation         | Create AI/telephony/integration tables               | Must | 8   | PARTIAL         | PARTIAL         | N/A             | N/A             | PARTIAL         |
 | VKT-006 | Sprint 1 | Foundation         | Create notification and audit tables                 | Must | 3   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
-| VKT-007 | Sprint 1 | Foundation         | Implement secure authentication/session foundation   | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
+| VKT-007 | Sprint 1 | Foundation         | Implement secure authentication/session foundation   | Must | 5   | PARTIAL         | COMPLETE        | PARTIAL         | N/A             | COMPLETE        |
 | VKT-008 | Sprint 1 | Foundation         | Implement server-side RBAC and tenant guards         | Must | 8   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
 | VKT-009 | Sprint 1 | Foundation         | Implement input validation and security middleware   | Must | 5   | PARTIAL         | PARTIAL         | N/A             | PARTIAL         | PARTIAL         |
 | VKT-010 | Sprint 1 | Foundation         | Implement server-side secret management              | Must | 3   | PARTIAL         | PARTIAL         | N/A             | PARTIAL         | COMPLETE        |
@@ -786,38 +786,41 @@ Implement Agency, Customer, User and Role persistence with status fields and sco
 
 ### Current Implementation Status
 
-**Overall:** PARTIAL
+**Overall:** COMPLETE
 
-**Backend:** PARTIAL  
+**Backend:** COMPLETE  
 **UI:** N/A  
 **Infrastructure/Integration:** N/A  
-**Tests:** PARTIAL  
+**Tests:** COMPLETE  
 
 ### What Already Exists
 
 - Agency/Tenant, Customer, User, Membership models with status fields
-- Financial/KYC/audit immutability guards on audit + ledger patterns
+- **Role / Permission / RolePermission ORM** (ADR-007 dynamic RBAC) — not a static Python catalog only
+- Financial/KYC/audit hard-delete denial via `HardDeleteForbiddenModel` + `AuditEvent` immutability (`audit_immutable`)
+- TEN-006 tests: `apps/api/tests/test_hard_delete_ten006.py`
 
 
 
 ### What Is Missing
 
-- Dedicated Role ORM table — roles are catalog in identity/domain/roles.py
-- Explicit hard-delete prevention tests for all financial/KYC entity types
+*None for VKT-003 DoD (identity/tenancy tables + hard-delete of financial/KYC/audit).*
 
 
 
 ### What Is Partial
 
-*N/A or covered under Missing/Exists.*
+*N/A — DoD items for this ticket are covered.*
 
 ### Codebase Evidence
 
-- apps/api/control_plane/tenancy/models.py — Tenant
-- apps/api/control_plane/identity/models.py — User, Membership
-- apps/api/control_plane/customers/models.py — CustomerIndex
-- apps/api/control_plane/identity/domain/roles.py — PLATFORM/AGENCY/CUSTOMER_PERMISSIONS
-- apps/api/control_plane/audit/models.py — AuditEvent.assert_immutable
+- `apps/api/control_plane/tenancy/models.py` — Tenant
+- `apps/api/control_plane/identity/models.py` — User, Membership, Role, Permission, RolePermission
+- `apps/api/control_plane/customers/models.py` — CustomerIndex
+- `apps/api/shared_kernel/hard_delete.py` — TEN-006 hard-delete guard (`HardDeleteForbiddenModel`)
+- `apps/api/control_plane/audit/models.py` — AuditEvent + `assert_immutable`
+- `apps/api/tests/test_hard_delete_ten006.py`
+- `docs/flows/RBAC-ROLES-PERMISSIONS.md`
 
 
 
@@ -833,18 +836,17 @@ Dependencies are COMPLETE or do not block evaluating this task's own gaps.
 
 ### Acceptance / QA Coverage
 
-Some automated tests exist; gaps remain relative to full DoD/acceptance (see Missing/Remaining).
+Automated TEN-006 hard-delete denial tests cover audit, ledger, payout/proof, invoice/payment events, KYC case/events.
 
 ### Required Remaining Work
 
-- Document Role-as-catalog as intentional OR add Role table if product requires DB roles
-- Add hard-delete denial tests for ledger/KYC/payment rows
+*None for VKT-003.*
 
 
 
 ### Audit Conclusion
 
-VKT-003 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-003 is **COMPLETE**. Role ORM + TEN-006 hard-delete coverage are in place; do not rebuild identity tables.
 
 ---
 
@@ -892,27 +894,28 @@ Implement Plan/version, Subscription, Invoice, Payment, CommissionEntry, WalletL
 ### What Already Exists
 
 - Plan, PlanVersion, Subscription, Invoice, Payment, LedgerEntry, Payout, PayoutProof models
-- Commission captured as ledger entries with snapshots (not separate CommissionEntry table name)
+- **LedgerEntry is CommissionEntry / wallet SoT** (documented; no parallel CommissionEntry table)
+- Hard-delete forbidden on LedgerEntry, Payout, PayoutProof, InvoiceIndex, PaymentProcessorEvent
 
 
 
 ### What Is Missing
 
-- Named CommissionEntry table — commission is LedgerEntry kinds with snapshots
-- Full immutability enforcement on all commercial tables beyond ledger/audit
+*No CommissionEntry rename required — SoT mapping documented in `docs/flows/LEDGER-AND-AGENT-ACTION-SOT.md`.*
 
 
 
 ### What Is Partial
 
-*N/A or covered under Missing/Exists.*
+- Broader commercial surface (plans/subscriptions/invoices) may still have product gaps outside Phase A hygiene
 
 ### Codebase Evidence
 
-- apps/api/control_plane/billing/models.py
-- apps/api/control_plane/commission/models.py — LedgerEntry, Payout, PayoutProof
-- apps/api/tests/test_appendix_c.py
-- apps/api/tests/test_billing_domain.py
+- `apps/api/control_plane/billing/models.py`
+- `apps/api/control_plane/commission/models.py` — LedgerEntry, Payout, PayoutProof
+- `apps/api/shared_kernel/hard_delete.py`
+- `apps/api/tests/test_hard_delete_ten006.py`
+- `docs/flows/LEDGER-AND-AGENT-ACTION-SOT.md`
 
 
 
@@ -928,18 +931,17 @@ Dependencies are COMPLETE or do not block evaluating this task's own gaps.
 
 ### Acceptance / QA Coverage
 
-Automated tests covering the core DoD behaviors were found (see Evidence).
+Hard-delete denial tests cover ledger/payout/invoice/payment-event rows; ledger/commission domain tests remain.
 
 ### Required Remaining Work
 
-- Accept LedgerEntry as CommissionEntry SoT in docs/Jira OR rename for clarity
-- Audit which commercial rows allow unsafe delete
+- Continue commercial feature completeness only where product DoD still requires it (not CommissionEntry table rename)
 
 
 
 ### Audit Conclusion
 
-VKT-004 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-004 remains **PARTIAL** for broader commercial completeness, but Phase A SoT + TEN-006 hard-delete for ledger/payment rows are done. Do not add a parallel CommissionEntry table.
 
 ---
 
@@ -985,26 +987,29 @@ Implement Agent, AgentTemplate, KnowledgeSource, PhoneNumber, Call, CallArtifact
 ### What Already Exists
 
 - Agent, templates, knowledge, PhoneNumber, Call indexes, IntegrationConnection, WebhookEndpoint/Delivery, recording artifacts
+- **AgentAction DoD mapped to tool allowlist** (`tools` JSON + domain allowlist; documented — no separate Action ORM)
 
 
 
 ### What Is Missing
 
-- AgentAction as first-class persistence table — actions are allowlisted tools + integration invoke path
-- Full CallArtifact unified model naming vs recordings module split
+- Full CallArtifact unified model naming vs recordings module split (outside Phase A AgentAction SoT)
 
 
 
 ### What Is Partial
 
-*N/A or covered under Missing/Exists.*
+*Call/artifact naming may remain split; AgentAction SoT is documented.*
 
 ### Codebase Evidence
 
-- apps/api/control_plane/agents/models.py
-- apps/api/control_plane/telephony/models.py
-- apps/api/control_plane/integrations/models.py
-- apps/api/control_plane/recordings/
+- `apps/api/control_plane/agents/models.py` — `tools` JSONField
+- `apps/api/control_plane/agents/domain/policies.py` — tool allowlist
+- `apps/api/control_plane/agents/README.md`
+- `docs/flows/LEDGER-AND-AGENT-ACTION-SOT.md`
+- `apps/api/control_plane/telephony/models.py`
+- `apps/api/control_plane/integrations/models.py`
+- `apps/api/control_plane/recordings/`
 
 
 
@@ -1020,18 +1025,17 @@ Dependencies are COMPLETE or do not block evaluating this task's own gaps.
 
 ### Acceptance / QA Coverage
 
-Some automated tests exist; gaps remain relative to full DoD/acceptance (see Missing/Remaining).
+Some automated tests exist; CallArtifact naming gaps may remain.
 
 ### Required Remaining Work
 
-- Map AgentAction DoD to tool allowlist + integration action categories in docs
-- Confirm artifact persistence covers transcript/summary as required
+- Confirm artifact persistence covers transcript/summary as required (not AgentAction table)
 
 
 
 ### Audit Conclusion
 
-VKT-005 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-005 remains **PARTIAL** for CallArtifact unification, but AgentAction = allowlist SoT is documented. Do not add an AgentAction ORM table without an ADR.
 
 ---
 
@@ -1158,36 +1162,41 @@ Implement secure authentication for all three portals, secure session handling, 
 
 **Overall:** PARTIAL
 
-**Backend:** PARTIAL  
+**Backend:** COMPLETE  
 **UI:** PARTIAL  
 **Infrastructure/Integration:** N/A  
-**Tests:** PARTIAL  
+**Tests:** COMPLETE  
 
 ### What Already Exists
 
 - Login/logout/session, CSRF endpoint, login rate limit, UserSession
 - Login UI
+- **MFA backend:** TOTP + Email OTP enroll/confirm, login challenge/verify, recovery codes, platform `mfa.reset`
+- Tables: `identity_mfa_methods`, `identity_mfa_challenges`, `identity_mfa_recovery_codes`
+- Flows: `docs/flows/auth/*`
 
 
 
 ### What Is Missing
 
-- MFA enrollment/TOTP for privileged users (policy flag only)
+- Portal Security Settings / MFA enrollment UI (AG14-003)
 - Invite acceptance UI (API exists separately)
 
 
 
 ### What Is Partial
 
-*N/A or covered under Missing/Exists.*
+- Frontend MFA challenge handling after password login
 
 ### Codebase Evidence
 
-- apps/api/control_plane/identity/api/views.py — LoginView, SessionView, CsrfView
-- apps/api/control_plane/identity/infrastructure/rate_limit.py
-- apps/api/control_plane/identity/domain/policies.py — assert_privileged_mfa
-- packages/web-ui/src/features/auth/components/LoginScreen.tsx
-- docs/execution/24-PHASE-17-SECURITY-REVIEW.md
+- `apps/api/control_plane/identity/api/mfa_views.py`
+- `apps/api/control_plane/identity/application/mfa.py`
+- `apps/api/control_plane/identity/application/authenticate.py` — challenge when enrolled
+- `apps/api/control_plane/identity/migrations/0004_mfa_methods.py`
+- `apps/api/tests/test_mfa_api.py`
+- `docs/flows/auth/MFA_FLOW.md`
+- `packages/web-ui/src/features/auth/components/LoginScreen.tsx`
 
 
 
@@ -1197,18 +1206,18 @@ No Jira dependencies. Task can be evaluated independently.
 
 ### Acceptance / QA Coverage
 
-Some automated tests exist; gaps remain relative to full DoD/acceptance (see Missing/Remaining).
+Automated MFA enroll/login/challenge/recovery/admin-reset tests; existing privileged flag test retained.
 
 ### Required Remaining Work
 
-- Implement MFA enrollment + challenge for privileged roles
+- Wire portal login UI to MFA challenge + Security Settings enroll screens
 - Keep CSRF/session hardening verified in staging
 
 
 
 ### Audit Conclusion
 
-VKT-007 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-007 **backend MFA is COMPLETE**; overall remains **PARTIAL** until portal MFA UI ships. Do not rebuild auth/session.
 
 ---
 
@@ -1258,7 +1267,8 @@ Every protected request must check role permissions and tenant ownership server-
 - Tenant/customer scope binding from membership
 - Dynamic roles + role_permissions + additive permission sync (command + API)
 - Platform role CRUD APIs; agency/customer read-only role lists
-- Negative tests: `apps/api/tests/test_rbac_api.py`
+- **Phase D least-privilege:** invitations, disable-user, customer team, agency KYC, dashboards gated by perms (not bare principal)
+- Negative tests: `apps/api/tests/test_rbac_api.py`, `apps/api/tests/test_rbac_least_privilege.py`
 
 
 
@@ -1275,10 +1285,13 @@ Every protected request must check role permissions and tenant ownership server-
 ### Codebase Evidence
 
 - docs/adr/ADR-007-dynamic-rbac-roles-permissions.md
-- apps/api/control_plane/identity/domain/permission_catalog.py
+- apps/api/control_plane/identity/domain/permission_catalog.py — includes agency `kyc.view` / `kyc.start`
 - apps/api/control_plane/identity/api/auth.py
-- apps/api/control_plane/identity/api/rbac_views.py
+- apps/api/control_plane/identity/api/views.py — invitations / disable / customer team
+- apps/api/control_plane/kyc/api/views.py — agency KYC perm gates
+- apps/api/control_plane/reporting/api/views.py — dashboard allow-sets
 - apps/api/tests/test_rbac_api.py
+- apps/api/tests/test_rbac_least_privilege.py
 - docs/flows/RBAC-ROLES-PERMISSIONS.md
 
 
@@ -1351,8 +1364,10 @@ Normalize/validate URLs, phone numbers, webhook payloads and external inputs; ad
 
 - CSRF for state-changing browser APIs
 - Login rate limiting
+- **MFA/OTP rate limits** (send 5/10m, verify failures 10/5m) + per-challenge attempt cap/TTL
 - Input validation at API serializers/views
 - Production hardening settings
+- Redis multi-worker cache plan documented in `docs/flows/auth/MFA_FLOW.md`
 
 
 
@@ -1369,9 +1384,12 @@ Normalize/validate URLs, phone numbers, webhook payloads and external inputs; ad
 
 ### Codebase Evidence
 
-- apps/api/config/settings/hardening.py
-- apps/api/control_plane/identity/infrastructure/rate_limit.py
-- apps/api/shared_kernel/http/exceptions.py — csrf_failure
+- `apps/api/config/settings/hardening.py`
+- `apps/api/control_plane/identity/infrastructure/rate_limit.py` — login + MFA send/verify
+- `apps/api/control_plane/identity/api/mfa_views.py`
+- `apps/api/tests/test_mfa_api.py` — brute-force `429 rate_limited`
+- `apps/api/shared_kernel/http/exceptions.py` — csrf_failure
+- `docs/flows/auth/MFA_FLOW.md`
 
 
 
@@ -1381,25 +1399,25 @@ Normalize/validate URLs, phone numbers, webhook payloads and external inputs; ad
 
 **Dependency Status:**
 
-- VKT-007 = PARTIAL
-- VKT-008 = PARTIAL
+- VKT-007 = PARTIAL (backend MFA complete; FE pending)
+- VKT-008 = COMPLETE
 
-Remaining work may still depend on: VKT-007, VKT-008.
+Remaining work may still depend on: payout/upload/webhook rate-limit slices.
 
 ### Acceptance / QA Coverage
 
-Some automated tests exist; gaps remain relative to full DoD/acceptance (see Missing/Remaining).
+Login + MFA send/verify rate-limit tests cover SEC-008 for auth/OTP paths.
 
 ### Required Remaining Work
 
 - Add rate-limit policies for payout/upload/webhook-replay
-- Document validation matrix per high-risk endpoint
+- Document validation matrix per remaining high-risk endpoint
 
 
 
 ### Audit Conclusion
 
-VKT-009 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-009 remains **PARTIAL** overall (payout/upload/webhook limits still open), but **SEC-008 MFA/OTP rate limits are done** (Phase C). Do not rebuild login limiter.
 
 ---
 
@@ -1444,28 +1462,35 @@ Store payment, telephony, AI, OAuth refresh and webhook signing secrets encrypte
 
 ### What Already Exists
 
-- SecretRef type
-- Encrypted tenant DB credential vault
+- SecretRef type (`env` provider only — KEEP)
+- Encrypted tenant DB credential vault (Family B)
+- MFA TOTP app vault (`MfaSecretVault`, salt `identity_mfa_totp`) — Phase E verified
 - Webhook secret refs for billing/KYC
+- **ADR-008** — secret families + production KMS path (no SecretRef replace in this phase)
+- Key-rotation runbook includes MFA re-wrap
 
 
 
 ### What Is Missing
 
-- Full external secret-manager backend (env/file vault pattern today)
-- Provider API keys not all in a single rotated vault UI
+- Implement chosen cloud `SecretBackend` (AWS SM / GCP SM / Vault) behind port
+- KMS envelope re-wrap for Family B vaults
+- Audit pass: every provider credential path uses SecretRef exclusively (ops follow-up)
 
 
 
 ### What Is Partial
 
-*N/A or covered under Missing/Exists.*
+*Env-only SecretRef and Django-signing vaults are intentional V1; KMS is planned, not shipped.*
 
 ### Codebase Evidence
 
+- docs/adr/ADR-008-secret-management-kms-path.md
 - apps/api/shared_kernel/secrets.py — SecretRef
 - apps/api/control_plane/tenancy/infrastructure/vault.py
+- apps/api/control_plane/identity/infrastructure/mfa_vault.py
 - apps/api/tests/test_secret_ref.py
+- apps/api/tests/test_mfa_vault.py
 - docs/execution/runbooks/key-rotation.md
 
 
@@ -1482,18 +1507,19 @@ Remaining work may still depend on: VKT-009.
 
 ### Acceptance / QA Coverage
 
-Automated tests covering the core DoD behaviors were found (see Evidence).
+Automated tests covering SecretRef + MFA vault round-trip / fail-closed (see Evidence).
 
 ### Required Remaining Work
 
-- Decide production KMS/secret-manager adapter
-- Ensure all provider secrets use SecretRef exclusively
+- Implement ADR-008 cloud `SecretBackend` when production host is fixed
+- Family B KMS envelope + re-wrap job
+- Staging rotation evidence (webhook + MFA canary)
 
 
 
 ### Audit Conclusion
 
-VKT-010 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-010 remains **PARTIAL** (KMS not shipped). Phase E closed the planning gap and confirmed MFA vault alignment; do not replace SecretRef until the ADR follow-up story.
 
 ---
 
@@ -14954,79 +14980,79 @@ Open detailed VKT section and finish listed remaining work.
 ### VKT-003 — Create core identity and tenancy tables
 
 **Already exists:**
-- Backend: PARTIAL; UI: N/A (see detailed record)
+- Backend: COMPLETE; Role ORM + TEN-006 hard-delete tests
 
 **Still missing:**
-- See detailed task record Required Remaining Work.
+- None for this ticket.
 
 **Next action:**
-Open detailed VKT section and finish listed remaining work.
+None — COMPLETE.
 
 ### VKT-004 — Create commercial and financial tables
 
 **Already exists:**
-- Backend: PARTIAL; UI: N/A (see detailed record)
+- Backend: PARTIAL; LedgerEntry = CommissionEntry SoT + hard-delete (Phase A)
 
 **Still missing:**
-- See detailed task record Required Remaining Work.
+- Broader commercial completeness only (not CommissionEntry rename).
 
 **Next action:**
-Open detailed VKT section and finish listed remaining work.
+Open detailed VKT section; do not rebuild ledger as CommissionEntry.
 
 ### VKT-005 — Create AI/telephony/integration tables
 
 **Already exists:**
-- Backend: PARTIAL; UI: N/A (see detailed record)
+- Backend: PARTIAL; AgentAction = tool allowlist SoT documented (Phase A)
 
 **Still missing:**
-- See detailed task record Required Remaining Work.
+- CallArtifact unified naming (if still required).
 
 **Next action:**
-Open detailed VKT section and finish listed remaining work.
+Open detailed VKT section; do not add AgentAction ORM without ADR.
 
 ### VKT-007 — Implement secure authentication/session foundation
 
 **Already exists:**
-- Backend: PARTIAL; UI: PARTIAL (see detailed record)
+- Backend: COMPLETE (session + MFA TOTP/Email OTP); UI: PARTIAL
 
 **Still missing:**
-- See detailed task record Required Remaining Work.
+- Portal MFA challenge + Security Settings UI
 
 **Next action:**
-Open detailed VKT section and finish listed remaining work.
+FE wire-up; keep flag default false until operators enrolled.
 
 ### VKT-008 — Implement server-side RBAC and tenant guards
 
 **Already exists:**
-- Backend: PARTIAL; UI: N/A (see detailed record)
+- Backend: COMPLETE (ADR-007 + Phase D least-privilege on invitations/team/KYC/dashboards); UI: N/A
 
 **Still missing:**
-- See detailed task record Required Remaining Work.
+- None for DoD; FE role UI deferred
 
 **Next action:**
-Open detailed VKT section and finish listed remaining work.
+Keep catalog in sync (`sync_permissions`); optional FE role management later.
 
 ### VKT-009 — Implement input validation and security middleware
 
 **Already exists:**
-- Backend: PARTIAL; UI: N/A (see detailed record)
+- CSRF, login rate limit, MFA/OTP send+verify rate limits (Phase C)
 
 **Still missing:**
-- See detailed task record Required Remaining Work.
+- Payout / upload / webhook-replay rate limits
 
 **Next action:**
-Open detailed VKT section and finish listed remaining work.
+Remaining SEC-008 surfaces outside auth/OTP.
 
 ### VKT-010 — Implement server-side secret management
 
 **Already exists:**
-- Backend: PARTIAL; UI: N/A (see detailed record)
+- SecretRef (env), tenant + MFA app vaults, ADR-008 KMS path (plan); UI: N/A
 
 **Still missing:**
-- See detailed task record Required Remaining Work.
+- Cloud SecretBackend implementation + Family B KMS envelope
 
 **Next action:**
-Open detailed VKT section and finish listed remaining work.
+Pick host KMS at deploy; implement ADR-008 follow-up (do not replace SecretRef until then).
 
 ### VKT-012 — Implement internal domain-event contract
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import models
 
+from shared_kernel.hard_delete import HardDeleteForbiddenModel
 from shared_kernel.ids import new_uuid7
 
 
@@ -36,7 +37,7 @@ class PlanVersion(models.Model):
         unique_together = (("plan", "version"),)
 
 
-class InvoiceIndex(models.Model):
+class InvoiceIndex(HardDeleteForbiddenModel):
     invoice_id = models.UUIDField(primary_key=True)
     tenant_id = models.UUIDField()
     customer_id = models.UUIDField()
@@ -53,7 +54,7 @@ class InvoiceIndex(models.Model):
         ]
 
 
-class PaymentProcessorEvent(models.Model):
+class PaymentProcessorEvent(HardDeleteForbiddenModel):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     processor = models.CharField(max_length=32)
     event_id = models.CharField(max_length=128)
