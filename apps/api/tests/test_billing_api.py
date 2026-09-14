@@ -17,6 +17,7 @@ from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 PASSWORD = "Phase2-Demo!ok"
 STRIPE_REF = "STRIPE_WEBHOOK_SECRET"
 BRAINTREE_REF = "BRAINTREE_WEBHOOK_SECRET"
+SANDBOX_REF = "SANDBOX_WEBHOOK_SECRET"
 
 
 def _client() -> Client:
@@ -352,3 +353,84 @@ def test_finance_admin_can_view_invoices_not_create_plans() -> None:
     assert len(invoices.json()["data"]) == 1
     denied = _post(finance, "/api/v1/platform/plans", _plan_body())
     assert denied.status_code == 403
+
+
+@pytest.mark.django_db
+def test_sandbox_pay_returns_hosted_url() -> None:
+    ctx = _bootstrap_paid_ready()
+    pay = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/invoices/{ctx['invoice_id']}/pay",
+        {"processor": "sandbox"},
+        HTTP_IDEMPOTENCY_KEY="pay-sandbox-url",
+    )
+    assert pay.status_code == 200
+    data = pay.json()["data"]
+    assert data["processor"] == "sandbox"
+    assert data["hosted_url"].startswith("http://127.0.0.1:8081/checkout?")
+    assert ctx["invoice_id"] in data["hosted_url"]
+    assert "hosted_url" not in _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/invoices/{ctx['invoice_id']}/pay",
+        {"processor": "stripe"},
+        HTTP_IDEMPOTENCY_KEY="pay-stripe-no-host",
+    ).json()["data"]
+
+
+@pytest.mark.django_db
+def test_duplicate_sandbox_webhook_settles_once() -> None:
+    ctx = _bootstrap_paid_ready()
+    payload = {
+        "event_id": "evt_sandbox_1",
+        "invoice_id": ctx["invoice_id"],
+        "amount_minor": ctx["amount_minor"],
+        "currency": "USD",
+        "status": "captured",
+    }
+    first = _webhook("sandbox", payload, secret_ref=SANDBOX_REF)
+    assert first.status_code == 200
+    assert first.json()["data"]["duplicate"] is False
+    second = _webhook("sandbox", payload, secret_ref=SANDBOX_REF)
+    assert second.status_code == 200
+    assert second.json()["data"]["duplicate"] is True
+    invoices = ctx["customer_client"].get("/api/v1/customer/invoices")
+    assert invoices.json()["data"][0]["status"] == "paid"
+
+
+@pytest.mark.django_db
+def test_forged_sandbox_signature_is_rejected() -> None:
+    ctx = _bootstrap_paid_ready()
+    payload = {
+        "event_id": "evt_sandbox_bad",
+        "invoice_id": ctx["invoice_id"],
+        "amount_minor": ctx["amount_minor"],
+        "currency": "USD",
+        "status": "captured",
+    }
+    forged = _webhook(
+        "sandbox",
+        payload,
+        secret_ref=SANDBOX_REF,
+        signature="sha256=00",
+    )
+    assert forged.status_code == 401
+    assert forged.json()["error"]["code"] == "payment_signature_invalid"
+    invoices = ctx["customer_client"].get("/api/v1/customer/invoices")
+    assert invoices.json()["data"][0]["status"] == "open"
+
+
+@pytest.mark.django_db
+def test_sandbox_amount_mismatch_is_rejected() -> None:
+    ctx = _bootstrap_paid_ready()
+    payload = {
+        "event_id": "evt_sandbox_mismatch",
+        "invoice_id": ctx["invoice_id"],
+        "amount_minor": ctx["amount_minor"] + 1,
+        "currency": "USD",
+        "status": "captured",
+    }
+    mismatch = _webhook("sandbox", payload, secret_ref=SANDBOX_REF)
+    assert mismatch.status_code == 409
+    assert mismatch.json()["error"]["code"] == "payment_amount_mismatch"
+    invoices = ctx["customer_client"].get("/api/v1/customer/invoices")
+    assert invoices.json()["data"][0]["status"] == "open"

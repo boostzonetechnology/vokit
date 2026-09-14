@@ -61,6 +61,7 @@ class ProcessorEventRecord:
 class BillingSettingsRecord:
     stripe_webhook_secret_ref: str
     braintree_webhook_secret_ref: str
+    sandbox_webhook_secret_ref: str
 
 
 @dataclass(frozen=True, slots=True)

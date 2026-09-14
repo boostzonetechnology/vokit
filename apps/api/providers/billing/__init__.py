@@ -1,1 +1,1 @@
-"""Payment processor adapters. Stripe and Braintree stay outside the domain."""
+"""Payment processor adapters. HMAC-only; Stripe/Braintree/sandbox stay outside the domain."""
