@@ -14,4 +14,5 @@ These describe **what runs today**, not backlog wishes. SRS and ADRs remain auth
 | [MFA overview](auth/MFA_FLOW.md) | TOTP + Email OTP enroll/verify/disable/reset |
 | [MFA TOTP](auth/MFA_TOTP_FLOW.md) | Authenticator enroll + login verify |
 | [MFA Email OTP](auth/MFA_EMAIL_FLOW.md) | Email OTP enroll + login verify |
-| [ADR-008 secrets / KMS](../adr/ADR-008-secret-management-kms-path.md) | SecretRef vs app vaults; MFA + tenant vault; future KMS |
+| [Voice providers](VOICE-PROVIDERS.md) | Super Admin STT/TTS/LLM settings, encrypted vendor keys, TTS voice list |
+| [ADR-008 secrets / KMS](../adr/ADR-008-secret-management-kms-path.md) | SecretRef vs app vaults; MFA + tenant + voice vaults; future KMS |

@@ -39,6 +39,7 @@ from control_plane.identity.api.auth import (
     require_platform_perm,
 )
 from control_plane.identity.api.views import CsrfAPIView
+from providers.billing.sandbox import sandbox_checkout_url
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
@@ -382,16 +383,24 @@ class CustomerInvoicePayView(CsrfAPIView):
                 processor=str(request.data.get("processor") or "stripe"),
             )
         )
-        return success(
-            {
-                "invoice_id": str(intent.invoice.invoice_id),
-                "processor": intent.processor,
-                "amount_minor": intent.invoice.total_minor,
-                "currency": intent.invoice.currency,
-                "client_reference": intent.client_reference,
-                "status": "awaiting_webhook",
-            }
-        )
+        payload = {
+            "invoice_id": str(intent.invoice.invoice_id),
+            "processor": intent.processor,
+            "amount_minor": intent.invoice.total_minor,
+            "currency": intent.invoice.currency,
+            "client_reference": intent.client_reference,
+            "status": "awaiting_webhook",
+        }
+        if intent.processor == "sandbox":
+            hosted_url = sandbox_checkout_url(
+                invoice_id=str(intent.invoice.invoice_id),
+                amount_minor=intent.invoice.total_minor,
+                currency=intent.invoice.currency,
+                client_reference=intent.client_reference,
+            )
+            if hosted_url:
+                payload["hosted_url"] = hosted_url
+        return success(payload)
 
 
 class CustomerTopUpView(CsrfAPIView):
@@ -463,6 +472,8 @@ class PaymentWebhookView(APIView):
             secret_ref = settings_row.stripe_webhook_secret_ref
         elif processor == "braintree":
             secret_ref = settings_row.braintree_webhook_secret_ref
+        elif processor == "sandbox":
+            secret_ref = settings_row.sandbox_webhook_secret_ref
         else:
             raise DomainError("not_found", "Resource not found.", http_status=404)
         adapter = payment_processor(processor)

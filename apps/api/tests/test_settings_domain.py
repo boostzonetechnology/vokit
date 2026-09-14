@@ -25,3 +25,23 @@ def test_hold_days_are_bounded_and_used() -> None:
 def test_secret_settings_are_not_returned() -> None:
     spec = assert_setting_key("telephony.stt_api_key_ref")
     assert public_value(spec, "VOICE_STT_API_KEY") is None
+    voice_key = assert_setting_key("voice.deepgram.api_key")
+    assert public_value(voice_key, "dg-secret") is None
+
+
+def test_voice_provider_codes_are_allowlisted() -> None:
+    spec = assert_setting_key("telephony.llm_provider")
+    assert coerce_value(spec, "anthropic") == "anthropic"
+    assert coerce_value(spec, "") == ""
+    with pytest.raises(DomainError) as exc:
+        coerce_value(spec, "foo")
+    assert exc.value.code == "validation_error"
+    stt = assert_setting_key("telephony.stt_provider")
+    with pytest.raises(DomainError):
+        coerce_value(stt, "openai")
+
+
+def test_voice_api_keys_allow_long_strings() -> None:
+    spec = assert_setting_key("voice.openai.api_key")
+    long_key = "sk-" + ("a" * 200)
+    assert coerce_value(spec, long_key) == long_key

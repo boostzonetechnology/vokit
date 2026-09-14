@@ -75,6 +75,9 @@ class BillingSettings(models.Model):
     braintree_webhook_secret_ref = models.CharField(
         max_length=128, default="BRAINTREE_WEBHOOK_SECRET"
     )
+    sandbox_webhook_secret_ref = models.CharField(
+        max_length=128, default="SANDBOX_WEBHOOK_SECRET"
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

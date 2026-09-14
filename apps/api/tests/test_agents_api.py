@@ -232,6 +232,26 @@ def test_unpublished_agent_is_not_routable() -> None:
 
 
 @pytest.mark.django_db
+def test_publish_succeeds_without_agent_voice_provider() -> None:
+    ctx = _ready_agent()
+    body = _publishable(ctx)
+    del body["voice_provider"]
+    configured = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        body,
+    )
+    assert configured.status_code == 200
+    published = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/publish",
+        {},
+    )
+    assert published.status_code == 200
+    assert published.json()["data"]["status"] == "active"
+
+
+@pytest.mark.django_db
 def test_template_clone_is_independent() -> None:
     ctx = _ready_agent()
     template = _post(

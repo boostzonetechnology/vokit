@@ -8,6 +8,7 @@ os.environ.setdefault("KYC_API_KEY", "test-kyc-key")
 os.environ.setdefault("KYC_WEBHOOK_SECRET", "test-kyc-webhook")
 os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "test-stripe-webhook")
 os.environ.setdefault("BRAINTREE_WEBHOOK_SECRET", "test-braintree-webhook")
+os.environ.setdefault("SANDBOX_WEBHOOK_SECRET", "test-sandbox-webhook")
 
 from .base import *  # noqa: F403
 
@@ -33,6 +34,7 @@ TENANT_DB_ADMIN_USER = "root"
 TENANT_DB_ADMIN_PASSWORD_REF = "TENANT_DB_ADMIN_PASSWORD"
 TENANT_DB_PASSWORD_REF = "TENANT_DB_PASSWORD"
 KYC_ALLOW_HTTP_HOSTED = True
+SANDBOX_PAYMENT_BASE_URL = "http://127.0.0.1:8081"
 VOKIT_INTERNAL_TELEPHONY_TOKEN = "test-internal-telephony-token"
 VOKIT_INTERNAL_RECORDING_TOKEN = "test-internal-recording-token"
 INTEGRATION_ALLOW_HTTP = True

@@ -59,10 +59,23 @@ Exact cloud product is an **ops choice**; domain code must depend only on a `Sec
 - Ciphertext column only; OTP/recovery codes remain hashes, not vaulted.
 - Compatible with Google Authenticator / Authy via `otpauth` + `pyotp` (RFC 6238) — library choice is orthogonal to KMS.
 
+### 4b. Voice vendor API keys (Family B addendum — 2026-09-14)
+
+Owner decision: Super Admin stores STT/TTS/LLM vendor API keys in `platform_settings` as **ciphertext**, not env `SecretRef` and not plaintext JSON.
+
+- Salt: `voice_provider_api_key` (distinct from MFA and tenant DB).
+- PATCH `/api/v1/platform/settings` accepts plaintext once; encrypt before persist.
+- GET never returns the key (`value` null; `has_value` only).
+- Decrypt in-process for Pipecat bootstrap and TTS voice-list adapters only.
+- Rotation: PATCH overwrite. `DJANGO_SECRET_KEY` rotation invalidates these rows (same as other Family B vaults) until KMS envelope.
+- React / logs / audit `after_summary` must not contain plaintext.
+
+This is a **narrow exception** to “no vault UI for provider keys”: there is no dedicated vault product UI in this slice — keys ride the existing settings PATCH with `secret=true`. Webhook/OAuth/internal tokens remain Family A SecretRef.
+
 ### 5. Explicit non-goals (this ADR)
 
-- No replacement of existing `SecretRef` rows or env keys.
-- No new vault UI for provider keys.
+- No replacement of existing `SecretRef` rows or env keys (except voice STT/TTS/LLM live selection, which now reads platform settings).
+- No dedicated third-party vault product UI.
 - No dual-cloud secret backends in V1.
 - No storing KYC document bytes (ADR-005).
 
@@ -112,6 +125,7 @@ Trade-offs:
 - `apps/api/shared_kernel/secrets.py`
 - `apps/api/control_plane/tenancy/infrastructure/vault.py`
 - `apps/api/control_plane/identity/infrastructure/mfa_vault.py`
+- `apps/api/control_plane/platform_settings/infrastructure/voice_vault.py`
 - `docs/execution/runbooks/key-rotation.md`
 - `apps/api/tests/test_secret_ref.py`
 - `apps/api/tests/test_mfa_vault.py`

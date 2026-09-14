@@ -44,7 +44,8 @@ $Py = Join-Path $PipecatDir ".venv\Scripts\python.exe"
 if (-not (Test-Path $Py)) { $Py = "python" }
 if (Test-Path (Join-Path $PipecatDir "pyproject.toml")) {
   Write-Host "Starting Pipecat on :8100 ..."
-  Start-Process -FilePath $Py -ArgumentList "-m","uvicorn","app.main:app","--host","0.0.0.0","--port","8100" `
+  # Package lives under src/; --app-dir matches packages/pipecat-voice/README.md.
+  Start-Process -FilePath $Py -ArgumentList "-m","uvicorn","--app-dir","src","vokit_pipecat_voice.app:app","--host","0.0.0.0","--port","8100" `
     -WorkingDirectory $PipecatDir -WindowStyle Minimized
 } else {
   Write-Host "Pipecat package not ready — see packages/pipecat-voice/README.md"

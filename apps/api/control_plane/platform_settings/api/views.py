@@ -3,8 +3,16 @@ from __future__ import annotations
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from control_plane.identity.api.auth import parse_uuid, require_platform_perm
+from control_plane.identity.api.auth import (
+    parse_uuid,
+    require_agency_perm,
+    require_auth,
+    require_customer_perm,
+    require_platform_perm,
+)
 from control_plane.identity.api.views import CsrfAPIView
+from control_plane.identity.domain.types import PrincipalType
+from control_plane.platform_settings.application.tts_voices import ListTtsVoices
 from control_plane.platform_settings.infrastructure.container import platform_settings
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
@@ -57,3 +65,37 @@ class PlatformAgencyFlagView(CsrfAPIView):
                 user_agent=str(request.META.get("HTTP_USER_AGENT") or "")[:255],
             )
         )
+
+
+def _require_platform_tts_voices(request: Request):
+    context = require_auth(request)
+    if context.membership.principal_type is not PrincipalType.PLATFORM:
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+    if context.is_super_admin:
+        return context
+    if "agent.view" in context.permissions or "setting.view" in context.permissions:
+        return context
+    raise DomainError("forbidden", "Not permitted.", http_status=403)
+
+
+def _tts_voices() -> dict[str, object]:
+    return ListTtsVoices(platform_settings()).execute()
+
+
+class PlatformTtsVoiceListView(CsrfAPIView):
+    def get(self, request: Request) -> Response:
+        _require_platform_tts_voices(request)
+        return success(_tts_voices())
+
+
+class AgencyTtsVoiceListView(CsrfAPIView):
+    def get(self, request: Request) -> Response:
+        require_agency_perm(request, "agent.view")
+        return success(_tts_voices())
+
+
+class CustomerTtsVoiceListView(CsrfAPIView):
+    def get(self, request: Request) -> Response:
+        require_customer_perm(request, "agent.view")
+        return success(_tts_voices())
+

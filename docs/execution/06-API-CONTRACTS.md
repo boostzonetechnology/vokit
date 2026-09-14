@@ -83,6 +83,7 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET | `/platform/audit-events` | SA17-* — search only; no PATCH/DELETE |
 | GET/PATCH | `/platform/settings` | SA19-* — secrets masked; reason required |
 | POST | `/platform/settings/flags` | SA19-004 agency feature flags |
+| GET | `/platform/tts/voices` | SA19-003 — active TTS vendor voices only |
 | GET/POST | `/platform/notification-templates` | SA16-001 |
 | GET | `/platform/notification-deliveries` | SA16-002 |
 | POST | `/platform/announcements` | SA16-003 |
@@ -96,6 +97,7 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET | `/agency/dashboard` | AG1-* — session tenant only |
 | GET/POST | `/agency/customers` | AG2-* |
 | GET/POST | `/agency/agents` | AG3-* |
+| GET | `/agency/tts/voices` | SA19-003 — active platform TTS voices |
 | POST | `/agency/agents/{id}/publish` | AGT-002 |
 | GET/POST | `/agency/phone-numbers/search` `reservations` `assignments` | AG4-*, Q-002 |
 | GET | `/agency/calls` | AG5-* |
@@ -121,6 +123,7 @@ Agency cannot approve payouts or view payout proof.
 |---|---|---|
 | GET | `/customer/dashboard` | CU1-* — session customer only |
 | GET | `/customer/agents` | CU2-* — session customer only |
+| GET | `/customer/tts/voices` | SA19-003 — active platform TTS voices |
 | PATCH | `/customer/agents/{id}` | Only if agency granted |
 | GET | `/customer/calls` | CU3-* |
 | POST | `/customer/calls/{id}/artifacts/{artifact_id}/access` | CALL-003, ADR-002 |

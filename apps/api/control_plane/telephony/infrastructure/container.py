@@ -29,7 +29,6 @@ from control_plane.tenancy.infrastructure.container import router, runtime, tena
 from providers.telephony.edge import HttpSipEdge
 from providers.telephony.memory import MemoryNumberProvider
 from providers.telephony.memory_edge import MemorySipEdge
-from shared_kernel.secrets import SecretRef
 from tenant.calls.service import TenantCallService
 from tenant.lifecycle.service import TenantLifecycleService
 from tenant.media.service import TenantMediaService
@@ -163,13 +162,10 @@ def manage_destinations() -> ManageDestinations:
 
 
 def voice_providers() -> VoiceProviders:
-    def _spec(kind: str) -> dict[str, str]:
-        code = str(getattr(settings, f"VOICE_{kind}_PROVIDER", "") or "").strip()
-        ref = str(getattr(settings, f"VOICE_{kind}_API_KEY_REF", "") or "").strip()
-        key = SecretRef(ref).resolve_optional() if ref else ""
-        return {"provider_code": code, "api_key": key, "model": "", "language": "en"}
+    from control_plane.platform_settings.infrastructure.container import platform_settings
 
-    return VoiceProviders(stt=_spec("STT"), tts=_spec("TTS"), llm=_spec("LLM"))
+    runtime = platform_settings().voice_runtime()
+    return VoiceProviders(stt=runtime["stt"], tts=runtime["tts"], llm=runtime["llm"])
 
 
 def _integration_gateway():

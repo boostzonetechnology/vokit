@@ -59,7 +59,6 @@ def test_publish_preflight_requires_voice_and_subscription() -> None:
         customer_status=CustomerStatus.ACTIVE,
         has_subscription=False,
         resolved_instructions="ok",
-        voice_provider="",
         voice_id="",
         language="",
         recording_disclosure=None,
@@ -69,6 +68,20 @@ def test_publish_preflight_requires_voice_and_subscription() -> None:
     assert "subscription_required" in failures
     assert "voice_required" in failures
     assert "compliance_required" in failures
+
+
+def test_publish_preflight_does_not_require_agent_voice_provider() -> None:
+    failures = publish_failures(
+        customer_status=CustomerStatus.ACTIVE,
+        has_subscription=True,
+        resolved_instructions="ok",
+        voice_id="voice-1",
+        language="en",
+        recording_disclosure=True,
+        fallback_behavior="hangup",
+        status=AgentStatus.DRAFT,
+    )
+    assert failures == []
 
 
 def test_knowledge_group_ids_are_scoped() -> None:

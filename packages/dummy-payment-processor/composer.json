@@ -1,0 +1,16 @@
+{
+  "name": "vokit/dummy-payment-processor",
+  "description": "Thin lab payment host for Vokit. No Stripe/Braintree/PayPal SDKs.",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "slim/slim": "^4.14",
+    "slim/psr7": "^1.7",
+    "vlucas/phpdotenv": "^5.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "Vokit\\DummyPayment\\": "src/"
+    }
+  }
+}

@@ -5,6 +5,10 @@ from control_plane.platform_settings.domain.types import (
     SETTING_CATALOG,
     SettingSpec,
 )
+from control_plane.platform_settings.domain.voice_catalog import (
+    assert_provider_code,
+    is_voice_secret_key,
+)
 from shared_kernel.errors import DomainError
 
 
@@ -39,7 +43,17 @@ def coerce_value(spec: SettingSpec, raw: object) -> object:
         return raw
     if type(raw) is not str:
         raise DomainError("validation_error", f"{spec.key} must be a string.")
-    return raw.strip()[:128]
+    cleaned = raw.strip()
+    if spec.key in {
+        "telephony.stt_provider",
+        "telephony.tts_provider",
+        "telephony.llm_provider",
+    }:
+        return assert_provider_code(spec.key, cleaned)
+    limit = 4096 if is_voice_secret_key(spec.key) else 128
+    if len(cleaned) > limit:
+        raise DomainError("validation_error", f"{spec.key} is too long.")
+    return cleaned[:limit]
 
 
 def public_value(spec: SettingSpec, stored: object) -> object | None:

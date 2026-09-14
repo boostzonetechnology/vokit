@@ -211,10 +211,16 @@ class DjangoBillingSettingsRepository:
                     "BILLING_BRAINTREE_WEBHOOK_SECRET_REF",
                     "BRAINTREE_WEBHOOK_SECRET",
                 ),
+                sandbox_webhook_secret_ref=getattr(
+                    settings,
+                    "BILLING_SANDBOX_WEBHOOK_SECRET_REF",
+                    "SANDBOX_WEBHOOK_SECRET",
+                ),
             )
         return BillingSettingsRecord(
             stripe_webhook_secret_ref=row.stripe_webhook_secret_ref,
             braintree_webhook_secret_ref=row.braintree_webhook_secret_ref,
+            sandbox_webhook_secret_ref=row.sandbox_webhook_secret_ref,
         )
 
 

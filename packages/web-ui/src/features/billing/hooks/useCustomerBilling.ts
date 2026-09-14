@@ -26,6 +26,7 @@ export type PayIntent = {
   currency?: string;
   client_reference?: string;
   status?: string;
+  hosted_url?: string;
 };
 
 export type PaymentMethodRow = {
@@ -139,7 +140,7 @@ export function useCustomerBilling() {
     }
   }
 
-  async function payInvoice(invoiceId: string, processor = "stripe") {
+  async function payInvoice(invoiceId: string, processor = "sandbox") {
     setBusy(true);
     setMessage("");
     try {
@@ -150,11 +151,18 @@ export function useCustomerBilling() {
         { "Idempotency-Key": idempotencyKey("pay") },
       );
       setPayIntent(intent);
-      setMessage(
-        intent.status === "awaiting_webhook"
-          ? "Payment initiated — waiting for processor confirmation."
-          : "Payment submitted.",
-      );
+      if (intent.hosted_url) {
+        window.open(intent.hosted_url, "_blank", "noopener,noreferrer");
+        setMessage(
+          "Opened the lab payment page. The invoice stays open until the processor webhook settles.",
+        );
+      } else {
+        setMessage(
+          intent.status === "awaiting_webhook"
+            ? "Payment initiated — waiting for processor confirmation."
+            : "Payment submitted.",
+        );
+      }
       await reload();
       return intent;
     } catch (cause) {
