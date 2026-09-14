@@ -23,6 +23,8 @@ import {
   Users,
   Wallet,
   Webhook,
+  KeyRound,
+  ShieldCheck,
 } from "lucide-react";
 
 import type { Portal } from "@/api";
@@ -50,6 +52,8 @@ const ICONS: Record<string, LucideIcon> = {
   kyc: Shield,
   settings: Settings,
   users: UserRound,
+  roles: KeyRound,
+  permissions: ShieldCheck,
   team: Users,
   integrations: Webhook,
   webhooks: Webhook,
@@ -138,6 +142,8 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
           pick(byRoute, "notifications", "Notifications", portal),
           pick(byRoute, "notice-templates", "Notice templates", portal),
           pick(byRoute, "users", "Users", portal),
+          pick(byRoute, "roles", "Roles", portal),
+          pick(byRoute, "permissions", "Permissions", portal),
           pick(byRoute, "settings", "Settings", portal),
         ],
       },
@@ -199,6 +205,7 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
         pick(byRoute, "agents", "Agents", portal),
         pick(byRoute, "calls", "Calls", portal),
         pick(byRoute, "knowledge", "Knowledge", portal),
+        pick(byRoute, "integrations", "Integrations", portal),
       ],
     },
     {
@@ -214,9 +221,10 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
       id: "account",
       label: "Account",
       items: [
-        pick(byRoute, "account", "Account", portal),
+        pick(byRoute, "account", "Profile", portal),
         pick(byRoute, "team", "Team", portal),
         pick(byRoute, "notifications", "Notifications", portal),
+        pick(byRoute, "preferences", "Settings", portal),
       ],
     },
   ];

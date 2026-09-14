@@ -147,7 +147,7 @@ export function useAgencyNumbers() {
     setMessage("");
     try {
       const reserved = await apiSend<NumberReservation>(
-        "/api/v1/agency/phone-numbers/reservations",
+        "/api/v1/agency/phone-numbers/reserve",
         "POST",
         { number_id: numberId, agent_id: agentId },
       );
@@ -171,7 +171,7 @@ export function useAgencyNumbers() {
         assignment?: NumberAssignment;
         invoice?: { id?: string; total_minor?: number };
       }>(
-        "/api/v1/agency/phone-numbers/assignments",
+        "/api/v1/agency/phone-numbers/assign",
         "POST",
         { reservation_id: reservationId, confirm },
         { "Idempotency-Key": idempotencyKey("number-assign") },
