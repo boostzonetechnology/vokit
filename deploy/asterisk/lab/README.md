@@ -57,3 +57,5 @@ Full inbound steps: [docs/vmware-lab-inbound.md](../../../docs/vmware-lab-inboun
 and [docs/execution/27-LAB-VOICE-WIRING.md](../../../docs/execution/27-LAB-VOICE-WIRING.md).
 
 Start helpers on Windows: `.\scripts\dev-stack.ps1` then `.\scripts\dev-voice.ps1`.
+
+**Step-by-step inbound lab (portals, number attach, VM Asterisk):** [docs/LAB-INBOUND-VMWARE.md](../../../docs/LAB-INBOUND-VMWARE.md).
