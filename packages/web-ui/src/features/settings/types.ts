@@ -82,4 +82,9 @@ export const SETTING_GROUPS: Array<{
       "compliance.kyc_gate",
     ],
   },
+  {
+    id: "security",
+    label: "Security",
+    keys: ["security.mfa_required_privileged"],
+  },
 ];

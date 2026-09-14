@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -9,18 +9,17 @@ import {
 } from "react-router-dom";
 
 import {
-  ApiError,
   Portal,
   SessionPayload,
   getPortalMe,
   isApiError,
-  login,
   logout,
 } from "@/api";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginScreen } from "@/features/auth/components/LoginScreen";
 import { AcceptInviteScreen } from "@/features/auth/components/AcceptInviteScreen";
 import { SessionProvider } from "@/features/auth/context/SessionContext";
+import { useLoginFlow } from "@/features/auth/hooks/useLoginFlow";
 import { HighRiskRouteGate } from "@/features/rbac/components/HighRiskRouteGate";
 import { AgencyDashboard } from "@/features/dashboard/AgencyDashboard";
 import { CustomerDashboard } from "@/features/dashboard/CustomerDashboard";
@@ -73,15 +72,10 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
   const navigate = useNavigate();
   const [view, setView] = useState<View>("loading");
   const [session, setSession] = useState<SessionPayload | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const nav = useMemo(() => portalNav(portal), [portal]);
   const route = routeFromPathname(location.pathname);
 
   async function refresh() {
-    setError("");
     try {
       const data = await getPortalMe(portal);
       setSession(data);
@@ -99,28 +93,16 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
     }
   }
 
+  const loginFlow = useLoginFlow({
+    onSession: async () => {
+      await refresh();
+      navigate("/dashboard", { replace: true });
+    },
+  });
+
   useEffect(() => {
     void refresh();
   }, [portal]);
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setSubmitting(true);
-    try {
-      await login(email, password);
-      await refresh();
-      navigate("/dashboard", { replace: true });
-    } catch (cause) {
-      const apiError = cause as ApiError;
-      setError(apiError.message || "Sign-in failed.");
-      if (apiError.status === 401) {
-        setView("login");
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function onLogout() {
     try {
@@ -129,6 +111,7 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
       // Session may already be gone.
     }
     setSession(null);
+    loginFlow.resetToCredentials();
     setView("login");
     navigate("/login", { replace: true });
   }
@@ -165,18 +148,23 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
     return (
       <LoginScreen
         portal={portal}
-        email={email}
-        password={password}
+        step={loginFlow.step}
+        email={loginFlow.email}
+        password={loginFlow.password}
         error={
-          error ||
-          (view === "unauthenticated"
+          loginFlow.error ||
+          (view === "unauthenticated" && loginFlow.step === "credentials"
             ? "Authentication is required for this portal."
             : "")
         }
-        submitting={submitting}
-        onEmailChange={setEmail}
-        onPasswordChange={setPassword}
-        onSubmit={(event) => void onSubmit(event)}
+        submitting={loginFlow.submitting}
+        challenge={loginFlow.challenge}
+        onEmailChange={loginFlow.setEmail}
+        onPasswordChange={loginFlow.setPassword}
+        onSubmit={(event) => void loginFlow.onCredentialsSubmit(event)}
+        onChallengeVerify={loginFlow.onChallengeVerify}
+        onChallengeError={loginFlow.setError}
+        onBackToCredentials={loginFlow.resetToCredentials}
       />
     );
   }

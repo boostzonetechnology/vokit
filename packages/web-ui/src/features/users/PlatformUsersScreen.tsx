@@ -119,6 +119,7 @@ export function PlatformUsersScreen() {
   const { can } = usePermissions();
   const canInvite = can("user.create");
   const canDisable = can("user.delete");
+  const canResetMfa = can("mfa.reset");
 
   const {
     users,
@@ -137,6 +138,7 @@ export function PlatformUsersScreen() {
     reload,
     inviteUser,
     disableUser,
+    resetUserMfa,
   } = usePlatformUsers();
 
   const [tab, setTab] = useState<Tab>("users");
@@ -144,6 +146,8 @@ export function PlatformUsersScreen() {
   const [agencyId, setAgencyId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [roleSlug, setRoleSlug] = useState("");
+  const [mfaResetOpen, setMfaResetOpen] = useState(false);
+  const [mfaResetReason, setMfaResetReason] = useState("");
 
   const {
     roles,
@@ -335,6 +339,18 @@ export function PlatformUsersScreen() {
                   {selected.role} · {selected.id}
                 </p>
               </div>
+              {canResetMfa ? (
+                <ActionButton
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    setMfaResetOpen(true);
+                    setMfaResetReason("");
+                  }}
+                >
+                  Reset MFA
+                </ActionButton>
+              ) : null}
               {canDisable ? (
                 <ActionButton
                   variant="outline"
@@ -345,6 +361,52 @@ export function PlatformUsersScreen() {
                 </ActionButton>
               ) : null}
             </div>
+          ) : null}
+
+          {mfaResetOpen && selected && canResetMfa ? (
+            <form
+              className="mt-3 grid max-w-lg gap-3 rounded-xl border border-border-default bg-canvas p-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void resetUserMfa(selected.id, mfaResetReason.trim()).then(() => {
+                  setMfaResetOpen(false);
+                  setMfaResetReason("");
+                });
+              }}
+            >
+              <h3 className="m-0 text-body font-semibold text-text-primary">
+                Reset MFA for {selected.email}
+              </h3>
+              <p className="m-0 text-sm text-text-muted">
+                Disables all MFA methods so the user can sign in with password only until they
+                re-enroll. A reason is required for audit.
+              </p>
+              <label className="m-0 grid gap-1.5 font-normal">
+                <span className="text-body-sm text-text-muted">Reason</span>
+                <input
+                  value={mfaResetReason}
+                  onChange={(event) => setMfaResetReason(event.target.value)}
+                  required
+                  className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <ActionButton type="submit" disabled={busy || !mfaResetReason.trim()}>
+                  Confirm reset
+                </ActionButton>
+                <ActionButton
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    setMfaResetOpen(false);
+                    setMfaResetReason("");
+                  }}
+                >
+                  Cancel
+                </ActionButton>
+              </div>
+            </form>
           ) : null}
 
           {invitations.length > 0 ? (
@@ -506,7 +568,8 @@ export function PlatformUsersScreen() {
             <ApiNote>
               Principal type chooses the portal membership (platform / agency / customer). Role is
               loaded from GET /platform/roles?namespace=… and must match that namespace. Agency and
-              customer invites also send tenant_id / customer_id.
+              customer invites also send tenant_id / customer_id. MFA reset requires permission
+              mfa.reset and records an audited reason.
             </ApiNote>
           </div>
         </article>

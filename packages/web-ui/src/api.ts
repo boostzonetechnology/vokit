@@ -1,3 +1,10 @@
+import type {
+  LoginResult,
+  MfaChallengePayload,
+} from "@/features/auth/types/auth.types";
+
+export type { LoginResult, MfaChallengePayload };
+
 export type Portal = "platform" | "agency" | "customer";
 
 export type ApiError = {
@@ -21,6 +28,8 @@ export type SessionPayload = {
   permissions: string[];
   /** When true, server bypasses permission checks; permissions[] is empty. */
   is_super_admin: boolean;
+  /** True when the user has at least one active MFA method. */
+  mfa_enrolled: boolean;
 };
 
 export type DashboardCard = {
@@ -85,8 +94,41 @@ export async function apiSend<T>(
   return parse<T>(response);
 }
 
-export async function login(email: string, password: string): Promise<SessionPayload> {
-  return apiSend<SessionPayload>("/api/v1/auth/login", "POST", { email, password });
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const csrf = await getCsrf();
+  const response = await fetch("/api/v1/auth/login", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": csrf,
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    const error: ApiError = {
+      code: body?.error?.code ?? "request_error",
+      message: body?.error?.message ?? "The request could not be processed.",
+      status: response.status,
+    };
+    throw error;
+  }
+  const data = body.data as Record<string, unknown>;
+  if (data?.mfa_required === true) {
+    return {
+      kind: "challenge",
+      challenge: {
+        mfa_required: true,
+        challenge_token: String(data.challenge_token || ""),
+        methods: Array.isArray(data.methods)
+          ? (data.methods as MfaChallengePayload["methods"])
+          : [],
+        user_id: String(data.user_id || ""),
+      },
+    };
+  }
+  return { kind: "session", session: data as unknown as SessionPayload };
 }
 
 export async function logout(): Promise<void> {
