@@ -318,8 +318,8 @@ def test_replay_otp_rejected() -> None:
 
 @pytest.mark.django_db
 def test_mfa_challenge_send_rate_limited(monkeypatch) -> None:
-    from control_plane.identity.infrastructure.rate_limit import CacheKeyedRateLimiter
     import control_plane.identity.api.mfa_views as mfa_views
+    from control_plane.identity.infrastructure.rate_limit import CacheKeyedRateLimiter
 
     user = _create_user(
         "send-rl@vokit.test", principal=PrincipalType.PLATFORM, role="support_admin"
@@ -374,113 +374,8 @@ def test_mfa_challenge_send_rate_limited(monkeypatch) -> None:
 
 @pytest.mark.django_db
 def test_mfa_challenge_verify_rate_limited(monkeypatch) -> None:
-    from control_plane.identity.infrastructure.rate_limit import CacheKeyedRateLimiter
     import control_plane.identity.api.mfa_views as mfa_views
-
-    monkeypatch.setattr(
-        mfa_views,
-        "mfa_verify_limiter",
-        lambda: CacheKeyedRateLimiter(prefix="test.mfa.verify", limit=3, window_seconds=300),
-    )
-    user = _create_user(
-        "verify-rl@vokit.test", principal=PrincipalType.PLATFORM, role="support_admin"
-    )
-    client = _client()
-    assert _login(client, user.email).status_code == 200
-    enroll = _post(client, "/api/v1/auth/mfa/totp/enroll", {})
-    secret = enroll.json()["data"]["secret"]
-    method_id = enroll.json()["data"]["method_id"]
-    _post(
-        client,
-        "/api/v1/auth/mfa/totp/confirm",
-        {"method_id": method_id, "code": pyotp.TOTP(secret).now()},
-    )
-    client2 = _client()
-    login = _login(client2, user.email)
-    challenge = login.json()["data"]["challenge_token"]
-    for _ in range(3):
-        bad = _post(
-            client2,
-            "/api/v1/auth/mfa/challenge/verify",
-            {
-                "challenge_token": challenge,
-                "method_id": method_id,
-                "code": "000000",
-            },
-        )
-        assert bad.status_code == 401
-    blocked = _post(
-        client2,
-        "/api/v1/auth/mfa/challenge/verify",
-        {
-            "challenge_token": challenge,
-            "method_id": method_id,
-            "code": "000000",
-        },
-    )
-    assert blocked.status_code == 429
-    assert blocked.json()["error"]["code"] == "rate_limited"
-
-
-@pytest.mark.django_db
-def test_mfa_challenge_send_rate_limited(monkeypatch) -> None:
     from control_plane.identity.infrastructure.rate_limit import CacheKeyedRateLimiter
-    import control_plane.identity.api.mfa_views as mfa_views
-
-    monkeypatch.setattr(
-        mfa_views,
-        "mfa_send_limiter",
-        lambda: CacheKeyedRateLimiter(prefix="test.mfa.send", limit=2, window_seconds=300),
-    )
-    user = _create_user(
-        "send-rl@vokit.test", principal=PrincipalType.PLATFORM, role="support_admin"
-    )
-    client = _client()
-    assert _login(client, user.email).status_code == 200
-    enroll = _post(client, "/api/v1/auth/mfa/email/enroll", {})
-    data = enroll.json()["data"]
-    _post(
-        client,
-        "/api/v1/auth/mfa/email/confirm",
-        {
-            "method_id": data["method_id"],
-            "challenge_token": data["challenge_token"],
-            "code": _otp_from_mailbox(),
-        },
-    )
-    client2 = _client()
-    login = _login(client2, user.email)
-    challenge = login.json()["data"]["challenge_token"]
-    method_id = login.json()["data"]["methods"][0]["id"]
-    assert (
-        _post(
-            client2,
-            "/api/v1/auth/mfa/challenge/send",
-            {"challenge_token": challenge, "method_id": method_id},
-        ).status_code
-        == 200
-    )
-    assert (
-        _post(
-            client2,
-            "/api/v1/auth/mfa/challenge/send",
-            {"challenge_token": challenge, "method_id": method_id},
-        ).status_code
-        == 200
-    )
-    blocked = _post(
-        client2,
-        "/api/v1/auth/mfa/challenge/send",
-        {"challenge_token": challenge, "method_id": method_id},
-    )
-    assert blocked.status_code == 429
-    assert blocked.json()["error"]["code"] == "rate_limited"
-
-
-@pytest.mark.django_db
-def test_mfa_challenge_verify_rate_limited(monkeypatch) -> None:
-    from control_plane.identity.infrastructure.rate_limit import CacheKeyedRateLimiter
-    import control_plane.identity.api.mfa_views as mfa_views
 
     monkeypatch.setattr(
         mfa_views,

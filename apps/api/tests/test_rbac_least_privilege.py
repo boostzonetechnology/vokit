@@ -58,7 +58,10 @@ def _create_user(
 
 
 def _login(client: Client, email: str) -> None:
-    assert _post(client, "/api/v1/auth/login", {"email": email, "password": PASSWORD}).status_code == 200
+    response = _post(
+        client, "/api/v1/auth/login", {"email": email, "password": PASSWORD}
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db
