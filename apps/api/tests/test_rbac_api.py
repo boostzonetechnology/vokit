@@ -10,7 +10,7 @@ from control_plane.identity.application.ports import MembershipRecord
 from control_plane.identity.domain.types import MembershipStatus, PrincipalType
 from control_plane.identity.infrastructure.rbac_seed import ensure_rbac_seeded
 from control_plane.identity.infrastructure.repositories import DjangoMembershipRepository
-from control_plane.identity.models import Permission, Role, RolePermission, User
+from control_plane.identity.models import Permission, Role, User
 from shared_kernel.ids import new_uuid7
 
 PASSWORD = "Phase2-Demo!ok"

@@ -39,8 +39,6 @@ from tenant.media.domain import TransferDestinationRecord
 from tenant.numbers.domain import NumberAssignmentRecord
 
 
-
-
 def _page(request: Request) -> tuple[int, int]:
     return parse_page(request.query_params.get("limit"), request.query_params.get("offset"))
 
