@@ -104,6 +104,27 @@ export function usePlatformUsers() {
     }
   }
 
+  async function resetUserMfa(userId: string, reason: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await apiSend<{ reset?: boolean; methods_disabled?: number }>(
+        `/api/v1/platform/users/${userId}/mfa/reset`,
+        "POST",
+        { reason },
+      );
+      setMessage(
+        `MFA reset. Methods disabled: ${result.methods_disabled ?? 0}.`,
+      );
+      await reload();
+    } catch (cause) {
+      setMessage(isApiError(cause) ? cause.message : "MFA reset failed.");
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return {
     users: filtered,
     invitations,
@@ -121,5 +142,6 @@ export function usePlatformUsers() {
     reload,
     inviteUser,
     disableUser,
+    resetUserMfa,
   };
 }

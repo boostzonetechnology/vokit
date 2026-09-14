@@ -6,6 +6,7 @@ from control_plane.platform_settings.api.views import (
     AgencyTtsVoiceListView,
     CustomerTtsVoiceListView,
     PlatformAgencyFlagView,
+    PlatformProviderModelsView,
     PlatformSettingsView,
     PlatformTtsVoiceListView,
 )
@@ -20,4 +21,9 @@ urlpatterns = [
     path("platform/tts/voices", PlatformTtsVoiceListView.as_view(), name="platform-tts-voices"),
     path("agency/tts/voices", AgencyTtsVoiceListView.as_view(), name="agency-tts-voices"),
     path("customer/tts/voices", CustomerTtsVoiceListView.as_view(), name="customer-tts-voices"),
+    path(
+        "platform/providers/<str:vendor>/models",
+        PlatformProviderModelsView.as_view(),
+        name="platform-provider-models",
+    ),
 ]

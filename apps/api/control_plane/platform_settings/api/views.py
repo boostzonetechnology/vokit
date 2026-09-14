@@ -12,6 +12,7 @@ from control_plane.identity.api.auth import (
 )
 from control_plane.identity.api.views import CsrfAPIView
 from control_plane.identity.domain.types import PrincipalType
+from control_plane.platform_settings.application.provider_models import ListProviderModels
 from control_plane.platform_settings.application.tts_voices import ListTtsVoices
 from control_plane.platform_settings.infrastructure.container import platform_settings
 from shared_kernel.errors import DomainError
@@ -99,3 +100,27 @@ class CustomerTtsVoiceListView(CsrfAPIView):
         require_customer_perm(request, "agent.view")
         return success(_tts_voices())
 
+
+def _require_platform_provider_models(request: Request):
+    context = require_auth(request)
+    if context.membership.principal_type is not PrincipalType.PLATFORM:
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+    if context.is_super_admin:
+        return context
+    if "setting.view" in context.permissions or "setting.update" in context.permissions:
+        return context
+    raise DomainError("forbidden", "Not permitted.", http_status=403)
+
+
+class PlatformProviderModelsView(CsrfAPIView):
+    """GET models for a vendor using that vendor's stored API key."""
+
+    def get(self, request: Request, vendor: str) -> Response:
+        _require_platform_provider_models(request)
+        capability = str(request.query_params.get("capability") or "").strip().lower()
+        return success(
+            ListProviderModels(platform_settings()).execute(
+                vendor=vendor,
+                capability=capability,
+            )
+        )

@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
+import { ProvidersSettingsPanel } from "@/features/settings/components/ProvidersSettingsPanel";
 import { usePlatformSettings } from "./hooks/usePlatformSettings";
 import { FEATURE_FLAGS, SETTING_GROUPS, type SettingRow } from "./types";
 
@@ -12,6 +13,7 @@ type Tab =
   | "providers"
   | "flags"
   | "compliance"
+  | "security"
   | "agency-flags";
 
 function displayValue(row?: SettingRow): string {
@@ -33,6 +35,7 @@ export function PlatformSettingsScreen() {
     busy,
     reload,
     updateSetting,
+    updateSettingsBatch,
     setAgencyFlag,
   } = usePlatformSettings();
 
@@ -91,9 +94,11 @@ export function PlatformSettingsScreen() {
     { id: "flags", label: "Feature flags" },
     { id: "agency-flags", label: "Agency flags" },
     { id: "compliance", label: "Compliance" },
+    { id: "security", label: "Security" },
   ];
 
-  const activeGroup = SETTING_GROUPS.find((group) => group.id === tab);
+  const activeGroup =
+    tab === "providers" ? undefined : SETTING_GROUPS.find((group) => group.id === tab);
 
   return (
     <section className="mx-auto max-w-[1200px]">
@@ -146,6 +151,16 @@ export function PlatformSettingsScreen() {
         <p className="m-0 text-body text-text-muted">Loading settings…</p>
       ) : null}
 
+      {!loading && tab === "providers" ? (
+        <div className="mb-4">
+          <ProvidersSettingsPanel
+            byKey={byKey}
+            busy={busy}
+            onSaveBatch={updateSettingsBatch}
+          />
+        </div>
+      ) : null}
+
       {activeGroup ? (
         <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <h2 className="m-0 mb-3 text-section text-text-primary">{activeGroup.label}</h2>
@@ -163,6 +178,12 @@ export function PlatformSettingsScreen() {
                       <p className="mt-1 mb-0 font-semibold text-text-primary">
                         {displayValue(row)}
                       </p>
+                      {key === "security.mfa_required_privileged" ? (
+                        <p className="mt-1 mb-0 text-sm text-text-muted">
+                          Require MFA for privileged roles before login. Enroll first to avoid
+                          lockout.
+                        </p>
+                      ) : null}
                       {row?.secret ? (
                         <StatusBadge tone="warning">secret · masked</StatusBadge>
                       ) : null}
@@ -177,7 +198,9 @@ export function PlatformSettingsScreen() {
                   {editKey === key ? (
                     <form className="mt-3 grid gap-3" onSubmit={(event) => void onSave(event)}>
                       <input type="hidden" name="key" value={key} />
-                      {key.startsWith("flags.") || key === "compliance.kyc_gate" ? (
+                      {key.startsWith("flags.") ||
+                      key === "compliance.kyc_gate" ||
+                      key === "security.mfa_required_privileged" ? (
                         <label className="m-0 grid gap-1.5 font-normal">
                           <span className="text-body-sm text-text-muted">Value</span>
                           <select
@@ -238,20 +261,21 @@ export function PlatformSettingsScreen() {
               </ApiNote>
             </div>
           ) : null}
-          {tab === "providers" ? (
-            <div className="mt-4">
-              <ApiNote>
-                SA19-003: telephony/AI provider names and secret refs plus email sender are
-                configurable. Secrets are write-only (GET returns masked). Dedicated payment
-                processor settings are not in this catalog yet.
-              </ApiNote>
-            </div>
-          ) : null}
           {tab === "compliance" ? (
             <div className="mt-4">
               <ApiNote>
                 SA19-005 (Should): recording disclosure, retention days, and KYC gate are
                 configurable. Number-country allowlists are not in the settings catalog yet.
+              </ApiNote>
+            </div>
+          ) : null}
+          {tab === "security" ? (
+            <div className="mt-4">
+              <ApiNote>
+                When security.mfa_required_privileged is true, privileged roles cannot complete
+                password login until they have at least one active MFA method. Enroll MFA (or keep
+                the flag false) before enabling this for Super Admin and other privileged roles.
+                Use Users → Reset MFA if someone is locked out.
               </ApiNote>
             </div>
           ) : null}
