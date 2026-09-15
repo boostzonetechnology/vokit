@@ -877,14 +877,16 @@ sudo asterisk -rx "module show like pjsip"
 sudo asterisk -rx "module show like curl"
 ```
 
-`CURL` must be listed. If it is not:
+`CURL` must be listed. If `core show function CURL` prints a synopsis, CURL is already loaded — **do not** run `module load`. That command fails when the module is already Running (Asterisk 22 on Ubuntu Resolute stores the `.so` files under a multiarch path, so `ls /usr/lib/asterisk/modules/*curl*` can be empty even when CURL works).
+
+If CURL is **not** listed:
 
 ```bash
-sudo asterisk -rx "module load func_curl.so"
 sudo asterisk -rx "module load res_curl.so"
+sudo asterisk -rx "module load func_curl.so"
 ```
 
-(Exact `.so` names depend on the package. `core show function CURL` is the check that matters.)
+Load `res_curl` first. Exact `.so` names depend on the package. `core show function CURL` is the check that matters.
 
 ### 13.2 Stop chan_sip stealing UDP 5060
 
@@ -894,6 +896,8 @@ Ubuntu’s default Asterisk often loads **chan_sip** and **PJSIP**. Both cannot 
 ss -ulnp | grep -E '5060|5070'
 sudo asterisk -rx "module show like chan_sip"
 ```
+
+If `ss` prints nothing and `chan_sip` shows **0 modules loaded**, skip `noload` and go to §13.3. Ubuntu’s default config often has no 5060/5070 bind yet. Those ports appear only after the lab `pjsip.conf` is copied and reloaded.
 
 If `chan_sip` is loaded, add to `/etc/asterisk/modules.conf` under `[modules]`:
 
@@ -936,6 +940,16 @@ sudo cp ~/extensions.conf /etc/asterisk/extensions.conf
 sudo cp ~/rtp.conf /etc/asterisk/rtp.conf
 ```
 
+Ubuntu’s default `rtp.conf` is **10000–20000** (same range as sip-edge). The lab file is **30000–40000**. Copying the file is not enough: RTP ports are applied at Asterisk start. Confirm then restart:
+
+```bash
+grep -E '^rtpstart|^rtpend' /etc/asterisk/rtp.conf
+sudo systemctl restart asterisk
+sudo asterisk -rx "rtp show settings"
+```
+
+You want `rtpstart=30000` and `rtpend=40000`. If settings still show 10000–20000, the copy did not land on `/etc/asterisk/rtp.conf`. If `ufw` is enabled and only allows 30000–40000, a default RTP port such as **18804** is dropped — SIP still answers, audio is silent.
+
 Ubuntu sometimes `#include` extra files from `pjsip.conf`. The lab file is **standalone**. Do not concatenate it with Ubuntu’s sample endpoints.
 
 If `/etc/asterisk/pjsip.d/` or `/etc/asterisk/sip.conf` still defines a 5060 bind, disable those includes. After reload, `pjsip show endpoints` must show `labphone`, `labphone2`, `vokit-edge` from the lab file.
@@ -963,7 +977,8 @@ Confirm `pjsip.conf` still has:
 - `external_signaling_address=192.168.56.100`
 - `local_net=192.168.56.0/24`
 - `contact=sip:192.168.56.1:5071`
-- `match=192.168.56.1`
+
+Do **not** add `match=192.168.56.1` on `vokit-edge`. MicroSIP and edge share that IP; IP identify steals REGISTER (404). Edge consult INVITEs use `match_header=User-Agent: vokit-sip-edge/0.1`.
 
 Asterisk RTP in `lab/rtp.conf` is **30000–40000**. Edge RTP is **10000–20000**. Do not make them the same range.
 
@@ -974,9 +989,10 @@ sudo asterisk -rx "module reload res_pjsip.so"
 sudo asterisk -rx "dialplan reload"
 sudo asterisk -rx "pjsip show transports"
 sudo asterisk -rx "pjsip show endpoints"
+sudo asterisk -rx "rtp show settings"
 ```
 
-Expect transports on **5060** and **5070**, endpoints `labphone` and `vokit-edge`.
+Expect transports on **5060** and **5070**, endpoints `labphone` and `vokit-edge`, RTP **30000–40000**.
 
 VM → Windows Django again:
 
@@ -1007,9 +1023,21 @@ sudo asterisk -rvvv
 | Password | `labphone123` |
 | Domain / server | `192.168.56.100` (VM) |
 | Transport | UDP |
+| Local / bind IP | **`192.168.56.1` only** (host-only VMnet1). Not the VMware NAT NIC (`192.168.157.x`). |
 | Codec | PCMU / μ-law / `ulaw` only (`allow=ulaw`) |
 
-MicroSIP: **Add account** → Account / Domain = VM IP, username `labphone`, password `labphone123`, SIP server / domain `192.168.56.100`, UDP. Disable extra codecs if the call is silent (PCMU only).
+MicroSIP account fields (all of them — empty Username is the usual 404):
+
+| MicroSIP field | Value |
+|---|---|
+| SIP server / Domain | `192.168.56.100` |
+| Username | `labphone` (not blank, not the IP) |
+| Login / Auth username | `labphone` |
+| Password | `labphone123` |
+| Domain | `192.168.56.100` |
+| Transport | UDP |
+| SIP proxy / port | leave empty (must hit **5060**, not 5070) |
+| Network / bind | `192.168.56.1` (disable or ignore VMnet8 NAT) |
 
 Do **not** register `labphone` and `labphone2` in the same MicroSIP process.
 
@@ -1021,9 +1049,11 @@ On the VM:
 sudo asterisk -rx "pjsip show contacts"
 ```
 
-`labphone` should be Reachable.
+`labphone` should be Reachable. The contact URI host must be **`192.168.56.1`**, not `192.168.157.x`. If it shows the NAT address, MicroSIP bound the wrong NIC: set bind/local IP to `192.168.56.1`, re-register, check contacts again.
 
 Place the call: dial **`+15550001001`** or **`15550001001`**. Dialplan `[from-carrier]` sends either form into `[vokit-resolve]`.
+
+If SIP answers but you hear nothing and Pipecat logs `Generating TTS` then `silence_timeout`, that is RTP, not the agent. Fix §13.3 `rtp.conf` + Windows UDP 10000–20000 (run the firewall script **as Administrator**) + MicroSIP bind IP, then call again. Optional: `PIPECAT_INBOUND_DIAG=1` on Pipecat echoes caller audio and skips LLM — still silent means RTP.
 
 ---
 
@@ -1047,7 +1077,7 @@ This is lab evidence only. It is not Phase 19 production GO.
 | No VMnet1 / Windows not `.1` | Virtual Network Editor; enable VMware Network Adapter VMnet1; §3.2 |
 | VM has no `192.168.56.100` | Wrong NIC is static; NAT vs Host-only swapped in netplan — §4 |
 | Ping/SSH to VM fails | VM powered on; Host-only connected; Windows ICMPv4 rule; ufw allows 22 — §5–§6 |
-| Softphone cannot register | VM IP, UDP 5060, `labphone` / `labphone123`, ufw 5060, `chan_sip` not bound to 5060, `pjsip show contacts` |
+| Softphone 404 / CLI `AOR '' not found for endpoint 'vokit-edge'` | Windows MicroSIP and sip-edge share `192.168.56.1`. Lab `pjsip.conf` must **not** `match=` that IP. Recopy `deploy/asterisk/lab/pjsip.conf`, `module reload res_pjsip.so`. Username **and** Domain both set. REGISTER `To:` must be `sip:labphone@192.168.56.100`. Stay in `asterisk -rvvv` to see the packet. |
 | Call dies immediately, CLI `NOT routable` | DID-resolve from VM; number **assigned** to published inbound-enabled agent; customer Active + subscription; `calling_live` |
 | `401` on DID-resolve | Token mismatch; using `Authorization` instead of `X-Vokit-Internal-Token` |
 | `400 DisallowedHost` | Windows host-only IP missing from `DJANGO_ALLOWED_HOSTS` |
@@ -1055,7 +1085,7 @@ This is lab evidence only. It is not Phase 19 production GO.
 | Dial never reaches edge | Windows firewall UDP 5071; `SIP_LOCAL_BIND=0.0.0.0:5071`; `pjsip.conf` contact IP |
 | Edge up, no AI / silence | `SIP_NODE_MEDIA_BASE_URL` must be Pipecat `:8100`; Pipecat `/health`; media tokens equal |
 | Bootstrap `admitted` but no speech | Platform `telephony.*_provider` empty or keys missing — Pipecat mapper throws `UnsupportedProviderError` / provider ErrorFrame. Confirm `GET /api/v1/platform/tts/voices` and bootstrap `providers.*.api_key` |
-| Audio one-way | Codec must be ulaw; RTP ranges (Asterisk 30000–40000, edge 10000–20000); Windows UDP 10000–20000; Ubuntu UDP 30000–40000; `SIP_PUBLIC_IP` = Windows host-only IP |
+| Call answers, Pipecat speaks TTS, phone is silent / `silence_timeout` | RTP, not the LLM. sip-edge `rtp=192.168.56.100:18804` means Ubuntu default RTP (10000–20000) — recopy `lab/rtp.conf` and **restart** Asterisk (`rtp show settings` must be 30000–40000). `From=…@192.168.157.x` means MicroSIP used the NAT NIC — bind `192.168.56.1`. Windows inbound UDP 10000–20000 from `192.168.56.0/24` must exist (Administrator). Match ufw to the range Asterisk actually binds. |
 | `CURL` missing in Asterisk | `apt install asterisk-modules`; `core show function CURL` — §13.1 |
 | Agency Numbers **Reserve** fails | Confirm `useAgencyNumbers` posts `/reservations` and `/assignments`; Django has no `/reserve` or `/assign` |
 | Settings secret not stored | Providers → vendor card stores `voice.*.api_key` masked; empty PATCH is rejected. Optional script in §10.3 |

@@ -54,6 +54,7 @@ export function AgencyNumbersScreen() {
   const [tab, setTab] = useState<Tab>("inventory");
   const [reserveAgentId, setReserveAgentId] = useState("");
   const [releaseConfirm, setReleaseConfirm] = useState("");
+  const [localPreview, setLocalPreview] = useState("");
 
   const agentOptions = useMemo(() => {
     if (!customerFilter) return agents;
@@ -83,9 +84,24 @@ export function AgencyNumbersScreen() {
 
   async function onAssign(confirm: boolean) {
     if (!lastReservation?.id) return;
+    if (!confirm) {
+      // Backend rejects confirm=false with assign_confirmation_required — preview is local only.
+      const numberId = lastReservation.number_id;
+      const match =
+        inventory.find((row) => row.id === numberId) ||
+        assigned.find((row) => row.id === numberId);
+      const cost = match?.monthly_cost_minor;
+      setLocalPreview(
+        cost == null
+          ? "Confirm assign will bill this customer's active subscription for the number's monthly cost."
+          : `Estimated monthly charge: ${formatMoneyMinor(cost, "USD")}. Customer must already have an active plan subscription.`,
+      );
+      return;
+    }
+    setLocalPreview("");
     try {
-      await assignReservation(lastReservation.id, confirm);
-      if (confirm) setTab("inventory");
+      await assignReservation(lastReservation.id, true);
+      setTab("inventory");
     } catch {
       /* hook message */
     }
@@ -334,6 +350,11 @@ export function AgencyNumbersScreen() {
                       Confirm assign
                     </ActionButton>
                   </div>
+                  {localPreview ? (
+                    <p className="m-0 text-body text-text-secondary" role="status">
+                      {localPreview}
+                    </p>
+                  ) : null}
                 </>
               )}
               <h3 className="m-0 mt-2 text-sm font-semibold text-text-primary">

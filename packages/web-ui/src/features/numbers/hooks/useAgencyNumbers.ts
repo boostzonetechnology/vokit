@@ -171,8 +171,8 @@ export function useAgencyNumbers() {
         assignment?: NumberAssignment;
         invoice?: { id?: string; total_minor?: number };
       }>(
-        "/api/v1/agency/phone-numbers/assignments",
-        "POST",
+          "/api/v1/agency/phone-numbers/assignments",
+          "POST",
         { reservation_id: reservationId, confirm },
         { "Idempotency-Key": idempotencyKey("number-assign") },
       );

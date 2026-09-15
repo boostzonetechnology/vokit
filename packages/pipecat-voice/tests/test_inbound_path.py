@@ -7,6 +7,7 @@ import pytest
 from pipecat.turns.user_turn_strategies import ExternalUserTurnStrategies, UserTurnStrategies
 
 from vokit_pipecat_voice.pipeline.inbound_path import pcm16_rms, user_aggregator_params
+from vokit_pipecat_voice.pipeline.session import IDLE_TIMEOUT_FRAMES
 from vokit_pipecat_voice.serializers.vokit_edge import ULAW_FRAME_BYTES, VokitEdgeFrameSerializer
 
 
@@ -28,6 +29,30 @@ def test_cartesia_ink2_allows_vad_none():
     params = user_aggregator_params(CartesiaTurnsSTTService(), None, None)
     assert params.vad_analyzer is None
     assert isinstance(params.user_turn_strategies, ExternalUserTurnStrategies)
+
+
+def test_idle_timeout_frames_include_cartesia_turn_activity():
+    """Silence timer must reset on Turns/LLM/TTS, not only Silero UserSpeakingFrame."""
+    from pipecat.frames.frames import (
+        BotSpeakingFrame,
+        LLMFullResponseStartFrame,
+        TranscriptionFrame,
+        TTSStartedFrame,
+        UserSpeakingFrame,
+        UserStartedSpeakingFrame,
+    )
+
+    names = {cls.__name__ for cls in IDLE_TIMEOUT_FRAMES}
+    for required in (
+        BotSpeakingFrame,
+        UserSpeakingFrame,
+        UserStartedSpeakingFrame,
+        TranscriptionFrame,
+        LLMFullResponseStartFrame,
+        TTSStartedFrame,
+    ):
+        assert required in IDLE_TIMEOUT_FRAMES, required.__name__
+    assert "InputAudioRawFrame" not in names
 
 
 def test_deepgram_keeps_vad_smart_turn_strategies():

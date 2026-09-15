@@ -135,7 +135,7 @@ function VendorProviderCard({
           nextCatalog[cap] = data.models;
           nextStatus[cap] = data.models.length
             ? `${data.models.length} models loaded from ${vendor.title}.`
-            : "Credentials accepted, but the vendor returned no models.";
+            : "Credentials accepted, but the vendor returned no models for this capability.";
         } catch (cause) {
           nextCatalog[cap] = [];
           nextStatus[cap] = isApiError(cause)
@@ -146,6 +146,18 @@ function VendorProviderCard({
     );
     setCatalogByCap(nextCatalog);
     setCatalogStatus(nextStatus);
+    // Drop foreign/stale telephony.*_model values that belong to another vendor.
+    setModels((prev) => {
+      const next = { ...prev };
+      for (const cap of vendor.capabilities) {
+        const catalog = nextCatalog[cap] || [];
+        const current = prev[cap].trim();
+        if (current && catalog.length > 0 && !catalog.some((row) => row.id === current)) {
+          next[cap] = "";
+        }
+      }
+      return next;
+    });
     setLoadingCatalog(false);
   }
 
@@ -162,7 +174,7 @@ function VendorProviderCard({
       return;
     }
     if (!hasKey && !apiKey.trim()) {
-      setVoiceProbe("Models unavailable: missing API key for this TTS vendor.");
+      setVoiceProbe("Voices unavailable: missing API key for this TTS vendor.");
       return;
     }
     setProbing(true);
@@ -197,7 +209,7 @@ function VendorProviderCard({
       setVoiceProbe(
         hasKey
           ? "API key is set. Mark TTS Active and save to use this vendor."
-          : "Models unavailable: missing credentials for this TTS vendor.",
+          : "Voices unavailable: missing credentials for this TTS vendor.",
       );
       return;
     }
@@ -232,7 +244,17 @@ function VendorProviderCard({
       }
       if (wantActive) {
         const modelKey = CAPABILITY_MODEL_KEY[cap];
-        const nextModel = models[cap].trim();
+        const catalog = catalogByCap[cap] || [];
+        const selected = models[cap].trim();
+        let nextModel = selected;
+        if (catalog.length > 0) {
+          if (!catalog.some((row) => row.id === selected)) {
+            nextModel = "";
+          }
+        } else if (!currentlyActive) {
+          // Activating this vendor: never keep another vendor's global model id.
+          nextModel = "";
+        }
         const prevModel = settingString(byKey, modelKey);
         if (nextModel !== prevModel) {
           updates.push({ key: modelKey, value: nextModel, reason: trimmedReason });
@@ -371,7 +393,11 @@ function VendorProviderCard({
                 <label className="mt-3 m-0 grid min-w-0 gap-1.5 font-normal">
                   <span className="text-body-sm text-text-muted">Model (optional)</span>
                   <select
-                    value={models[cap]}
+                    value={
+                      (catalogByCap[cap] || []).some((row) => row.id === models[cap])
+                        ? models[cap]
+                        : ""
+                    }
                     disabled={localBusy || loadingCatalog || !isActive || !hasKey}
                     onChange={(event) =>
                       setModels((prev) => ({ ...prev, [cap]: event.target.value }))
@@ -387,14 +413,6 @@ function VendorProviderCard({
                             ? "— none —"
                             : "Activate to select"}
                     </option>
-                    {models[cap] &&
-                    !(catalogByCap[cap] || []).some((row) => row.id === models[cap]) ? (
-                      <option value={models[cap]}>
-                        {models[cap].length > 48
-                          ? `${models[cap].slice(0, 45)}… (current)`
-                          : `${models[cap]} (current)`}
-                      </option>
-                    ) : null}
                     {(catalogByCap[cap] || []).map((row) => (
                       <option key={row.id} value={row.id}>
                         {modelOptionLabel(row)}
@@ -412,9 +430,13 @@ function VendorProviderCard({
                           : voiceProbe
                         : null)}
                 </p>
-                {cap === "tts" && catalogStatus[cap] && voiceProbe ? (
+                {cap === "tts" ? (
                   <p className="mt-1 mb-0 break-words text-xs text-text-muted">
-                    {probing ? "Checking voice catalog…" : voiceProbe}
+                    Model is the TTS engine id. Agent voices (voice_id) come from Refresh voices —
+                    not this dropdown.
+                    {voiceProbe && catalogStatus[cap]
+                      ? ` ${probing ? "Checking voice catalog…" : voiceProbe}`
+                      : null}
                   </p>
                 ) : null}
               </div>

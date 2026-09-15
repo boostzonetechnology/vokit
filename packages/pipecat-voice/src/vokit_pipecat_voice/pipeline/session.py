@@ -8,13 +8,20 @@ from typing import Any
 from fastapi import WebSocket
 from pipecat.adapters.schemas.tools_schema import ToolsSchema
 from pipecat.frames.frames import (
+    BotSpeakingFrame,
     EndFrame,
     ErrorFrame,
     Frame,
     InputAudioRawFrame,
+    InterimTranscriptionFrame,
+    LLMFullResponseStartFrame,
     OutputAudioRawFrame,
     TranscriptionFrame,
     TTSSpeakFrame,
+    TTSStartedFrame,
+    UserSpeakingFrame,
+    UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
@@ -60,6 +67,20 @@ logger = logging.getLogger(__name__)
 AUDIO_IN_SAMPLE_RATE = 8000
 AUDIO_OUT_SAMPLE_RATE = 24000
 AUDIO_OUT_10MS_CHUNKS = 2
+
+# PipelineWorker defaults to (BotSpeakingFrame, UserSpeakingFrame). Cartesia
+# Ink-2 Turns skip Silero, so UserSpeakingFrame never arrives; a 20s caller
+# utterance after TTS would idle-cancel mid-LLM. Count turn/LLM/TTS frames too.
+IDLE_TIMEOUT_FRAMES: tuple[type[Frame], ...] = (
+    BotSpeakingFrame,
+    UserSpeakingFrame,
+    UserStartedSpeakingFrame,
+    UserStoppedSpeakingFrame,
+    TranscriptionFrame,
+    InterimTranscriptionFrame,
+    LLMFullResponseStartFrame,
+    TTSStartedFrame,
+)
 
 
 class _EchoProbe(FrameProcessor):
@@ -327,6 +348,7 @@ async def run_inbound_pipeline(
         params=params,
         enable_rtvi=False,
         idle_timeout_secs=float(silence_timeout) if silence_timeout > 0 else None,
+        idle_timeout_frames=IDLE_TIMEOUT_FRAMES,
         cancel_on_idle_timeout=True,
     )
 

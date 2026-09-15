@@ -59,7 +59,7 @@ export function AgencyAgentsScreen() {
     if (!selectedDetail) return;
     setVoiceId(selectedDetail.voice_id || "");
     setLanguage(selectedDetail.language || "");
-  }, [selectedDetail]);
+  }, [selectedDetail?.id, selectedDetail?.voice_id, selectedDetail?.language]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -121,7 +121,7 @@ export function AgencyAgentsScreen() {
         timezone: String(form.get("timezone") || ""),
         greeting: String(form.get("greeting") || ""),
         instructions: String(form.get("instructions") || ""),
-        fallback_behavior: String(form.get("fallback_behavior") || ""),
+        fallback_behavior: String(form.get("fallback_behavior") || "message"),
         inbound_enabled: form.get("inbound_enabled") === "on",
         outbound_enabled: form.get("outbound_enabled") === "on",
         recording_disclosure: form.get("recording_disclosure") === "on",
@@ -400,11 +400,26 @@ export function AgencyAgentsScreen() {
                       className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
                     />
                   </label>
-                  <FormField
-                    label="Fallback behavior"
-                    name="fallback_behavior"
-                    defaultValue={detail.fallback_behavior || ""}
-                  />
+                  <label className="m-0 grid gap-1.5 font-normal">
+                    <span className="text-body-sm text-text-muted">Fallback behavior</span>
+                    <select
+                      name="fallback_behavior"
+                      key={`fallback-${detail.id}-${detail.fallback_behavior || "message"}`}
+                      defaultValue={
+                        detail.fallback_behavior === "message" ||
+                        detail.fallback_behavior === "transfer" ||
+                        detail.fallback_behavior === "hangup"
+                          ? detail.fallback_behavior
+                          : "message"
+                      }
+                      className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+                      required
+                    >
+                      <option value="message">message — play a message / stay on line</option>
+                      <option value="transfer">transfer — hand off if transfer rules exist</option>
+                      <option value="hangup">hangup — end the call</option>
+                    </select>
+                  </label>
                   <div className="flex flex-wrap gap-4">
                     <label className="m-0 flex items-center gap-2 font-normal text-body">
                       <input
