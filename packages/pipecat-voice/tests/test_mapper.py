@@ -80,7 +80,7 @@ def test_cartesia_tts_sentence_with_zero_buffer_delay():
     assert getattr(tts, "_max_buffer_delay_ms") == 0
     gen = getattr(tts, "_settings").generation_config
     assert isinstance(gen, GenerationConfig)
-    assert gen.speed == 1.15
+    assert gen.speed == 1.35
 
 
 def test_deepgram_tts_uses_sentence_aggregation():
