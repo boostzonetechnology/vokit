@@ -38,6 +38,8 @@ class TenantAgent:
     voicemail_greeting: str = ""
     outbound_voicemail_message: str = ""
     default_transfer_id: uuid.UUID | None = None
+    status_locked: bool = False
+    status_actor: str = "agency"
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +144,8 @@ def agent_from_config(
     draft_version: int | None = None,
     template_id: uuid.UUID | None = None,
     customer_can_edit: bool | None = None,
+    status_locked: bool = False,
+    status_actor: str = "agency",
 ) -> TenantAgent:
     data = {}
     if config_json:
@@ -189,6 +193,8 @@ def agent_from_config(
         voicemail_greeting=str(data.get("voicemail_greeting") or ""),
         outbound_voicemail_message=str(data.get("outbound_voicemail_message") or ""),
         default_transfer_id=_optional_uuid(data.get("default_transfer_id")),
+        status_locked=bool(status_locked),
+        status_actor=(status_actor or "agency").strip().lower() or "agency",
     )
 
 
@@ -221,4 +227,6 @@ def agent_snapshot(agent: TenantAgent) -> str:
         str(agent.default_transfer_id) if agent.default_transfer_id else None
     )
     payload["business_hours"] = list(agent.business_hours)
+    payload["status_locked"] = bool(agent.status_locked)
+    payload["status_actor"] = agent.status_actor
     return json.dumps(payload)

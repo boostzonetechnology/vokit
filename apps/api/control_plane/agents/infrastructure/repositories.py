@@ -169,6 +169,8 @@ class DjangoAgentIndexRepository:
                 "status": record.status.value,
                 "agent_type": record.agent_type,
                 "published_version": record.published_version,
+                "status_locked": record.status_locked,
+                "status_actor": record.status_actor or "agency",
             },
         )
 
@@ -185,6 +187,8 @@ class DjangoAgentIndexRepository:
             agent_type=row.agent_type,
             published_version=row.published_version,
             created_at=row.created_at,
+            status_locked=bool(row.status_locked),
+            status_actor=row.status_actor or "agency",
         )
 
     def list(
@@ -193,6 +197,7 @@ class DjangoAgentIndexRepository:
         tenant_id: uuid.UUID | None = None,
         customer_id: uuid.UUID | None = None,
         status: AgentStatus | None = None,
+        agent_type: str | None = None,
     ) -> list[AgentIndexRecord]:
         rows = AgentIndex.objects.order_by("created_at")
         if tenant_id is not None:
@@ -201,6 +206,8 @@ class DjangoAgentIndexRepository:
             rows = rows.filter(customer_id=customer_id)
         if status is not None:
             rows = rows.filter(status=status.value)
+        if agent_type:
+            rows = rows.filter(agent_type=agent_type)
         return [
             AgentIndexRecord(
                 id=row.id,
@@ -211,6 +218,8 @@ class DjangoAgentIndexRepository:
                 agent_type=row.agent_type,
                 published_version=row.published_version,
                 created_at=row.created_at,
+                status_locked=bool(row.status_locked),
+                status_actor=row.status_actor or "agency",
             )
             for row in rows
         ]

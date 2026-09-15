@@ -103,6 +103,7 @@ class CallIndexRepository(Protocol):
         *,
         tenant_id: uuid.UUID | None = None,
         customer_id: uuid.UUID | None = None,
+        agent_id: uuid.UUID | None = None,
     ) -> list[CallIndexRecord]: ...
 
 
@@ -714,8 +715,11 @@ class VoiceControl:
         *,
         tenant_id: uuid.UUID | None = None,
         customer_id: uuid.UUID | None = None,
+        agent_id: uuid.UUID | None = None,
     ) -> list[CallIndexRecord]:
-        return self._index.list(tenant_id=tenant_id, customer_id=customer_id)
+        return self._index.list(
+            tenant_id=tenant_id, customer_id=customer_id, agent_id=agent_id
+        )
 
     def invoke_tool(
         self, *, edge_call_id: str, tool: str, arguments: dict | None = None

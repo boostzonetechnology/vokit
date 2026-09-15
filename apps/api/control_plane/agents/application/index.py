@@ -15,5 +15,7 @@ def sync_agent_index(index: AgentIndexRepository, agent: TenantAgent) -> None:
             agent_type=agent.agent_type,
             published_version=agent.published_version,
             created_at=agent.created_at,
+            status_locked=agent.status_locked,
+            status_actor=agent.status_actor,
         )
     )

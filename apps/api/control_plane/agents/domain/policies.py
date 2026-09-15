@@ -7,6 +7,7 @@ from control_plane.agents.domain.types import (
     ALLOWED_TOOLS,
     FALLBACKS,
     PRODUCTION_STATUSES,
+    RESTRICTIVE_STATUSES,
     TEST_STATUSES,
     KnowledgeScope,
 )
@@ -165,3 +166,26 @@ def publish_failures(
     if status is AgentStatus.ARCHIVED:
         failures.append("agent_archived")
     return failures
+
+
+def assert_status_unlocked(agent) -> None:
+    if getattr(agent, "status_locked", False):
+        raise DomainError(
+            "agent_status_locked",
+            "Only Super Admin can change this agent status.",
+            http_status=409,
+        )
+
+
+def parse_agent_status(value: object) -> AgentStatus:
+    raw = str(value or "").strip().lower()
+    try:
+        return AgentStatus(raw)
+    except ValueError as exc:
+        raise DomainError("validation_error", "status is invalid.") from exc
+
+
+def platform_lock_flags(status: AgentStatus) -> tuple[bool, str]:
+    if status in RESTRICTIVE_STATUSES:
+        return True, "platform"
+    return False, "platform"

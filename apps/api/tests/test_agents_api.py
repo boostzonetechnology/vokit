@@ -371,3 +371,257 @@ def test_knowledge_isolation_and_test_session_is_not_production() -> None:
 def test_internal_telephony_requires_service_token() -> None:
     response = Client().post("/internal/telephony/v1/voice-session/bootstrap/")
     assert response.status_code == 401
+
+
+def _publish_ready(ctx) -> dict:
+    configured = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        _publishable(ctx),
+    )
+    assert configured.status_code == 200
+    published = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/publish",
+        {},
+    )
+    assert published.status_code == 200
+    return published.json()["data"]
+
+
+@pytest.mark.django_db
+def test_platform_directory_filters_assigned_e164_and_diagnostics() -> None:
+    from control_plane.telephony.models import CallIndex, PhoneNumber
+
+    ctx = _ready_agent()
+    PhoneNumber.objects.create(
+        e164="+15550001111",
+        assigned_agent_id=uuid.UUID(ctx["agent_id"]),
+        assigned_tenant_id=ctx["agency_id"],
+        assigned_customer_id=ctx["customer_id"],
+        status="assigned",
+    )
+    listing = ctx["platform"].get(
+        "/api/v1/platform/agents"
+        f"?agency_id={ctx['agency_id']}&customer_id={ctx['customer_id']}"
+        "&status=draft&agent_type=custom"
+    )
+    assert listing.status_code == 200
+    rows = listing.json()["data"]
+    assert len(rows) == 1
+    assert rows[0]["id"] == ctx["agent_id"]
+    assert rows[0]["assigned_e164"] == "+15550001111"
+    assert rows[0]["status_locked"] is False
+    detail = ctx["platform"].get(f"/api/v1/platform/agents/{ctx['agent_id']}")
+    assert detail.status_code == 200
+    assert detail.json()["data"]["assigned_e164"] == "+15550001111"
+    CallIndex.objects.create(
+        id=new_uuid7(),
+        tenant_id=ctx["agency_id"],
+        customer_id=ctx["customer_id"],
+        agent_id=uuid.UUID(ctx["agent_id"]),
+        edge_call_id="edge-diag-1",
+        e164="+15550001111",
+        direction="inbound",
+        status="failed",
+    )
+    diagnostics = ctx["platform"].get(
+        f"/api/v1/platform/agents/{ctx['agent_id']}/diagnostics"
+    )
+    assert diagnostics.status_code == 200
+    body = diagnostics.json()["data"]
+    assert "runtime" in body
+    assert body["runtime"]["production_routable"] is False
+    assert any(item.get("kind") == "call" for item in body["errors"])
+    assert "recent_calls" in body
+    assert "integrations" in body
+    missing = ctx["platform"].get(f"/api/v1/platform/agents/{new_uuid7()}")
+    assert missing.status_code == 404
+
+
+@pytest.mark.django_db
+def test_sa_status_lock_archive_and_restore() -> None:
+    ctx = _ready_agent()
+    _publish_ready(ctx)
+    paused = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/pause",
+        {"reason": "SA pause"},
+    )
+    assert paused.status_code == 200
+    assert paused.json()["data"]["status"] == "paused"
+    assert paused.json()["data"]["status_locked"] is True
+    routing = ctx["agency_client"].get(
+        f"/api/v1/agency/agents/{ctx['agent_id']}/routing"
+    )
+    assert routing.json()["data"]["routable"] is False
+    locked_pause = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/pause",
+        {},
+    )
+    assert locked_pause.status_code == 409
+    assert locked_pause.json()["error"]["code"] == "agent_status_locked"
+    locked_publish = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/publish",
+        {},
+    )
+    assert locked_publish.status_code == 409
+    assert locked_publish.json()["error"]["code"] == "agent_status_locked"
+    archived = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/archive",
+        {"reason": "retire"},
+    )
+    assert archived.status_code == 200
+    assert archived.json()["data"]["status"] == "archived"
+    assert ctx["agency_client"].get(
+        f"/api/v1/agency/agents/{ctx['agent_id']}/routing"
+    ).json()["data"]["routable"] is False
+    blocked_edit = _patch(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}",
+        {"greeting": "nope"},
+    )
+    assert blocked_edit.status_code == 409
+    restored = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/status",
+        {"status": "active"},
+    )
+    assert restored.status_code == 200
+    assert restored.json()["data"]["status"] == "active"
+    assert restored.json()["data"]["status_locked"] is False
+    agency_pause = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/pause",
+        {},
+    )
+    assert agency_pause.status_code == 200
+    assert agency_pause.json()["data"]["status"] == "paused"
+    missing_reason = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/disable",
+        {},
+    )
+    assert missing_reason.status_code == 400
+
+
+@pytest.mark.django_db
+def test_chargeback_suspend_stays_locked_from_agency() -> None:
+    from control_plane.identity.infrastructure.clock import SystemClock
+    from control_plane.risk.infrastructure.container import tenant_agents
+
+    ctx = _ready_agent()
+    _publish_ready(ctx)
+    tenant_agents().suspend_for_customer(
+        ctx["agency_id"], ctx["customer_id"], SystemClock().now()
+    )
+    detail = ctx["agency_client"].get(f"/api/v1/agency/agents/{ctx['agent_id']}")
+    assert detail.json()["data"]["status"] == "suspended"
+    assert detail.json()["data"]["status_locked"] is True
+    assert detail.json()["data"]["status_actor"] == "system"
+    denied = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/pause",
+        {},
+    )
+    assert denied.status_code == 409
+    assert denied.json()["error"]["code"] == "agent_status_locked"
+    sa_restore = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/status",
+        {"status": "active"},
+    )
+    assert sa_restore.status_code == 200
+
+
+@pytest.mark.django_db
+def test_platform_clone_is_independent_across_customers() -> None:
+    from control_plane.risk.infrastructure.container import tenant_agents
+
+    ctx = _ready_agent()
+    _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        {
+            "instructions": "Source only.",
+            "greeting": "Hello source",
+            "voice_id": "voice-1",
+            "language": "en",
+        },
+    )
+    source_knowledge = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "Source facts", "body": "keep on source", "scope": "agency"},
+    )
+    assert source_knowledge.status_code == 201
+    attach = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge",
+        {"source_id": source_knowledge.json()["data"]["id"]},
+    )
+    assert attach.status_code == 200
+    other = _create_agency(ctx["platform"], "Clone B", "clone_b", "oa-clone-b@vokit.test")
+    other_id = uuid.UUID(other.json()["data"]["id"])
+    other_customer = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(other_id, "Clone Cust"),
+    )
+    assert other_customer.status_code == 201
+    other_customer_id = uuid.UUID(other_customer.json()["data"]["id"])
+    cloned = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/clone",
+        {
+            "customer_id": str(other_customer_id),
+            "display_name": "Independent clone",
+            "greeting": "Hello clone",
+            "system_prompt": "Clone prompt",
+        },
+    )
+    assert cloned.status_code == 201
+    body = cloned.json()["data"]
+    assert body["id"] != ctx["agent_id"]
+    assert body["customer_id"] == str(other_customer_id)
+    assert body["agency_id"] == str(other_id)
+    assert body["status"] == "draft"
+    assert body["instructions"] == "Source only."
+    assert body["greeting"] == "Hello clone"
+    assert body["template_instructions"] == "Clone prompt"
+    assert body["published_version"] is None
+    source = ctx["agency_client"].get(f"/api/v1/agency/agents/{ctx['agent_id']}")
+    assert source.json()["data"]["greeting"] == "Hello source"
+    assert source.json()["data"]["instructions"] == "Source only."
+    assert tenant_agents().list_attachments(other_id, uuid.UUID(body["id"])) == []
+    assert tenant_agents().list_attachments(
+        ctx["agency_id"], uuid.UUID(ctx["agent_id"])
+    )
+    _patch(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{body['id']}",
+        {"instructions": "Clone rewrite"},
+    )
+    source_after = ctx["agency_client"].get(f"/api/v1/agency/agents/{ctx['agent_id']}")
+    assert source_after.json()["data"]["instructions"] == "Source only."
+    agency_clone = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/clone",
+        {},
+    )
+    assert agency_clone.status_code == 201
+    assert agency_clone.json()["data"]["customer_id"] == str(ctx["customer_id"])
+    other_user = _user(
+        "agency-clone-b@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        tenant_id=other_id,
+    )
+    _ = other_user
+    other_client = _client()
+    _login(other_client, "agency-clone-b@vokit.test")
+    foreign = other_client.get(f"/api/v1/agency/agents/{ctx['agent_id']}")
+    assert foreign.status_code == 404
