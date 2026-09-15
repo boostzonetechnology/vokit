@@ -100,7 +100,7 @@ export function useAgencyAgentsDirectory() {
     return map;
   }, [numbers]);
 
-  async function loadAgentDetail(agentId: string) {
+  const loadAgentDetail = useCallback(async (agentId: string) => {
     try {
       const detail = await apiGet<AgencyAgentDetail>(`/api/v1/agency/agents/${agentId}`);
       setSelectedDetail(detail);
@@ -110,7 +110,7 @@ export function useAgencyAgentsDirectory() {
       setSelectedDetail(null);
       return null;
     }
-  }
+  }, []);
 
   async function createAgent(input: {
     customer_id: string;

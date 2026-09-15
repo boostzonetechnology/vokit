@@ -63,7 +63,7 @@ Publish still requires `voice_id` and `language`. It does not require `voice_pro
 
 ## Provider model list (settings UI)
 
-Lists models for a **specific vendor** using that vendor’s stored Family B key (not hardcoded). Used after Super Admin saves an API key so the Model dropdown can be filled.
+Lists **models** for a specific vendor using that vendor’s stored Family B key. This is separate from TTS **voices** (`voice_id` for agents).
 
 | Method | Path | Auth |
 |---|---|---|
@@ -71,4 +71,16 @@ Lists models for a **specific vendor** using that vendor’s stored Family B key
 
 Normalized: `{ provider, capability, models: [{ id, name }] }`.
 
-Fail-closed: `503` if vendor/capability invalid or key missing; `502` if vendor HTTP fails.
+Source per vendor:
+
+| Vendor | Capability | Source |
+|---|---|---|
+| OpenAI / Grok / Anthropic | LLM | Live vendor `/v1/models` (chat models only for OpenAI/Grok) |
+| Deepgram | STT / TTS | Live `GET /v1/models` section |
+| ElevenLabs | TTS | Live `GET /v1/models` where `can_do_text_to_speech` |
+| ElevenLabs | STT | Live `GET /v1/models` Scribe / speech-to-text entries |
+| Cartesia | STT / TTS | Documented model IDs (Cartesia has no list-models API). Key is probed via voices. Agent voices stay on `GET .../tts/voices` |
+
+Fail-closed: `503` if vendor/capability invalid or key missing; `502` if vendor HTTP fails (clearer key/timeout messages).
+
+`telephony.{stt,tts,llm}_model` is global per capability. Switching Active vendor must not keep another vendor’s model id as if it belonged to the new vendor.
