@@ -26,6 +26,9 @@ HIGH_RISK_ACTIONS = frozenset(
         "mfa.reset",
         "mfa.method_disabled",
         "mfa.recovery_regenerated",
+        "agent.status.changed",
+        "agent.archived",
+        "agent.disabled",
     }
 )
 
@@ -42,5 +45,7 @@ OVERRIDE_ACTIONS = frozenset(
         "payout.decided",
         "customer.minutes.adjusted",
         "mfa.reset",
+        "agent.archived",
+        "agent.disabled",
     }
 )

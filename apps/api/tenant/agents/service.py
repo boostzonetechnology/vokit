@@ -50,10 +50,20 @@ class TenantAgentService:
         updated: list[TenantAgent] = []
         with self._router.connection_for_tenant(tenant_id) as connection:
             for agent in self._store.list_agents(connection, customer_id):
-                if agent.status is AgentStatus.SUSPENDED:
+                if (
+                    agent.status is AgentStatus.SUSPENDED
+                    and agent.status_locked
+                    and agent.status_actor == "system"
+                ):
                     updated.append(agent)
                     continue
-                suspended = replace(agent, status=AgentStatus.SUSPENDED, updated_at=now)
+                suspended = replace(
+                    agent,
+                    status=AgentStatus.SUSPENDED,
+                    status_locked=True,
+                    status_actor="system",
+                    updated_at=now,
+                )
                 self._store.put_agent(connection, suspended)
                 stored = self._store.get_agent(connection, agent.agent_id)
                 if stored is None:

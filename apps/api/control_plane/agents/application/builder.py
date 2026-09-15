@@ -15,10 +15,17 @@ from control_plane.agents.domain.policies import (
     assert_fallback,
     assert_no_secrets,
     assert_production_routable,
+    assert_status_unlocked,
     assert_tools,
+    parse_agent_status,
+    platform_lock_flags,
     publish_failures,
 )
+from control_plane.agents.domain.types import AGENCY_PAUSE_STATUSES
+from control_plane.audit.application.record import RecordAuditCommand
+from control_plane.audit.infrastructure.container import record_audit
 from control_plane.customers.application.ports import CustomerIndexRepository
+from control_plane.customers.domain.policies import customer_not_found
 from control_plane.risk.application.gate import CustomerRiskGate
 from control_plane.risk.domain.types import AgentStatus
 from control_plane.telephony.domain.destinations import parse_hours
@@ -76,10 +83,18 @@ class ConfigureAgent:
         agent = _load_agent(
             self._agents, command.agent_id, command.actor_tenant_id, command.privileged
         )
+        if not command.privileged:
+            assert_status_unlocked(agent)
         if agent.status is AgentStatus.SUSPENDED:
             raise DomainError(
                 "agent_suspended",
                 "Suspended agents cannot be edited.",
+                http_status=409,
+            )
+        if agent.status is AgentStatus.ARCHIVED:
+            raise DomainError(
+                "agent_archived",
+                "Archived agents cannot be edited.",
                 http_status=409,
             )
         name = agent.display_name
@@ -188,6 +203,8 @@ class PublishAgent:
         self, *, agent_id: uuid.UUID, actor_tenant_id: uuid.UUID | None, privileged: bool
     ) -> TenantAgent:
         agent = _load_agent(self._agents, agent_id, actor_tenant_id, privileged)
+        if not privileged:
+            assert_status_unlocked(agent)
         self._gate.assert_open(agent.customer_id)
         customer = self._lifecycle.get_customer(agent.tenant_id, agent.customer_id)
         subscription = self._billing.get_active_subscription(agent.tenant_id, agent.customer_id)
@@ -215,6 +232,8 @@ class PublishAgent:
             agent,
             status=AgentStatus.ACTIVE,
             published_version=version,
+            status_locked=False,
+            status_actor="platform" if privileged else "agency",
             updated_at=now,
         )
         stored = self._agents.put_agent(agent.tenant_id, published)
@@ -231,6 +250,12 @@ class PublishAgent:
             ),
         )
         sync_agent_index(self._index, stored)
+        _record_agent_audit(
+            action="agent.published",
+            agent=stored,
+            before=agent.status.value,
+            after=stored.status.value,
+        )
         log_event(
             logger,
             "agent.published",
@@ -255,17 +280,43 @@ class PauseAgent:
         self, *, agent_id: uuid.UUID, actor_tenant_id: uuid.UUID | None, privileged: bool
     ) -> TenantAgent:
         agent = _load_agent(self._agents, agent_id, actor_tenant_id, privileged)
+        if not privileged:
+            assert_status_unlocked(agent)
+            if agent.status not in AGENCY_PAUSE_STATUSES:
+                raise DomainError(
+                    "invalid_transition",
+                    "Agent cannot be paused from the current status.",
+                    http_status=409,
+                )
         if agent.status is AgentStatus.SUSPENDED:
             raise DomainError(
                 "agent_suspended",
                 "Suspended agents cannot be paused.",
                 http_status=409,
             )
+        if agent.status is AgentStatus.ARCHIVED:
+            raise DomainError(
+                "agent_archived",
+                "Archived agents cannot be paused.",
+                http_status=409,
+            )
         stored = self._agents.put_agent(
             agent.tenant_id,
-            replace(agent, status=AgentStatus.PAUSED, updated_at=self._clock.now()),
+            replace(
+                agent,
+                status=AgentStatus.PAUSED,
+                status_locked=False if not privileged else True,
+                status_actor="platform" if privileged else "agency",
+                updated_at=self._clock.now(),
+            ),
         )
         sync_agent_index(self._index, stored)
+        _record_agent_audit(
+            action="agent.paused",
+            agent=stored,
+            before=agent.status.value,
+            after=stored.status.value,
+        )
         log_event(
             logger,
             "agent.paused",
@@ -292,24 +343,162 @@ class CloneAgent:
         self._clock = clock
 
     def execute(
-        self, *, agent_id: uuid.UUID, actor_tenant_id: uuid.UUID | None, privileged: bool
+        self,
+        *,
+        agent_id: uuid.UUID,
+        actor_tenant_id: uuid.UUID | None,
+        privileged: bool,
+        customer_id: uuid.UUID | None = None,
+        display_name: str | None = None,
+        greeting: str | None = None,
+        system_prompt: str | None = None,
     ) -> TenantAgent:
         source = _load_agent(self._agents, agent_id, actor_tenant_id, privileged)
-        self._gate.assert_open(source.customer_id)
+        target_customer_id = source.customer_id
+        target_tenant_id = source.tenant_id
+        if privileged:
+            if customer_id is None:
+                raise DomainError("validation_error", "customer_id is required.")
+            customer = self._customers.get(customer_id)
+            if customer is None:
+                raise customer_not_found()
+            target_customer_id = customer.id
+            target_tenant_id = customer.tenant_id
+        elif customer_id is not None and customer_id != source.customer_id:
+            raise DomainError("not_found", "Resource not found.", http_status=404)
+        self._gate.assert_open(target_customer_id)
         now = self._clock.now()
+        name = (display_name or "").strip() if privileged else ""
+        clone_greeting = source.greeting
+        clone_prompt = source.template_instructions
+        if privileged:
+            if not name:
+                name = f"{source.display_name} copy"
+            if greeting is not None:
+                assert_no_secrets(greeting, field="greeting")
+                clone_greeting = greeting
+            if system_prompt is not None:
+                assert_no_secrets(system_prompt, field="system_prompt")
+                clone_prompt = system_prompt
+        else:
+            name = f"{source.display_name} copy"
+        transfer_id = source.default_transfer_id
+        if target_tenant_id != source.tenant_id:
+            transfer_id = None
         clone = replace(
             source,
             agent_id=new_uuid7(),
-            display_name=f"{source.display_name} copy"[:128],
+            tenant_id=target_tenant_id,
+            customer_id=target_customer_id,
+            display_name=name[:128],
             status=AgentStatus.DRAFT,
             published_version=None,
             draft_version=1,
+            greeting=clone_greeting,
+            template_instructions=clone_prompt,
+            default_transfer_id=transfer_id,
+            status_locked=False,
+            status_actor="agency",
             created_at=now,
             updated_at=now,
         )
-        stored = self._agents.put_agent(source.tenant_id, clone)
+        stored = self._agents.put_agent(target_tenant_id, clone)
         sync_agent_index(self._index, stored)
+        _record_agent_audit(
+            action="agent.created",
+            agent=stored,
+            before="",
+            after="draft",
+            payload={"cloned_from": str(source.agent_id)},
+        )
         return stored
+
+
+class SetAgentStatus:
+    def __init__(
+        self, agents: TenantAgentService, index: AgentIndexRepository, clock: Clock
+    ) -> None:
+        self._agents = agents
+        self._index = index
+        self._clock = clock
+
+    def execute(
+        self,
+        *,
+        agent_id: uuid.UUID,
+        status: str,
+        reason: str = "",
+        actor_id=None,
+        actor_role: str = "",
+    ) -> TenantAgent:
+        target = parse_agent_status(status)
+        agent = _load_agent(self._agents, agent_id, None, True)
+        if target in {AgentStatus.PAUSED, AgentStatus.SUSPENDED, AgentStatus.ARCHIVED}:
+            if not str(reason or "").strip():
+                raise DomainError("validation_error", "reason is required.")
+        locked, actor = platform_lock_flags(target)
+        stored = self._agents.put_agent(
+            agent.tenant_id,
+            replace(
+                agent,
+                status=target,
+                status_locked=locked,
+                status_actor=actor,
+                updated_at=self._clock.now(),
+            ),
+        )
+        sync_agent_index(self._index, stored)
+        action = "agent.status.changed"
+        if target is AgentStatus.ARCHIVED:
+            action = "agent.archived"
+        elif target is AgentStatus.SUSPENDED:
+            action = "agent.disabled"
+        _record_agent_audit(
+            action=action,
+            agent=stored,
+            before=agent.status.value,
+            after=stored.status.value,
+            reason=reason,
+            actor_id=actor_id,
+            actor_role=actor_role,
+        )
+        log_event(
+            logger,
+            "agent.status.changed",
+            outcome="success",
+            tenant_id=str(agent.tenant_id),
+            agent_id=str(agent.agent_id),
+            status=target.value,
+        )
+        return stored
+
+
+def _record_agent_audit(
+    *,
+    action: str,
+    agent: TenantAgent,
+    before: str,
+    after: str,
+    reason: str = "",
+    actor_id=None,
+    actor_role: str = "",
+    payload: dict | None = None,
+) -> None:
+    record_audit().execute(
+        RecordAuditCommand(
+            action=action,
+            entity_type="agent",
+            entity_id=str(agent.agent_id),
+            actor_id=actor_id,
+            actor_role=actor_role,
+            tenant_id=agent.tenant_id,
+            customer_id=agent.customer_id,
+            reason=reason,
+            before_summary=before,
+            after_summary=after,
+            payload=payload,
+        )
+    )
 
 
 def _load_agent(

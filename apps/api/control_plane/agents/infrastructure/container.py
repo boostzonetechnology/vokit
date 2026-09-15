@@ -7,6 +7,7 @@ from control_plane.agents.application.builder import (
     ConfigureAgent,
     PauseAgent,
     PublishAgent,
+    SetAgentStatus,
 )
 from control_plane.agents.application.knowledge import AttachKnowledge, IngestKnowledge
 from control_plane.agents.application.sessions import SaveInstruction, StartTestSession
@@ -95,6 +96,10 @@ def publish_agent() -> PublishAgent:
 
 def pause_agent() -> PauseAgent:
     return PauseAgent(tenant_agents(), agent_index(), SystemClock())
+
+
+def set_agent_status() -> SetAgentStatus:
+    return SetAgentStatus(tenant_agents(), agent_index(), SystemClock())
 
 
 def clone_agent() -> CloneAgent:

@@ -73,6 +73,8 @@ class AgentIndex(models.Model):
     status = models.CharField(max_length=32)
     agent_type = models.CharField(max_length=64, default="custom")
     published_version = models.PositiveIntegerField(null=True, blank=True)
+    status_locked = models.BooleanField(default=False)
+    status_actor = models.CharField(max_length=16, default="agency")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

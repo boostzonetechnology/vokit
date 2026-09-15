@@ -62,6 +62,8 @@ def _agent_payload(row) -> dict[str, object]:
         "customer_id": str(row.customer_id),
         "display_name": row.display_name,
         "status": row.status.value,
+        "status_locked": bool(getattr(row, "status_locked", False)),
+        "status_actor": getattr(row, "status_actor", "agency"),
     }
 
 

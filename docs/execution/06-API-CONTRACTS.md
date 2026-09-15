@@ -69,7 +69,13 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET | `/platform/kyc/cases` | SA4-* status/aging, not document preview |
 | POST | `/platform/kyc/cases/{id}/override` | KYC-007 freeze/override |
 | POST | `/webhooks/kyc/{provider}/v1/` | Signed provider events (Q-015) |
-| GET/POST | `/platform/agents` | SA5-* |
+| GET/POST | `/platform/agents` | SA5-* list filters `agency_id`/`customer_id`/`status`/`agent_type`; `assigned_e164`; POST requires `agent.update` |
+| GET/PATCH | `/platform/agents/{id}` | SA5-001 detail; PATCH configure (`agent.update`); archived/suspended edits 409 |
+| POST | `/platform/agents/{id}/publish` | AGT-003 privileged publish (`agent.update`) |
+| POST | `/platform/agents/{id}/status` | SA5-002 any status; `reason` required for pause/suspend/archive (AUD-004) |
+| POST | `/platform/agents/{id}/pause` `/archive` `/disable` | Aliases onto status (`paused`/`archived`/`suspended`) |
+| POST | `/platform/agents/{id}/clone` | Independent draft onto any `customer_id`; optional greeting/system_prompt |
+| GET | `/platform/agents/{id}/diagnostics` | SA5-003 read-only runtime/calls/errors/integrations |
 | GET/POST | `/platform/templates` | SA6-* |
 | GET/POST | `/platform/instructions` | SA7-* |
 | GET/POST | `/platform/knowledge` | SA8-* |
