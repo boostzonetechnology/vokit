@@ -1,5 +1,7 @@
 # VMware lab inbound voice (Windows host + Ubuntu Asterisk VM)
 
+**Follow-along (start here):** [LAB-INBOUND-VMWARE.md](LAB-INBOUND-VMWARE.md) — full inbound lab from env files through Super Admin / Agency UI, Asterisk copy, MicroSIP, and troubleshooting. That document matches the current Django, portals, Pipecat, sip-edge, and `deploy/asterisk/lab/` configs.
+
 **Authority:** SRS SIP path + ADR telephony contracts. vokit-old is reference for wire contracts only.
 
 Full token/process list: [27-LAB-VOICE-WIRING.md](execution/27-LAB-VOICE-WIRING.md).

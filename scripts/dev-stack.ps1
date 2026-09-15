@@ -1,6 +1,8 @@
 # Vokit local stack — API + three Vite portals (Windows PowerShell)
 # Usage (from repo root):
 #   .\scripts\dev-stack.ps1
+# If execution policy blocks it:
+#   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1
 # Requires: apps/api/.venv, Node, Laragon/MySQL+Redis as needed.
 
 $ErrorActionPreference = "Stop"
