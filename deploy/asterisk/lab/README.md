@@ -34,10 +34,15 @@ Do **not** register both accounts in one MicroSIP process — Asterisk will only
 After copy/reload:
 
 ```bash
+sudo cp ~/rtp.conf /etc/asterisk/rtp.conf
+sudo systemctl restart asterisk
+sudo asterisk -rx "rtp show settings"
 sudo asterisk -rx "module reload res_pjsip.so"
 sudo asterisk -rx "dialplan reload"
 sudo asterisk -rx "pjsip show contacts"
 ```
+
+`rtp show settings` must be **30000–40000**, not Ubuntu’s default 10000–20000. `pjsip show contacts` for `labphone` must show **192.168.56.1**, not the VMware NAT NIC (`192.168.157.x`).
 
 Expect both `labphone` and `labphone2` Reachable when both clients are registered.
 
@@ -57,3 +62,5 @@ Full inbound steps: [docs/vmware-lab-inbound.md](../../../docs/vmware-lab-inboun
 and [docs/execution/27-LAB-VOICE-WIRING.md](../../../docs/execution/27-LAB-VOICE-WIRING.md).
 
 Start helpers on Windows: `.\scripts\dev-stack.ps1` then `.\scripts\dev-voice.ps1`.
+
+**Step-by-step inbound lab (portals, number attach, VM Asterisk):** [docs/LAB-INBOUND-VMWARE.md](../../../docs/LAB-INBOUND-VMWARE.md).

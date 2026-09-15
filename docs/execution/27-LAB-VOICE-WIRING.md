@@ -40,6 +40,8 @@ Never put these tokens in React.
 
 Put VM IPs only in **local** gitignored `.env` files.
 
+**Full inbound lab (UI + Asterisk copy + prove-it curls):** [docs/LAB-INBOUND-VMWARE.md](../LAB-INBOUND-VMWARE.md).
+
 ## Exit criteria (Wave 1C)
 
 One inbound lab call produces a Django call row and Pipecat audio. `calling_live` may be on in local settings; live production attestations remain Wave 4 / Phase 19 evidence.

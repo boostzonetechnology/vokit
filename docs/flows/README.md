@@ -15,4 +15,5 @@ These describe **what runs today**, not backlog wishes. SRS and ADRs remain auth
 | [MFA TOTP](auth/MFA_TOTP_FLOW.md) | Authenticator enroll + login verify |
 | [MFA Email OTP](auth/MFA_EMAIL_FLOW.md) | Email OTP enroll + login verify |
 | [Voice providers](VOICE-PROVIDERS.md) | Super Admin STT/TTS/LLM settings, encrypted vendor keys, TTS voice list |
+| [Lab inbound (VMware Asterisk)](../LAB-INBOUND-VMWARE.md) | Step-by-step inbound test call: Windows Django/edge/Pipecat + Ubuntu Asterisk |
 | [ADR-008 secrets / KMS](../adr/ADR-008-secret-management-kms-path.md) | SecretRef vs app vaults; MFA + tenant + voice vaults; future KMS |

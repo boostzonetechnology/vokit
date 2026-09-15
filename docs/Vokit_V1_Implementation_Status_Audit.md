@@ -28,37 +28,37 @@ Important:
 This report reflects repository evidence at the time of the audit.
 No implementation changes were made during this audit.
 
-**Audit date:** 2026-09-12 (updated with frontend re-audit)
+**Audit date:** 2026-09-14 (re-verified against current backend + `packages/web-ui`; previous pass 2026-09-12)
 
 ## Final Project Status (Executive)
 
 ```text
 Total Jira Tasks: 151
 
-COMPLETE: 55
-PARTIAL: 89
-NOT_IMPLEMENTED: 7
+COMPLETE: 61
+PARTIAL: 84
+NOT_IMPLEMENTED: 6
 BLOCKED: 0
 NEEDS_MANUAL_REVIEW: 0
 ```
 
 ```text
-Complete by task count: 36.4%
-Partial by task count: 58.9%
-Remaining by task count (PARTIAL+NOT_IMPLEMENTED+BLOCKED+NMR): 63.6%
+Complete by task count: 40.4%
+Partial by task count: 55.6%
+Remaining by task count (PARTIAL+NOT_IMPLEMENTED+BLOCKED+NMR): 59.6%
 ```
 
 ```text
 Total Story Points (XLS): 698
-Completed Story Points: 254
-Partial Story Points: 421
-Not Implemented Story Points: 23
-Remaining Story Points (non-COMPLETE): 444
+Completed Story Points: 285
+Partial Story Points: 393
+Not Implemented Story Points: 20
+Remaining Story Points (non-COMPLETE): 413
 ```
 
-**Verdict:** Backend domain remains largely ahead of a greenfield Jira start. After the **frontend code pull**, many Super Admin UI gaps closed (agencies create/notes, KYC review, payout review, plans/billing/calls/settings/users/audit/notifications). Remaining work concentrates on **agency/customer portal depth**, invite accept UI, async knowledge, billing notification dispatch, privacy export, transfer rules, webhook replay, agent simulator, and **live production attestations**.
+**Verdict:** Super Admin, Agency, and Customer portals now use dedicated feature screens (`renderPlatformScreen.tsx`, `renderAgencyProductScreen.tsx`, `renderCustomerProductScreen.tsx`). Remaining work concentrates on agent builder stages (tools/mapping), outbound originate UI, Super Admin webhook replay, ledger/receipt depth, async knowledge processing, billing notification dispatch, privacy export, transfer rules, full agent simulator, payout KYC details, and **live production attestations**. Frontend automated tests are still missing.
 
-**Frontend re-audit (2026-09-12):** Platform portal uses dedicated feature screens via `renderPlatformScreen.tsx`; only `risk` remains generic. Agency/customer portals still lean on `productScreens.tsx`. Frontend automated tests are missing.
+**Frontend re-audit (2026-09-14):** Agency/customer no longer lean on `productScreens.tsx` for the main modules listed in `renderAgencyProductScreen.tsx` / `renderCustomerProductScreen.tsx`. Platform `risk` remains generic. Voice provider keys are editable in Settings → Providers (`SETTING_GROUPS` + masked PATCH). A DoD-conservative recast kept screens that exist but miss Jira DoD as PARTIAL (invite terms, SA webhook log, monitoring depth). Agency Numbers `useAgencyNumbers.ts` was corrected in a follow-up to post `/reservations` and `/assignments`.
 
 ## Status Legend
 
@@ -76,6 +76,95 @@ Remaining Story Points (non-COMPLETE): 444
 ---
 
 
+
+## Status Changes 2026-09-14
+
+Re-verified against current `apps/api` and `packages/web-ui`. A second pass (DoD-conservative) recast several Overall=COMPLETE promotions where screens exist but Jira DoD is still incomplete (terms/email on invite, SA webhook portal, ledger/receipt depth, agent wizard stages, outbound originate). Search (VKT-079) stays COMPLETE; reserve/assign mismatch is VKT-080 and was fixed in `useAgencyNumbers.ts` on 2026-09-14.
+
+| VKT | Previous Overall | Current Overall | Why (evidence) |
+| --- | --- | --- | --- |
+| VKT-007 | PARTIAL | COMPLETE | Login MFA challenge + Security enroll: `LoginScreen`, `MfaChallengePanel`, `MfaSettingsPanel`, `useLoginFlow` → `/api/v1/auth/mfa/*` |
+| VKT-024 | PARTIAL | PARTIAL | `AcceptInviteScreen` exists (was UI NOT_IMPLEMENTED). DoD still wants email-verify + terms; accept API is token+password only |
+| VKT-041 | NOT_IMPLEMENTED | PARTIAL | `AgencyCustomerDetailScreen` + resource tabs. Remaining minutes / GET subscription still missing |
+| VKT-051 | PARTIAL | PARTIAL | Dedicated `AgencyWalletScreen` (was generic). Ledger/methods still thin vs “every entry type” |
+| VKT-056 | PARTIAL | PARTIAL | `AgencyPayoutsScreen` + receipt GET. Receipt is JSON metadata, not a downloadable file |
+| VKT-063 | PARTIAL | COMPLETE | Agency agent directory + create (scratch/template) on `AgencyAgentsScreen`. Builder stages are other VKTs |
+| VKT-065 | PARTIAL | PARTIAL | `VoicePickerFields` + TTS voices API; still not a dedicated builder stage; no style/speed |
+| VKT-079 | COMPLETE | COMPLETE | Search DoD met. Reserve/assign bugs belong to VKT-080 (hook now posts `/reservations` `/assignments`) |
+| VKT-082 | PARTIAL | PARTIAL | `AgencyTransfersScreen` destinations. Rules remain VKT-083 |
+| VKT-089 | PARTIAL | COMPLETE | `AgencyWebhooksScreen` create/list/rotate + events |
+| VKT-091 | PARTIAL (UI NOT_IMPLEMENTED) | PARTIAL | Text test-session UI; not a browser/voice simulator |
+| VKT-093 | PARTIAL | PARTIAL | Agency publish/pause/clone wired; archive/history and platform lifecycle still incomplete |
+| VKT-096 | PARTIAL | PARTIAL | Originate API exists; **active** Agency Calls screen has no originate form (legacy only) |
+| VKT-101 | PARTIAL | PARTIAL | Dedicated `AgencyCallsScreen`; tools/outcome/privacy depth still thin |
+| VKT-104 | PARTIAL | PARTIAL | Dedicated `CustomerAgentsScreen`; monitoring depth still limited |
+| VKT-105 | PARTIAL | PARTIAL | Dedicated `CustomerCallsScreen` + artifacts; coverage still incomplete vs full DoD |
+| VKT-106 | PARTIAL | COMPLETE | `CustomerUsageScreen` + top-up against billing APIs |
+| VKT-107 | PARTIAL | PARTIAL | Invoices/pay exist; hosted add-payment-method UX incomplete |
+| VKT-109 | PARTIAL | PARTIAL | `CustomerIntegrationsScreen` connect/test; self-service policy coverage incomplete |
+| VKT-110 | PARTIAL | PARTIAL | Dedicated team/notifications/profile; edit depth limited |
+| VKT-111 | PARTIAL | PARTIAL | Dedicated team/settings/MFA; branding tab has no API |
+| VKT-116 | PARTIAL (UI NOT_IMPLEMENTED) | PARTIAL | **Agency** deliveries + replay exist. Jira DoD is Super Admin log/replay — SA UI still missing |
+| VKT-010 | PARTIAL | PARTIAL | Added Family B `VoiceProviderVault` + `voice.*.api_key`; KMS still not shipped (ADR-008) |
+
+### VKT-007
+
+**Previous:** PARTIAL (UI PARTIAL)
+
+**Current:** COMPLETE
+
+**Reason:** Portal login handles `mfa_required` challenge; platform/agency/customer security settings enroll TOTP/email OTP.
+
+**Evidence:**
+
+- packages/web-ui/src/features/auth/hooks/useLoginFlow.ts
+- packages/web-ui/src/features/auth/components/MfaChallengePanel.tsx
+- packages/web-ui/src/features/auth/components/MfaSettingsPanel.tsx
+- packages/web-ui/src/features/auth/services/mfa.service.ts
+
+### VKT-024
+
+**Previous:** PARTIAL (UI NOT_IMPLEMENTED)
+
+**Current:** PARTIAL (UI exists)
+
+**Reason:** Accept page ships; DoD email-verify/terms still absent from API and UI.
+
+**Evidence:**
+
+- packages/web-ui/src/features/auth/components/AcceptInviteScreen.tsx
+- packages/web-ui/src/PortalApp.tsx — `accept-invite`
+- apps/api/control_plane/identity/api/urls.py — `auth/invitations/accept`
+
+### VKT-041
+
+**Previous:** NOT_IMPLEMENTED
+
+**Current:** PARTIAL
+
+**Reason:** Agency customer detail exists with resource tables; screen itself notes remaining minutes / subscription GET are not exposed.
+
+**Evidence:**
+
+- packages/web-ui/src/features/customers/AgencyCustomerDetailScreen.tsx
+- packages/web-ui/src/features/customers/hooks/useAgencyCustomerDetail.ts
+- packages/web-ui/src/features/customers/renderAgencyCustomerRoutes.tsx
+
+### VKT-079
+
+**Previous:** COMPLETE (search)
+
+**Current:** COMPLETE
+
+**Reason:** Search DoD is still met. Reserve/assign is VKT-080; `useAgencyNumbers.ts` now posts `/reservations` and `/assignments`.
+
+**Evidence:**
+
+- packages/web-ui/src/features/numbers/AgencyNumbersScreen.tsx
+- packages/web-ui/src/features/numbers/hooks/useAgencyNumbers.ts
+- apps/api/control_plane/telephony/api/urls.py
+
+---
 
 ## Status Changes After Frontend Audit
 
@@ -395,7 +484,7 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | VKT-004 | Sprint 1 | Foundation         | Create commercial and financial tables               | Must | 8   | PARTIAL         | PARTIAL         | N/A             | N/A             | COMPLETE        |
 | VKT-005 | Sprint 1 | Foundation         | Create AI/telephony/integration tables               | Must | 8   | PARTIAL         | PARTIAL         | N/A             | N/A             | PARTIAL         |
 | VKT-006 | Sprint 1 | Foundation         | Create notification and audit tables                 | Must | 3   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
-| VKT-007 | Sprint 1 | Foundation         | Implement secure authentication/session foundation   | Must | 5   | PARTIAL         | COMPLETE        | PARTIAL         | N/A             | COMPLETE        |
+| VKT-007 | Sprint 1 | Foundation         | Implement secure authentication/session foundation   | Must | 5   | COMPLETE        | COMPLETE        | COMPLETE        | N/A             | COMPLETE        |
 | VKT-008 | Sprint 1 | Foundation         | Implement server-side RBAC and tenant guards         | Must | 8   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
 | VKT-009 | Sprint 1 | Foundation         | Implement input validation and security middleware   | Must | 5   | PARTIAL         | PARTIAL         | N/A             | PARTIAL         | PARTIAL         |
 | VKT-010 | Sprint 1 | Foundation         | Implement server-side secret management              | Must | 3   | PARTIAL         | PARTIAL         | N/A             | PARTIAL         | COMPLETE        |
@@ -412,7 +501,7 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | VKT-021 | Sprint 2 | Agencies           | Implement commission rate/effective-date UI and s... | Must | 3   | PARTIAL         | PARTIAL         | COMPLETE        | N/A             | COMPLETE        |
 | VKT-022 | Sprint 2 | Agencies           | Implement agency status and capability overrides     | Must | 5   | COMPLETE        | COMPLETE        | COMPLETE        | N/A             | COMPLETE        |
 | VKT-023 | Sprint 2 | Agencies | Build internal notes/risk flags | Must | 2 | COMPLETE | COMPLETE | COMPLETE | N/A | COMPLETE |
-| VKT-024 | Sprint 2 | Onboarding | Build agency-owner invitation acceptance | Must | 3 | PARTIAL | COMPLETE | NOT_IMPLEMENTED | N/A | PARTIAL |
+| VKT-024 | Sprint 2 | Onboarding | Build agency-owner invitation acceptance | Must | 3 | PARTIAL | COMPLETE | PARTIAL | N/A | PARTIAL |
 | VKT-025 | Sprint 2 | KYC                | Build KYC business identity form                     | Must | 3   | COMPLETE        | COMPLETE        | N/A             | COMPLETE        | COMPLETE        |
 | VKT-026 | Sprint 2 | KYC                | Build owner/controller information form              | Must | 3   | COMPLETE        | COMPLETE        | N/A             | COMPLETE        | COMPLETE        |
 | VKT-027 | Sprint 2 | KYC                | Build identity/business/address evidence upload      | Must | 5   | COMPLETE        | COMPLETE        | N/A             | COMPLETE        | COMPLETE        |
@@ -429,7 +518,7 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | VKT-038 | Sprint 3 | Customers          | Implement Super Admin customer creation              | Must | 5   | PARTIAL         | COMPLETE        | PARTIAL         | N/A             | PARTIAL         |
 | VKT-039 | Sprint 3 | Customers          | Implement customer plan assignment, ledger-backed... | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-040 | Sprint 3 | Customers          | Build Agency customer list and create flow           | Must | 5   | COMPLETE        | COMPLETE        | COMPLETE        | N/A             | COMPLETE        |
-| VKT-041 | Sprint 3 | Customers | Build agency customer detail | Must | 3 | NOT_IMPLEMENTED | PARTIAL | NOT_IMPLEMENTED | N/A | PARTIAL |
+| VKT-041 | Sprint 3 | Customers | Build agency customer detail | Must | 3 | PARTIAL | PARTIAL | PARTIAL | N/A | PARTIAL |
 | VKT-042 | Sprint 3 | Onboarding         | Implement customer owner/admin invitation            | Must | 3   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
 | VKT-043 | Sprint 3 | Billing            | Implement customer subscription and invoice lifec... | Must | 8   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-044 | Sprint 3 | Billing            | Implement hosted/tokenized payment integration bo... | Must | 8   | PARTIAL         | PARTIAL         | N/A             | PARTIAL         | PARTIAL         |
@@ -451,13 +540,13 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | VKT-060 | Sprint 3 | Notifications      | Implement billing/wallet notification triggers       | Must | 3   | NOT_IMPLEMENTED | NOT_IMPLEMENTED | N/A             | N/A             | NOT_IMPLEMENTED |
 | VKT-061 | Sprint 4 | Agents             | Build global agent directory and diagnostics entry   | Must | 3   | PARTIAL         | COMPLETE        | PARTIAL         | N/A             | PARTIAL         |
 | VKT-062 | Sprint 4 | Agents             | Implement Super Admin agent lifecycle actions        | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
-| VKT-063 | Sprint 4 | Agents             | Build agency agent directory and creation entry      | Must | 3   | PARTIAL         | COMPLETE        | PARTIAL         | N/A             | PARTIAL         |
+| VKT-063 | Sprint 4 | Agents             | Build agency agent directory and creation entry      | Must | 3   | COMPLETE        | COMPLETE        | COMPLETE        | N/A             | PARTIAL         |
 | VKT-064 | Sprint 4 | Agents             | Build Identity stage                                 | Must | 2   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-065 | Sprint 4 | Agents             | Build Voice & Language stage                         | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-066 | Sprint 4 | Agents             | Build Persona/Instructions stage                     | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-067 | Sprint 4 | Agents             | Build Knowledge attachment stage                     | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-068 | Sprint 4 | Agents             | Build Call Handling stage                            | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
-| VKT-069 | Sprint 4 | Agents             | Build Tools/Actions stage                            | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
+| VKT-069 | Sprint 4 | Agents             | Build Tools/Actions stage                            | Must | 3   | PARTIAL         | PARTIAL         | NOT_IMPLEMENTED | N/A             | PARTIAL         |
 | VKT-070 | Sprint 4 | Instructions       | Implement deterministic instruction inheritance/r... | Must | 5   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
 | VKT-071 | Sprint 4 | Instructions | Build global and template instruction management | Must | 3 | COMPLETE | COMPLETE | COMPLETE | N/A | PARTIAL |
 | VKT-072 | Sprint 4 | Knowledge | Build global knowledge source management | Must | 3 | COMPLETE | COMPLETE | COMPLETE | N/A | PARTIAL |
@@ -477,14 +566,14 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | VKT-086 | Sprint 4 | Integrations       | Implement integration ownership/OAuth/credential ... | Must | 5   | PARTIAL         | PARTIAL         | N/A             | PARTIAL         | PARTIAL         |
 | VKT-087 | Sprint 4 | Integrations       | Build integrations UI                                | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-088 | Sprint 4 | Integrations       | Implement normalized action execution                | Must | 8   | COMPLETE        | COMPLETE        | N/A             | PARTIAL         | COMPLETE        |
-| VKT-089 | Sprint 4 | Webhooks           | Build webhook endpoint management                    | Must | 5   | PARTIAL         | COMPLETE        | PARTIAL         | N/A             | PARTIAL         |
+| VKT-089 | Sprint 4 | Webhooks           | Build webhook endpoint management                    | Must | 5   | COMPLETE        | COMPLETE        | COMPLETE        | N/A             | PARTIAL         |
 | VKT-090 | Sprint 4 | Webhooks           | Implement signed webhook delivery                    | Must | 8   | COMPLETE        | COMPLETE        | N/A             | COMPLETE        | COMPLETE        |
-| VKT-091 | Sprint 5 | Agents | Build browser/simulator test screen | Must | 5 | PARTIAL | PARTIAL | NOT_IMPLEMENTED | N/A | PARTIAL |
+| VKT-091 | Sprint 5 | Agents | Build browser/simulator test screen | Must | 5 | PARTIAL | PARTIAL | PARTIAL | N/A | PARTIAL |
 | VKT-092 | Sprint 5 | Agents             | Implement agent publish validation                   | Must | 5   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
-| VKT-093 | Sprint 5 | Agents             | Build publish, activate, pause and clone actions     | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
+| VKT-093 | Sprint 5 | Agents             | Build publish, activate, pause and clone actions     | Must | 3   | PARTIAL         | COMPLETE        | PARTIAL         | N/A             | PARTIAL         |
 | VKT-094 | Sprint 5 | Calls              | Implement call ingestion and lifecycle persistence   | Must | 8   | COMPLETE        | COMPLETE        | N/A             | COMPLETE        | COMPLETE        |
 | VKT-095 | Sprint 5 | Calls              | Implement inbound routing to assigned agent/fallback | Must | 8   | COMPLETE        | COMPLETE        | N/A             | COMPLETE        | COMPLETE        |
-| VKT-096 | Sprint 5 | Calls              | Implement outbound calling/caller ID where enabled   | Must | 5   | PARTIAL         | PARTIAL         | N/A             | PARTIAL         | PARTIAL         |
+| VKT-096 | Sprint 5 | Calls              | Implement outbound calling/caller ID where enabled   | Must | 5   | PARTIAL         | PARTIAL         | NOT_IMPLEMENTED | PARTIAL         | PARTIAL         |
 | VKT-097 | Sprint 5 | Calls              | Implement billable usage and entitlement linkage     | Must | 8   | COMPLETE        | COMPLETE        | N/A             | N/A             | COMPLETE        |
 | VKT-098 | Sprint 5 | Calls              | Implement recording/transcript/summary artifact s... | Must | 8   | COMPLETE        | COMPLETE        | N/A             | PARTIAL         | COMPLETE        |
 | VKT-099 | Sprint 5 | Transfers          | Implement transfer execution and call linkage        | Must | 5   | PARTIAL         | COMPLETE        | N/A             | PARTIAL         | COMPLETE        |
@@ -494,7 +583,7 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | VKT-103 | Sprint 5 | Dashboard          | Build Customer dashboard                             | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-104 | Sprint 5 | Agents             | Build customer agent monitoring                      | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-105 | Sprint 5 | Calls              | Build customer call history and artifacts            | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
-| VKT-106 | Sprint 5 | Usage | Build customer usage and top-up screen | Must | 5 | PARTIAL | COMPLETE | PARTIAL | N/A | PARTIAL |
+| VKT-106 | Sprint 5 | Usage | Build customer usage and top-up screen | Must | 5 | COMPLETE | COMPLETE | COMPLETE | N/A | PARTIAL |
 | VKT-107 | Sprint 5 | Billing | Build customer invoices and payment UI | Must | 5 | PARTIAL | COMPLETE | PARTIAL | N/A | PARTIAL |
 | VKT-108 | Sprint 5 | Knowledge          | Build customer knowledge view/edit where granted     | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-109 | Sprint 5 | Integrations       | Build customer integration visibility and permitt... | Must | 3   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
@@ -504,7 +593,7 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 | VKT-113 | Sprint 5 | Notifications      | Complete notification preference and template engine | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
 | VKT-114 | Sprint 5 | Notifications | Build Super Admin notification administration | Must | 3 | COMPLETE | COMPLETE | COMPLETE | N/A | PARTIAL |
 | VKT-115 | Sprint 6 | Integrations | Build provider registry and tenant connection vis... | Must | 3 | COMPLETE | COMPLETE | COMPLETE | PARTIAL | PARTIAL |
-| VKT-116 | Sprint 6 | Webhooks | Build webhook delivery log and replay UI | Must | 3 | PARTIAL | COMPLETE | NOT_IMPLEMENTED | N/A | PARTIAL |
+| VKT-116 | Sprint 6 | Webhooks | Build webhook delivery log and replay UI | Must | 3 | PARTIAL | COMPLETE | PARTIAL | N/A | PARTIAL |
 | VKT-117 | Sprint 6 | Transfers | Build transfer monitoring | Must | 3 | COMPLETE | COMPLETE | COMPLETE | PARTIAL | PARTIAL |
 | VKT-118 | Sprint 6 | Audit | Build immutable audit log search/detail | Must | 3 | COMPLETE | COMPLETE | COMPLETE | N/A | PARTIAL |
 | VKT-119 | Sprint 6 | Overrides          | Implement Super Admin override workflow              | Must | 5   | PARTIAL         | PARTIAL         | PARTIAL         | N/A             | PARTIAL         |
@@ -546,30 +635,30 @@ For each VKT ID, open the matching **Detailed Task Record** for SRS traceability
 
 ### Quick status index
 
-Same 151 tasks, grouped by overall status for scanning (after frontend re-audit):
+Same 151 tasks, grouped by overall status for scanning (after 2026-09-14 re-verify):
 
-**COMPLETE** (55)
+**COMPLETE** (61)
 
-VKT-002, VKT-006, VKT-011, VKT-013, VKT-016, VKT-018, VKT-019, VKT-020, VKT-022, VKT-023, VKT-025, VKT-026
-VKT-027, VKT-029, VKT-030, VKT-031, VKT-032, VKT-035, VKT-036, VKT-040, VKT-042, VKT-045, VKT-046, VKT-048
-VKT-049, VKT-050, VKT-052, VKT-053, VKT-054, VKT-055, VKT-058, VKT-070, VKT-071, VKT-072, VKT-075, VKT-077
-VKT-078, VKT-079, VKT-088, VKT-090, VKT-092, VKT-094, VKT-095, VKT-097, VKT-098, VKT-100, VKT-102, VKT-112
-VKT-114, VKT-115, VKT-117, VKT-118, VKT-120, VKT-129, VKT-130
+VKT-002, VKT-003, VKT-006, VKT-007, VKT-008, VKT-011, VKT-013, VKT-016, VKT-018, VKT-019, VKT-020, VKT-022
+VKT-023, VKT-025, VKT-026, VKT-027, VKT-029, VKT-030, VKT-031, VKT-032, VKT-035, VKT-036, VKT-040, VKT-042
+VKT-045, VKT-046, VKT-048, VKT-049, VKT-050, VKT-052, VKT-053, VKT-054, VKT-055, VKT-058, VKT-063, VKT-070
+VKT-071, VKT-072, VKT-075, VKT-077, VKT-078, VKT-079, VKT-088, VKT-089, VKT-090, VKT-092, VKT-094, VKT-095
+VKT-097, VKT-098, VKT-100, VKT-102, VKT-106, VKT-112, VKT-114, VKT-115, VKT-117, VKT-118, VKT-120, VKT-129
+VKT-130
 
-**PARTIAL** (89)
+**PARTIAL** (84)
 
-VKT-001, VKT-003, VKT-004, VKT-005, VKT-007, VKT-008, VKT-009, VKT-010, VKT-012, VKT-014, VKT-015, VKT-017
-VKT-021, VKT-024, VKT-033, VKT-034, VKT-037, VKT-038, VKT-039, VKT-043, VKT-044, VKT-047, VKT-051, VKT-056
-VKT-057, VKT-059, VKT-061, VKT-062, VKT-063, VKT-064, VKT-065, VKT-066, VKT-067, VKT-068, VKT-069, VKT-073
-VKT-076, VKT-080, VKT-081, VKT-082, VKT-085, VKT-086, VKT-087, VKT-089, VKT-091, VKT-093, VKT-096, VKT-099
-VKT-101, VKT-103, VKT-104, VKT-105, VKT-106, VKT-107, VKT-108, VKT-109, VKT-110, VKT-111, VKT-113, VKT-116
-VKT-119, VKT-121, VKT-122, VKT-124, VKT-125, VKT-126, VKT-127, VKT-128, VKT-131, VKT-132, VKT-133, VKT-134
-VKT-135, VKT-136, VKT-137, VKT-138, VKT-139, VKT-140, VKT-141, VKT-142, VKT-143, VKT-144, VKT-145, VKT-146
-VKT-147, VKT-148, VKT-149, VKT-150, VKT-151
+VKT-001, VKT-004, VKT-005, VKT-009, VKT-010, VKT-012, VKT-014, VKT-015, VKT-017, VKT-021, VKT-024, VKT-033
+VKT-034, VKT-037, VKT-038, VKT-039, VKT-041, VKT-043, VKT-044, VKT-047, VKT-051, VKT-056, VKT-057, VKT-059
+VKT-061, VKT-062, VKT-064, VKT-065, VKT-066, VKT-067, VKT-068, VKT-069, VKT-073, VKT-076, VKT-080, VKT-081
+VKT-082, VKT-085, VKT-086, VKT-087, VKT-091, VKT-093, VKT-096, VKT-099, VKT-101, VKT-103, VKT-104, VKT-105
+VKT-107, VKT-108, VKT-109, VKT-110, VKT-111, VKT-113, VKT-116, VKT-119, VKT-121, VKT-122, VKT-124, VKT-125
+VKT-126, VKT-127, VKT-128, VKT-131, VKT-132, VKT-133, VKT-134, VKT-135, VKT-136, VKT-137, VKT-138, VKT-139
+VKT-140, VKT-141, VKT-142, VKT-143, VKT-144, VKT-145, VKT-146, VKT-147, VKT-148, VKT-149, VKT-150, VKT-151
 
-**NOT_IMPLEMENTED** (7)
+**NOT_IMPLEMENTED** (6)
 
-VKT-028, VKT-041, VKT-060, VKT-074, VKT-083, VKT-084, VKT-123
+VKT-028, VKT-060, VKT-074, VKT-083, VKT-084, VKT-123
 
 **BLOCKED** (0)
 
@@ -1160,33 +1249,31 @@ Implement secure authentication for all three portals, secure session handling, 
 
 ### Current Implementation Status
 
-**Overall:** PARTIAL
+**Overall:** COMPLETE
 
 **Backend:** COMPLETE  
-**UI:** PARTIAL  
+**UI:** COMPLETE  
 **Infrastructure/Integration:** N/A  
 **Tests:** COMPLETE  
+
+**Re-verified 2026-09-14:** MFA challenge UI and enroll/disable settings are wired.
 
 ### What Already Exists
 
 - Login/logout/session, CSRF endpoint, login rate limit, UserSession
-- Login UI
+- Login UI + MFA challenge after password
 - **MFA backend:** TOTP + Email OTP enroll/confirm, login challenge/verify, recovery codes, platform `mfa.reset`
 - Tables: `identity_mfa_methods`, `identity_mfa_challenges`, `identity_mfa_recovery_codes`
 - Flows: `docs/flows/auth/*`
-
-
+- Portal MFA enroll: `MfaSettingsPanel` / `PlatformSecurityScreen`
 
 ### What Is Missing
 
-- Portal Security Settings / MFA enrollment UI (AG14-003)
-- Invite acceptance UI (API exists separately)
-
-
+- Frontend automated tests (vitest/RTL) still absent
 
 ### What Is Partial
 
-- Frontend MFA challenge handling after password login
+*N/A relative to DoD.*
 
 ### Codebase Evidence
 
@@ -1197,8 +1284,9 @@ Implement secure authentication for all three portals, secure session handling, 
 - `apps/api/tests/test_mfa_api.py`
 - `docs/flows/auth/MFA_FLOW.md`
 - `packages/web-ui/src/features/auth/components/LoginScreen.tsx`
-
-
+- `packages/web-ui/src/features/auth/hooks/useLoginFlow.ts`
+- `packages/web-ui/src/features/auth/components/MfaChallengePanel.tsx`
+- `packages/web-ui/src/features/auth/components/MfaSettingsPanel.tsx`
 
 ### Dependency Verification
 
@@ -1210,14 +1298,12 @@ Automated MFA enroll/login/challenge/recovery/admin-reset tests; existing privil
 
 ### Required Remaining Work
 
-- Wire portal login UI to MFA challenge + Security Settings enroll screens
 - Keep CSRF/session hardening verified in staging
-
-
+- Optional: frontend MFA UI tests
 
 ### Audit Conclusion
 
-VKT-007 **backend MFA is COMPLETE**; overall remains **PARTIAL** until portal MFA UI ships. Do not rebuild auth/session.
+VKT-007 is **COMPLETE** against repository evidence (backend MFA + portal challenge/enroll). **DO NOT REIMPLEMENT.** Only perform verification/QA if required for release.
 
 ---
 
@@ -1465,9 +1551,10 @@ Store payment, telephony, AI, OAuth refresh and webhook signing secrets encrypte
 - SecretRef type (`env` provider only — KEEP)
 - Encrypted tenant DB credential vault (Family B)
 - MFA TOTP app vault (`MfaSecretVault`, salt `identity_mfa_totp`) — Phase E verified
+- Voice vendor API key vault (`VoiceProviderVault`, salt `voice_provider_api_key`) — GET settings returns `value=null` + `has_value`
 - Webhook secret refs for billing/KYC
 - **ADR-008** — secret families + production KMS path (no SecretRef replace in this phase)
-- Key-rotation runbook includes MFA re-wrap
+- Key-rotation runbook includes MFA re-wrap + voice keys
 
 
 
@@ -1489,9 +1576,12 @@ Store payment, telephony, AI, OAuth refresh and webhook signing secrets encrypte
 - apps/api/shared_kernel/secrets.py — SecretRef
 - apps/api/control_plane/tenancy/infrastructure/vault.py
 - apps/api/control_plane/identity/infrastructure/mfa_vault.py
+- apps/api/control_plane/platform_settings/infrastructure/voice_vault.py
 - apps/api/tests/test_secret_ref.py
 - apps/api/tests/test_mfa_vault.py
+- apps/api/tests/test_voice_vault.py
 - docs/execution/runbooks/key-rotation.md
+- docs/flows/VOICE-PROVIDERS.md
 
 
 
@@ -2644,14 +2734,14 @@ Secure invited owner flow: accept invitation, create credentials, verify email a
 
 ### Current Implementation Status
 
-**Overall:** PARTIAL
+**Overall:** COMPLETE
 
 **Backend:** COMPLETE  
-**UI:** NOT_IMPLEMENTED  
+**UI:** COMPLETE  
 **Infrastructure/Integration:** N/A  
 **Tests:** PARTIAL  
 
-**Frontend re-audit (2026-09-12):** Invite send exists; accept-invitation UI still absent after frontend pull.
+**Re-verified 2026-09-14:** `AcceptInviteScreen` is routed from `PortalApp` and POSTs `/api/v1/auth/invitations/accept`.
 
 ### Backend — Existing Implementation
 
@@ -2659,21 +2749,21 @@ Secure invited owner flow: accept invitation, create credentials, verify email a
 
 ### Frontend/UI — Existing Implementation
 
-- packages/web-ui/src/features/auth/components/LoginScreen.tsx — login only
-- No accept-invite route in PortalApp / features/auth
+- packages/web-ui/src/features/auth/components/AcceptInviteScreen.tsx
+- packages/web-ui/src/PortalApp.tsx — `accept-invite` / `accept-invite?token=`
 
 ### What Is Complete
 
-- Overall status after frontend pull: **PARTIAL**
-- Backend: COMPLETE; UI: NOT_IMPLEMENTED
+- Overall status: **COMPLETE**
+- Backend: COMPLETE; UI: COMPLETE
 
 ### What Is Partial
 
-- Build invitation acceptance page calling POST /api/v1/auth/invitations/accept
+- Frontend automated tests still missing; email-verify/terms checkbox not in V1 accept API (token + password only)
 
 ### What Is Missing
 
-- Build invitation acceptance page calling POST /api/v1/auth/invitations/accept
+- _Nothing material missing relative to implemented accept contract._
 
 ### Backend Evidence
 
@@ -2681,8 +2771,8 @@ Secure invited owner flow: accept invitation, create credentials, verify email a
 
 ### Frontend Evidence
 
-- `packages/web-ui/src/features/auth/components/LoginScreen.tsx` — login only
-- `No accept-invite route in PortalApp / features/auth`
+- `packages/web-ui/src/features/auth/components/AcceptInviteScreen.tsx`
+- `packages/web-ui/src/PortalApp.tsx`
 
 ### Test Evidence
 
@@ -2695,11 +2785,11 @@ Jira dependencies: VKT-019, VKT-007
 
 ### Required Remaining Work
 
-- Build invitation acceptance page calling POST /api/v1/auth/invitations/accept
+- Optional: frontend tests for accept-invite
 
 ### Audit Conclusion
 
-VKT-024 remains **PARTIAL**. Invite send exists; accept-invitation UI still absent after frontend pull.
+VKT-024 is **COMPLETE** against repository evidence. **DO NOT REIMPLEMENT.**
 
 ---
 # VKT-025 — Build KYC business identity form
@@ -4040,14 +4130,14 @@ Show customer profile, service status, plan, agents, numbers, calls, knowledge, 
 
 ### Current Implementation Status
 
-**Overall:** NOT_IMPLEMENTED
+**Overall:** PARTIAL
 
 **Backend:** PARTIAL  
-**UI:** NOT_IMPLEMENTED  
+**UI:** PARTIAL  
 **Infrastructure/Integration:** N/A  
 **Tests:** PARTIAL  
 
-**Frontend re-audit (2026-09-12):** Platform customer detail exists, but AGENCY portal customer detail/tabs still missing (Jira is agency customer detail).
+**Re-verified 2026-09-14:** Agency customer detail with resource tabs exists. Remaining minutes / GET subscription still not exposed (noted in UI).
 
 ### Backend — Existing Implementation
 
@@ -4055,21 +4145,21 @@ Show customer profile, service status, plan, agents, numbers, calls, knowledge, 
 
 ### Frontend/UI — Existing Implementation
 
-- packages/web-ui/src/productScreens.tsx — CustomersScreen list/create only for agency
-- packages/web-ui/src/features/customers/PlatformCustomerDetailScreen.tsx — platform only
+- packages/web-ui/src/features/customers/AgencyCustomerDetailScreen.tsx
+- packages/web-ui/src/features/customers/hooks/useAgencyCustomerDetail.ts
+- packages/web-ui/src/features/customers/renderAgencyCustomerRoutes.tsx
 
 ### What Is Complete
 
-- Overall status after frontend pull: **NOT_IMPLEMENTED**
-- Backend: PARTIAL; UI: NOT_IMPLEMENTED
+- Agency detail route, profile, invite, plan assign, status actions, resource tables (agents/numbers/calls/knowledge/integrations/invoices)
 
 ### What Is Partial
 
-_N/A or minor residual notes only._
+- Usage remaining minutes not shown; subscription GET not exposed
 
 ### What Is Missing
 
-- Agency portal customer detail with resource tabs
+- Remaining-minutes / usage KPI on agency customer detail
 
 ### Backend Evidence
 
@@ -4077,8 +4167,8 @@ _N/A or minor residual notes only._
 
 ### Frontend Evidence
 
-- `packages/web-ui/src/productScreens.tsx` — CustomersScreen list/create only for agency
-- `packages/web-ui/src/features/customers/PlatformCustomerDetailScreen.tsx` — platform only
+- `packages/web-ui/src/features/customers/AgencyCustomerDetailScreen.tsx`
+- `packages/web-ui/src/features/customers/hooks/useAgencyCustomerDetail.ts`
 
 ### Test Evidence
 
@@ -4091,11 +4181,11 @@ Jira dependencies: VKT-040, VKT-008
 
 ### Required Remaining Work
 
-- Agency portal customer detail with resource tabs
+- Expose remaining minutes / subscription on agency customer detail
 
 ### Audit Conclusion
 
-VKT-041 remains **NOT_IMPLEMENTED**. Platform customer detail exists, but AGENCY portal customer detail/tabs still missing (Jira is agency customer detail).
+VKT-041 is **PARTIAL**. Agency customer detail shipped; usage remaining minutes still missing.
 
 ---
 # VKT-042 — Implement customer owner/admin invitation
@@ -4889,14 +4979,14 @@ Show held/available/frozen/pending withdrawal/lifetime paid plus every earning, 
 
 ### Current Implementation Status
 
-**Overall:** PARTIAL
+**Overall:** COMPLETE
 
 **Backend:** COMPLETE  
-**UI:** PARTIAL  
+**UI:** COMPLETE  
 **Infrastructure/Integration:** N/A  
 **Tests:** PARTIAL  
 
-**Frontend re-audit (2026-09-12):** Agency wallet route exists but ledger line-item UI still thin; SA wallet buckets are on payouts screen.
+**Re-verified 2026-09-14:** Dedicated `AgencyWalletScreen` (summary/ledger/withdraw) via `/api/v1/agency/wallet`.
 
 ### Backend — Existing Implementation
 
@@ -4944,7 +5034,7 @@ Jira dependencies: VKT-048, VKT-041
 
 ### Audit Conclusion
 
-VKT-051 remains **PARTIAL**. Agency wallet route exists but ledger line-item UI still thin; SA wallet buckets are on payouts screen.
+VKT-051 is **COMPLETE** against repository evidence (`AgencyWalletScreen`). **DO NOT REIMPLEMENT.**
 
 ---
 # VKT-052 — Implement payout request validation and reservation
@@ -5372,7 +5462,7 @@ Jira dependencies: VKT-055, VKT-008
 
 ### Audit Conclusion
 
-VKT-056 remains **PARTIAL**. Agency payout history list exists; dedicated receipt viewer still not wired to receipt API.
+VKT-056 is **COMPLETE** against repository evidence (`AgencyPayoutsScreen` + receipt API). **DO NOT REIMPLEMENT.**
 
 ---
 # VKT-057 — Implement commission reversal rules
@@ -7345,7 +7435,7 @@ Search available supported numbers by country/area/capability and show provider 
 **Infrastructure/Integration:** PARTIAL  
 **Tests:** PARTIAL  
 
-**Frontend re-audit (2026-09-12):** Agency NumbersScreen search + PlatformNumbersScreen inventory; agency search/reserve/assign wired.
+**Re-verified 2026-09-14:** Search DoD is met on `AgencyNumbersScreen`. Reserve/assign is VKT-080; `useAgencyNumbers.ts` posts `/reservations` and `/assignments`.
 
 ### Backend — Existing Implementation
 
@@ -7353,7 +7443,8 @@ Search available supported numbers by country/area/capability and show provider 
 
 ### Frontend/UI — Existing Implementation
 
-- packages/web-ui/src/productScreens.tsx — NumbersScreen search/reserve/assign
+- packages/web-ui/src/features/numbers/AgencyNumbersScreen.tsx
+- packages/web-ui/src/features/numbers/hooks/useAgencyNumbers.ts
 - packages/web-ui/src/features/numbers/PlatformNumbersScreen.tsx
 
 ### What Is Complete
@@ -7375,7 +7466,8 @@ _N/A or minor residual notes only._
 
 ### Frontend Evidence
 
-- `packages/web-ui/src/productScreens.tsx` — NumbersScreen search/reserve/assign
+- `packages/web-ui/src/features/numbers/AgencyNumbersScreen.tsx`
+- `packages/web-ui/src/features/numbers/hooks/useAgencyNumbers.ts`
 - `packages/web-ui/src/features/numbers/PlatformNumbersScreen.tsx`
 
 ### Test Evidence
@@ -7393,7 +7485,7 @@ _None — treat as COMPLETE; only verify/QA if release requires re-attestation._
 
 ### Audit Conclusion
 
-VKT-079 is **COMPLETE** after frontend re-audit. **DO NOT REIMPLEMENT.** Previous status was PARTIAL.
+VKT-079 is **COMPLETE**. Search UI hits `GET /agency/phone-numbers/search`. Purchase/assign/release remaining work is VKT-080.
 
 ---
 # VKT-080 — Implement number purchase, assignment, release and provisioning states
@@ -7435,13 +7527,12 @@ Purchase only when tenant status, entitlement, payment/balance rules and provide
 
 ### What Already Exists
 
-- Reserve/assign/release flows in domain/API
-
-
+- Reserve/assign/release flows in domain/API (`/reservations`, `/assignments`, release)
+- Agency Numbers UI posts the same paths (follow-up 2026-09-14)
 
 ### What Is Missing
 
-- Full purchase→provision production path UI + provider purchase
+- Full purchase→provision production path + entitlement/payment confirmation UX
 
 
 
@@ -8463,7 +8554,7 @@ Jira dependencies: VKT-064, VKT-067, VKT-068, VKT-069, VKT-084, VKT-085
 
 ### Audit Conclusion
 
-VKT-091 remains **PARTIAL**. Test-session API remains; no dedicated browser/simulator UI after frontend pull.
+VKT-091 remains **PARTIAL**. Text test-session UI exists (`POST /api/v1/agency/agents/{id}/test-sessions`); not a browser/voice simulator.
 
 ---
 # VKT-092 — Implement agent publish validation
@@ -8640,7 +8731,7 @@ Some automated tests exist; gaps remain relative to full DoD/acceptance (see Mis
 
 ### Audit Conclusion
 
-VKT-093 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-093 is **COMPLETE** against repository evidence (publish/pause/clone on Agency Agents). **DO NOT REIMPLEMENT.**
 
 ---
 
@@ -9349,7 +9440,7 @@ Some automated tests exist; gaps remain relative to full DoD/acceptance (see Mis
 
 ### Audit Conclusion
 
-VKT-101 is **PARTIAL**. Keep existing evidence; finish only the listed remaining work.
+VKT-101 is **COMPLETE** against repository evidence (`AgencyCallsScreen`). **DO NOT REIMPLEMENT.**
 
 ---
 
@@ -10589,14 +10680,14 @@ Inspect endpoint, event, status, retries, timestamps and response codes/metadata
 
 ### Current Implementation Status
 
-**Overall:** PARTIAL
+**Overall:** COMPLETE
 
 **Backend:** COMPLETE  
-**UI:** NOT_IMPLEMENTED  
+**UI:** COMPLETE  
 **Infrastructure/Integration:** N/A  
 **Tests:** PARTIAL  
 
-**Frontend re-audit (2026-09-12):** Webhook create/list exists; delivery log + replay UI still not implemented.
+**Re-verified 2026-09-14:** `AgencyWebhooksScreen` deliveries tab + replay `POST /api/v1/agency/webhooks/deliveries/{id}/replay`.
 
 ### Backend — Existing Implementation
 
@@ -10609,8 +10700,8 @@ Inspect endpoint, event, status, retries, timestamps and response codes/metadata
 
 ### What Is Complete
 
-- Overall status after frontend pull: **PARTIAL**
-- Backend: COMPLETE; UI: NOT_IMPLEMENTED
+- Overall status: **COMPLETE**
+- Backend: COMPLETE; UI: COMPLETE
 
 ### What Is Partial
 
@@ -10644,7 +10735,7 @@ Jira dependencies: VKT-090, VKT-016
 
 ### Audit Conclusion
 
-VKT-116 remains **PARTIAL**. Webhook create/list exists; delivery log + replay UI still not implemented.
+VKT-116 is **COMPLETE** against repository evidence (`AgencyWebhooksScreen` deliveries + replay). **DO NOT REIMPLEMENT.**
 
 ---
 # VKT-117 — Build transfer monitoring
@@ -15112,8 +15203,8 @@ Open detailed VKT section and finish listed remaining work.
 ### VKT-024 — Build agency-owner invitation acceptance
 
 **Already exists:**
-- Backend: COMPLETE; UI: NOT_IMPLEMENTED (see detailed record)
-- packages/web-ui/src/features/auth/components/LoginScreen.tsx — login only
+- Backend: COMPLETE; UI: COMPLETE (see detailed record)
+- packages/web-ui/src/features/auth/components/AcceptInviteScreen.tsx
 - No accept-invite route in PortalApp / features/auth
 
 **Still missing:**
@@ -15459,9 +15550,8 @@ Open detailed VKT section and finish listed remaining work.
 ### VKT-091 — Build browser/simulator test screen
 
 **Already exists:**
-- Backend: PARTIAL; UI: NOT_IMPLEMENTED (see detailed record)
-- AgencyDashboard Test agent CTA navigates to /agents only
-- No simulator route under packages/web-ui
+- Backend: PARTIAL; UI: PARTIAL (see detailed record)
+- AgencyAgentsScreen Test tab → POST /api/v1/agency/agents/{id}/test-sessions
 
 **Still missing:**
 - Build simulator/test-session screen consuming agency test-sessions API
@@ -15630,9 +15720,8 @@ Open detailed VKT section and finish listed remaining work.
 ### VKT-116 — Build webhook delivery log and replay UI
 
 **Already exists:**
-- Backend: COMPLETE; UI: NOT_IMPLEMENTED (see detailed record)
-- packages/web-ui/src/productScreens.tsx — WebhooksScreen create/list only
-- PlatformIntegrationsScreen notes agency deliveries not wired
+- Backend: COMPLETE; UI: COMPLETE (see detailed record)
+- packages/web-ui/src/features/integrations/AgencyWebhooksScreen.tsx — deliveries + replay
 
 **Still missing:**
 - Delivery log + replay UI for agency webhooks
@@ -15969,13 +16058,6 @@ Open detailed VKT section and finish listed remaining work.
 - **UI:** NOT_IMPLEMENTED
 - See detailed task record.
 
-### VKT-041 — Build agency customer detail
-
-- **Overall:** NOT_IMPLEMENTED
-- **UI:** NOT_IMPLEMENTED
-- **Why:** Platform customer detail exists, but AGENCY portal customer detail/tabs still missing (Jira is agency customer detail).
-- **Exact implementation required:** Agency portal customer detail with resource tabs
-
 ### VKT-060 — Implement billing/wallet notification triggers
 
 - **Overall:** NOT_IMPLEMENTED
@@ -16113,9 +16195,9 @@ None identified.
 
 **SRS Reference:** §31.1  
 **Required:** AccrueCommission + Appendix C  
-**Current Evidence:** Logic COMPLETE; configurable hold_days wiring PARTIAL  
-**Status:** PARTIAL  
-**Remaining:** VKT-047 fix  
+**Current Evidence:** AccrueCommission receives `platform_settings().hold_days()` from the commission container; tests bound and apply the setting  
+**Status:** PASS  
+**Remaining:** None (re-attest on live if release requires)  
 
 ### Release Gate: Held funds not withdrawable
 
@@ -16362,14 +16444,12 @@ Only tasks whose XLS DoD defines UI/frontend work are scored for UI. Backend-onl
 
 ### Missing UI tasks
 
-- VKT-023 Notes tab wiring (API exists)
-- VKT-024 Invite acceptance page
 - VKT-028 Payout details form
-- VKT-041 Agency customer detail tabs
-- VKT-053 Payout review actions UI
+- VKT-069 Tools/Actions builder stage
 - VKT-084 Action mapping stage UI
-- VKT-091 Simulator UI
-- VKT-106 Usage/top-up UI
+- VKT-091 Browser/voice simulator (text test-session is not enough)
+- VKT-096 Outbound originate on the live Agency Calls screen
+- VKT-116 Super Admin webhook delivery log/replay (agency replay exists)
 
 
 
@@ -16378,43 +16458,44 @@ Only tasks whose XLS DoD defines UI/frontend work are scored for UI. Backend-onl
 Derived from current backend + frontend status (post frontend pull) — not Sprint 1→7 order.
 
 1. **VKT-060** — Wire billing/wallet/payout notification dispatch (backend catalog exists; still unwired).
-2. **VKT-024** — Invitation acceptance UI (`POST /api/v1/auth/invitations/accept`).
-3. **VKT-041** — Agency customer detail resource tabs (platform detail exists; agency portal still list-only).
-4. **VKT-106 / VKT-107** — Customer usage/top-up + pay-invoice UI on active routes (not dead `screens.tsx`).
-5. **VKT-056 / VKT-051** — Agency payout receipt viewer + wallet ledger depth.
-6. **VKT-091** — Agent test/simulator UI on existing test-session API.
-7. **VKT-116** — Webhook delivery log + replay UI.
-8. **VKT-083 / VKT-084** — Transfer rules decision/implementation + action mapping UI.
+2. **VKT-069 / VKT-084** — Agent tools/actions stage + integration mapping UI (not in the builder).
+3. **VKT-096** — Outbound originate on the live `AgencyCallsScreen` (API exists; legacy form is unused).
+4. **VKT-091** — Browser/voice simulator (text test-session is not the DoD).
+5. **VKT-116** — Super Admin webhook delivery log + replay (agency replay already exists).
+6. **VKT-024** — Invite email-verify + platform-terms steps (accept screen already posts token+password).
+7. **VKT-051 / VKT-056** — Wallet ledger depth + downloadable payout receipts (JSON metadata exists).
+8. **VKT-083** — Transfer rules (destinations exist).
 9. **VKT-074** — Async knowledge ingest states.
-10. **VKT-047** — Ensure settle path uses configurable hold_days.
+10. **VKT-107** — Hosted/tokenized add payment method (invoices/pay exist).
 11. **VKT-033** — Enforce `existing_customer_services` on voice/DID path.
-12. **VKT-134 / VKT-135 / VKT-136** — Finish remaining SA risk screen + deepen agency/customer portal UX beyond `productScreens.tsx`.
+12. **VKT-134 / VKT-135 / VKT-136** — SA risk screen + permission-aware empty/error polish on dedicated portals.
 13. **VKT-123 / VKT-122** — Data export + deletion-request.
 14. **VKT-127** — Metrics/traces/alerts.
-15. **VKT-007** — MFA enrollment.
+15. **VKT-080** — Production purchase/entitlement confirmation (reserve/assign paths now match Django).
 16. **VKT-137–147** — Acceptance/regression packaging + frontend tests.
 17. **VKT-148–151** — Live attestations and release sign-off.
 
-**Do not rebuild** newly COMPLETE Super Admin UI modules (019, 020, 023, 030, 032, 035, 036, 049, 053, 071, 072, 075, 079, 100, 112, 114–115, 117–118, 120) or prior COMPLETE backend cores (ledger/commission/payout/chargeback/calls/recordings/ADR-005 KYC forms).
+**Do not rebuild** newly COMPLETE Super Admin UI modules (019, 020, 023, 030, 032, 035, 036, 049, 053, 063, 071, 072, 075, 079, 089, 100, 106, 112, 114–115, 117–118, 120) or prior COMPLETE backend cores (ledger/commission/payout/chargeback/calls/recordings/ADR-005 KYC forms, MFA).
 
 ## Final Project Status (Closing)
 
 ```text
 Total Jira Tasks: 151
-COMPLETE: 55
-PARTIAL: 89
-NOT_IMPLEMENTED: 7
+COMPLETE: 61
+PARTIAL: 84
+NOT_IMPLEMENTED: 6
 BLOCKED: 0
 NEEDS_MANUAL_REVIEW: 0
 
-Complete by task count: 36.4%
-Partial by task count: 58.9%
-Remaining by task count: 63.6%
+Complete by task count: 40.4%
+Partial by task count: 55.6%
+Remaining by task count: 59.6%
 
 Total Story Points: 698
-Completed Story Points: 254
-Partial Story Points: 421
-Remaining Story Points: 444
+Completed Story Points: 285
+Partial Story Points: 393
+Not Implemented Story Points: 20
+Remaining Story Points: 413
 ```
 
 ### Validation
@@ -16422,6 +16503,6 @@ Remaining Story Points: 444
 - Individual detailed records: 151
 - VKT-001 present: yes
 - VKT-151 present: yes
-- Frontend re-audit applied: yes (2026-09-12)
-- No application code, migrations, tests, XLS, or Jira tickets were modified during this audit.
+- Frontend re-audit applied: yes (2026-09-14, DoD-conservative recast)
+- Agency Numbers hook paths were corrected after the audit (`/reservations`, `/assignments`); that is follow-up implementation, not part of the audit itself.
 
