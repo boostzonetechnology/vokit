@@ -1,10 +1,14 @@
-import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { FormField } from "@/components/forms/FormField";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { VoicePickerFields } from "@/features/agents/components/VoicePickerFields";
 import { usePlatformAgentsDirectory } from "./hooks/usePlatformAgentsDirectory";
-import type { PlatformAgentRow } from "./types";
+import type { PlatformAgentDetail, PlatformAgentDiagnostics } from "./types";
+import { ApiNote } from "@/features/platform/ux/ApiNote";
 
 function statusTone(status?: string): BadgeTone {
   const value = (status ?? "").toLowerCase();
@@ -14,22 +18,14 @@ function statusTone(status?: string): BadgeTone {
   return "neutral";
 }
 
-function ApiGap({ children }: { children: ReactNode }) {
-  return (
-    <p className="m-0 rounded-lg border border-dashed border-border-strong bg-canvas px-3 py-2 text-body-sm text-text-muted">
-      {children}
-    </p>
-  );
-}
-
 type Tab = "manage" | "diagnostics" | "override";
 
 export function PlatformAgentsScreen() {
   const {
     agents,
     customers,
-    calls,
-    integrations,
+    selectedDetail,
+    diagnostics,
     agencyName,
     customerName,
     numberByAgent,
@@ -37,8 +33,19 @@ export function PlatformAgentsScreen() {
     message,
     loading,
     busy,
+    detailLoading,
+    diagnosticsLoading,
+    loadAgentDetail,
+    loadDiagnostics,
+    clearSelectionSideState,
     createAgent,
+    configureAgent,
     publishAgent,
+    pauseAgent,
+    archiveAgent,
+    disableAgent,
+    restoreAgent,
+    cloneAgent,
   } = usePlatformAgentsDirectory();
 
   const [query, setQuery] = useState("");
@@ -47,6 +54,11 @@ export function PlatformAgentsScreen() {
   const [selectedId, setSelectedId] = useState("");
   const [tab, setTab] = useState<Tab>("manage");
   const [showCreate, setShowCreate] = useState(false);
+  const [voiceId, setVoiceId] = useState("");
+  const [language, setLanguage] = useState("");
+  const [actionReason, setActionReason] = useState("");
+  const [cloneCustomerId, setCloneCustomerId] = useState("");
+  const [cloneName, setCloneName] = useState("");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -61,6 +73,7 @@ export function PlatformAgentsScreen() {
         row.id,
         row.agency_id,
         row.customer_id,
+        row.assigned_e164,
         numberByAgent.get(row.id),
         agencyName(row.agency_id),
         customerName(row.customer_id),
@@ -73,6 +86,8 @@ export function PlatformAgentsScreen() {
   }, [agents, agencyFilter, statusFilter, query, numberByAgent, agencyName, customerName]);
 
   const selected = agents.find((row) => row.id === selectedId) ?? null;
+  const detail = selectedDetail?.id === selectedId ? selectedDetail : null;
+
   const agencyOptions = useMemo(() => {
     const ids = [...new Set(agents.map((row) => row.agency_id).filter(Boolean))] as string[];
     return ids.map((id) => ({ id, label: agencyName(id) }));
@@ -82,20 +97,27 @@ export function PlatformAgentsScreen() {
     return [...new Set(agents.map((row) => (row.status ?? "").toLowerCase()).filter(Boolean))];
   }, [agents]);
 
-  const agentCalls = useMemo(() => {
-    if (!selected) return [];
-    return calls.filter((row) => row.agent_id === selected.id).slice(0, 8);
-  }, [calls, selected]);
+  useEffect(() => {
+    if (!selectedId) {
+      clearSelectionSideState();
+      return;
+    }
+    void loadAgentDetail(selectedId);
+  }, [selectedId, loadAgentDetail, clearSelectionSideState]);
 
-  const agentIntegrations = useMemo(() => {
-    if (!selected) return [];
-    return integrations
-      .filter(
-        (row) =>
-          row.customer_id === selected.customer_id || row.agency_id === selected.agency_id,
-      )
-      .slice(0, 8);
-  }, [integrations, selected]);
+  useEffect(() => {
+    if (!selectedId || tab !== "diagnostics") return;
+    void loadDiagnostics(selectedId);
+  }, [selectedId, tab, loadDiagnostics]);
+
+  useEffect(() => {
+    if (!detail) return;
+    setVoiceId(detail.voice_id || "");
+    setLanguage(detail.language || "");
+    setCloneCustomerId(detail.customer_id || "");
+    setCloneName(`${detail.display_name || "Agent"} (clone)`);
+    setActionReason("");
+  }, [detail?.id, detail?.voice_id, detail?.language, detail?.customer_id, detail?.display_name]);
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -112,6 +134,34 @@ export function PlatformAgentsScreen() {
     }
   }
 
+  async function onConfigure(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedId || !detail) return;
+    const form = new FormData(event.currentTarget);
+    try {
+      await configureAgent(selectedId, {
+        display_name: String(form.get("display_name") || ""),
+        timezone: String(form.get("timezone") || ""),
+        voice_id: voiceId,
+        language,
+        greeting: String(form.get("greeting") || ""),
+        instructions: String(form.get("instructions") || ""),
+        fallback_behavior: String(form.get("fallback_behavior") || "message"),
+        inbound_enabled: form.get("inbound_enabled") === "on",
+        outbound_enabled: form.get("outbound_enabled") === "on",
+        recording_disclosure: form.get("recording_disclosure") === "on",
+      });
+    } catch {
+      /* message set in hook */
+    }
+  }
+
+  function requireReason(): string | null {
+    const reason = actionReason.trim();
+    if (!reason) return null;
+    return reason;
+  }
+
   return (
     <section className="mx-auto max-w-[1200px]">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -120,7 +170,8 @@ export function PlatformAgentsScreen() {
             Agents
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            Global directory across tenants · SA5-001–004 · Permission: agents.review
+            Global directory across tenants · SA5-001–004 · Permissions: agent.view /
+            agent.update
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -145,7 +196,7 @@ export function PlatformAgentsScreen() {
         <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <h2 className="m-0 text-section text-text-primary">Create agent draft</h2>
           <p className="mt-1 mb-4 text-body-sm text-text-muted">
-            Uses <code>POST /api/v1/platform/agents</code>
+            Privileged create onto any customer · POST /platform/agents
           </p>
           <form
             className="grid gap-3 sm:grid-cols-[1.2fr_1fr_auto] sm:items-end"
@@ -279,9 +330,14 @@ export function PlatformAgentsScreen() {
                       {customerName(row.customer_id)}
                     </td>
                     <td className="px-2 py-3">
-                      <StatusBadge tone={statusTone(row.status)}>
-                        {row.status || "unknown"}
-                      </StatusBadge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge tone={statusTone(row.status)}>
+                          {row.status || "unknown"}
+                        </StatusBadge>
+                        {row.status_locked ? (
+                          <StatusBadge tone="warning">locked</StatusBadge>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-2 py-3 text-text-secondary">{row.agent_type || "—"}</td>
                     <td className="px-2 py-3 text-text-secondary">
@@ -293,259 +349,539 @@ export function PlatformAgentsScreen() {
             </table>
           </div>
         )}
-        <p className="mt-3 mb-0 text-body-sm text-text-muted">
-          Number column is joined client-side from{" "}
-          <code>GET /platform/phone-numbers</code> via <code>assigned_agent_id</code>. Agent
-          list itself does not include number.
-        </p>
       </article>
 
       {selected ? (
-        <AgentDetailPanel
-          agent={selected}
-          tab={tab}
-          onTabChange={setTab}
-          busy={busy}
-          agencyLabel={agencyName(selected.agency_id)}
-          customerLabel={customerName(selected.customer_id)}
-          number={numberByAgent.get(selected.id) || "—"}
-          calls={agentCalls}
-          integrations={agentIntegrations}
-          onPublish={() => void publishAgent(selected.id)}
-          onClose={() => setSelectedId("")}
-        />
+        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="m-0 text-section text-text-primary">
+                {(detail || selected).display_name || selected.id.slice(0, 8)}
+              </h2>
+              <p className="mt-1 mb-0 text-body text-text-muted">
+                {agencyName(selected.agency_id)} · {customerName(selected.customer_id)} ·{" "}
+                {numberByAgent.get(selected.id) || "—"}
+              </p>
+            </div>
+            <ActionButton
+              variant="secondary"
+              onClick={() => {
+                setSelectedId("");
+                clearSelectionSideState();
+              }}
+            >
+              Close
+            </ActionButton>
+          </div>
+
+          <div className="mb-4 flex flex-wrap gap-2">
+            {(
+              [
+                { id: "manage", label: "Manage" },
+                { id: "diagnostics", label: "Diagnostics" },
+                { id: "override", label: "Override" },
+              ] as Array<{ id: Tab; label: string }>
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={
+                  tab === item.id
+                    ? "rounded-xl bg-brand px-3.5 py-2 text-body font-semibold text-text-inverse"
+                    : "rounded-xl border border-border-default bg-canvas px-3.5 py-2 text-body font-semibold text-text-secondary"
+                }
+                onClick={() => setTab(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {detailLoading && !detail ? (
+            <FormSectionSkeleton fields={6} />
+          ) : !detail ? (
+            <p className="m-0 text-body text-text-muted">Agent detail unavailable.</p>
+          ) : tab === "manage" ? (
+            <ManageTab
+              detail={detail}
+              busy={busy}
+              voiceId={voiceId}
+              language={language}
+              actionReason={actionReason}
+              cloneCustomerId={cloneCustomerId}
+              cloneName={cloneName}
+              customers={customers}
+              agencyName={agencyName}
+              onVoiceIdChange={setVoiceId}
+              onLanguageChange={setLanguage}
+              onActionReasonChange={setActionReason}
+              onCloneCustomerChange={setCloneCustomerId}
+              onCloneNameChange={setCloneName}
+              onConfigure={(event) => void onConfigure(event)}
+              onPublish={() => void publishAgent(selectedId)}
+              onPause={() => {
+                const reason = requireReason();
+                if (!reason) return;
+                void pauseAgent(selectedId, reason);
+              }}
+              onArchive={() => {
+                const reason = requireReason();
+                if (!reason) return;
+                void archiveAgent(selectedId, reason);
+              }}
+              onClone={() => {
+                if (!cloneCustomerId) return;
+                void cloneAgent(selectedId, {
+                  customer_id: cloneCustomerId,
+                  display_name: cloneName,
+                });
+              }}
+              onRestore={() => void restoreAgent(selectedId, "active")}
+            />
+          ) : tab === "diagnostics" ? (
+            <DiagnosticsTab
+              loading={diagnosticsLoading}
+              diagnostics={diagnostics}
+            />
+          ) : (
+            <OverrideTab
+              detail={detail}
+              busy={busy}
+              actionReason={actionReason}
+              onActionReasonChange={setActionReason}
+              onDisable={() => {
+                const reason = requireReason();
+                if (!reason) return;
+                void disableAgent(selectedId, reason);
+              }}
+              onRestore={() => void restoreAgent(selectedId, "active")}
+            />
+          )}
+        </article>
       ) : (
-        <p className="text-body text-text-muted">Select an agent to manage, diagnose, or override.</p>
+        <p className="text-body text-text-muted">
+          Select an agent to manage, diagnose, or override.
+        </p>
       )}
     </section>
   );
 }
 
-function AgentDetailPanel({
-  agent,
-  tab,
-  onTabChange,
+function ManageTab({
+  detail,
   busy,
-  agencyLabel,
-  customerLabel,
-  number,
-  calls,
-  integrations,
+  voiceId,
+  language,
+  actionReason,
+  cloneCustomerId,
+  cloneName,
+  customers,
+  agencyName,
+  onVoiceIdChange,
+  onLanguageChange,
+  onActionReasonChange,
+  onCloneCustomerChange,
+  onCloneNameChange,
+  onConfigure,
   onPublish,
-  onClose,
+  onPause,
+  onArchive,
+  onClone,
+  onRestore,
 }: {
-  agent: PlatformAgentRow;
-  tab: Tab;
-  onTabChange: (tab: Tab) => void;
+  detail: PlatformAgentDetail;
   busy: boolean;
-  agencyLabel: string;
-  customerLabel: string;
-  number: string;
-  calls: Array<{
-    id: string;
-    status?: string;
-    direction?: string;
-    billed_minutes?: number;
-    started_at?: string | null;
-    remote_e164?: string;
-  }>;
-  integrations: Array<{ id: string; provider?: string; status?: string }>;
+  voiceId: string;
+  language: string;
+  actionReason: string;
+  cloneCustomerId: string;
+  cloneName: string;
+  customers: Array<{ id: string; display_name?: string; agency_id?: string }>;
+  agencyName: (id?: string) => string;
+  onVoiceIdChange: (value: string) => void;
+  onLanguageChange: (value: string) => void;
+  onActionReasonChange: (value: string) => void;
+  onCloneCustomerChange: (value: string) => void;
+  onCloneNameChange: (value: string) => void;
+  onConfigure: (event: FormEvent<HTMLFormElement>) => void;
   onPublish: () => void;
-  onClose: () => void;
+  onPause: () => void;
+  onArchive: () => void;
+  onClone: () => void;
+  onRestore: () => void;
 }) {
-  const tabs: Array<{ id: Tab; label: string }> = [
-    { id: "manage", label: "Create / manage" },
-    { id: "diagnostics", label: "Diagnostics" },
-    { id: "override", label: "Override" },
-  ];
+  const locked = Boolean(detail.status_locked);
+  const archived = (detail.status ?? "").toLowerCase() === "archived";
 
   return (
-    <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="m-0 text-section text-text-primary">
-            {agent.display_name || agent.id.slice(0, 8)}
-          </h2>
-          <p className="mt-1 mb-0 text-body text-text-muted">
-            {agencyLabel} · {customerLabel} · {number}
-          </p>
+    <div className="grid gap-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <InfoTile label="Status" value={detail.status || "—"} />
+        <InfoTile label="Type" value={detail.agent_type || "—"} />
+        <InfoTile
+          label="Published version"
+          value={detail.published_version == null ? "—" : String(detail.published_version)}
+        />
+        <InfoTile
+          label="Production routable"
+          value={detail.production_routable ? "Yes" : "No"}
+        />
+        <InfoTile label="Status lock" value={locked ? `Yes (${detail.status_actor || "—"})` : "No"} />
+        <InfoTile label="Assigned number" value={detail.assigned_e164 || "—"} />
+      </div>
+
+      <form className="grid min-w-0 gap-3" onSubmit={onConfigure}>
+        <h3 className="m-0 text-section text-text-primary">Configure</h3>
+        <FormField
+          label="Display name"
+          name="display_name"
+          defaultValue={detail.display_name || ""}
+          key={`name-${detail.id}-${detail.display_name || ""}`}
+        />
+        <FormField
+          label="Timezone"
+          name="timezone"
+          defaultValue={detail.timezone || ""}
+          key={`tz-${detail.id}-${detail.timezone || ""}`}
+        />
+        <VoicePickerFields
+          portal="platform"
+          voiceId={voiceId}
+          language={language}
+          onVoiceIdChange={onVoiceIdChange}
+          onLanguageChange={onLanguageChange}
+          disabled={busy || archived}
+        />
+        <FormField
+          label="Greeting"
+          name="greeting"
+          defaultValue={detail.greeting || ""}
+          key={`greeting-${detail.id}-${detail.greeting || ""}`}
+        />
+        <label className="m-0 grid gap-1.5 font-normal">
+          <span className="text-body-sm text-text-muted">Instructions</span>
+          <textarea
+            name="instructions"
+            rows={4}
+            defaultValue={detail.instructions || ""}
+            key={`instructions-${detail.id}`}
+            className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+          />
+        </label>
+        <label className="m-0 grid gap-1.5 font-normal">
+          <span className="text-body-sm text-text-muted">Fallback behavior</span>
+          <select
+            name="fallback_behavior"
+            key={`fallback-${detail.id}-${detail.fallback_behavior || "message"}`}
+            defaultValue={
+              detail.fallback_behavior === "message" ||
+              detail.fallback_behavior === "transfer" ||
+              detail.fallback_behavior === "hangup"
+                ? detail.fallback_behavior
+                : "message"
+            }
+            className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+            required
+          >
+            <option value="message">message — play a message / stay on line</option>
+            <option value="transfer">transfer — hand off if transfer rules exist</option>
+            <option value="hangup">hangup — end the call</option>
+          </select>
+        </label>
+        <div className="flex flex-wrap gap-4">
+          <label className="m-0 flex items-center gap-2 font-normal text-body">
+            <input
+              type="checkbox"
+              name="inbound_enabled"
+              defaultChecked={Boolean(detail.inbound_enabled)}
+              key={`in-${detail.id}-${detail.inbound_enabled}`}
+            />
+            Inbound enabled
+          </label>
+          <label className="m-0 flex items-center gap-2 font-normal text-body">
+            <input
+              type="checkbox"
+              name="outbound_enabled"
+              defaultChecked={Boolean(detail.outbound_enabled)}
+              key={`out-${detail.id}-${detail.outbound_enabled}`}
+            />
+            Outbound enabled
+          </label>
+          <label className="m-0 flex items-center gap-2 font-normal text-body">
+            <input
+              type="checkbox"
+              name="recording_disclosure"
+              defaultChecked={Boolean(detail.recording_disclosure)}
+              key={`rec-${detail.id}-${detail.recording_disclosure}`}
+            />
+            Recording disclosure
+          </label>
         </div>
-        <ActionButton variant="secondary" onClick={onClose}>
-          Close
+        <ActionButton type="submit" disabled={busy || archived}>
+          Save configuration
+        </ActionButton>
+        <ApiNote>
+          Knowledge attach and number assignment stay on their modules. Platform configure uses
+          PATCH /platform/agents/{"{id}"}. Archived agents must be restored before editing.
+        </ApiNote>
+      </form>
+
+      <div className="grid gap-3">
+        <h3 className="m-0 text-section text-text-primary">Lifecycle</h3>
+        <label className="m-0 grid gap-1.5 font-normal">
+          <span className="text-body-sm text-text-muted">
+            Reason (required for pause / archive)
+          </span>
+          <input
+            value={actionReason}
+            onChange={(event) => onActionReasonChange(event.target.value)}
+            placeholder="e.g. Abuse review, billing hold…"
+            className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+          />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <ActionButton disabled={busy || archived} onClick={onPublish}>
+            Publish
+          </ActionButton>
+          <ActionButton
+            variant="outline"
+            disabled={busy || !actionReason.trim()}
+            onClick={onPause}
+          >
+            Pause
+          </ActionButton>
+          <ActionButton
+            variant="outline"
+            disabled={busy || !actionReason.trim()}
+            onClick={onArchive}
+          >
+            Archive
+          </ActionButton>
+          {locked || archived ? (
+            <ActionButton variant="secondary" disabled={busy} onClick={onRestore}>
+              Restore to active
+            </ActionButton>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <h3 className="m-0 text-section text-text-primary">Clone</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="m-0 grid gap-1.5 font-normal">
+            <span className="text-body-sm text-text-muted">Target customer</span>
+            <select
+              value={cloneCustomerId}
+              onChange={(event) => onCloneCustomerChange(event.target.value)}
+              className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+            >
+              <option value="">Select customer</option>
+              {customers.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.display_name || row.id.slice(0, 8)} ({agencyName(row.agency_id)})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="m-0 grid gap-1.5 font-normal">
+            <span className="text-body-sm text-text-muted">Clone display name</span>
+            <input
+              value={cloneName}
+              onChange={(event) => onCloneNameChange(event.target.value)}
+              className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+            />
+          </label>
+        </div>
+        <ActionButton
+          variant="secondary"
+          disabled={busy || !cloneCustomerId}
+          onClick={onClone}
+        >
+          Clone to customer
         </ActionButton>
       </div>
+    </div>
+  );
+}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={
-              tab === item.id
-                ? "rounded-xl bg-brand px-3.5 py-2 text-body font-semibold text-text-inverse"
-                : "rounded-xl border border-border-default bg-canvas px-3.5 py-2 text-body font-semibold text-text-secondary"
-            }
-            onClick={() => onTabChange(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
+function DiagnosticsTab({
+  loading,
+  diagnostics,
+}: {
+  loading: boolean;
+  diagnostics: PlatformAgentDiagnostics | null;
+}) {
+  if (loading && !diagnostics) {
+    return <FormSectionSkeleton fields={4} />;
+  }
+  if (!diagnostics) {
+    return <p className="m-0 text-body text-text-muted">Diagnostics unavailable.</p>;
+  }
+
+  const runtime = diagnostics.runtime ?? {};
+  const calls = diagnostics.recent_calls ?? [];
+  const errors = diagnostics.errors ?? [];
+  const integrations = diagnostics.integrations ?? [];
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <InfoTile
+          label="Routable"
+          value={runtime.production_routable ? "Yes" : "No"}
+        />
+        <InfoTile label="Runtime reason" value={runtime.reason || "—"} />
+        <InfoTile
+          label="Resolved instructions"
+          value={
+            runtime.resolved_instructions
+              ? `${runtime.resolved_instructions.slice(0, 80)}${
+                  runtime.resolved_instructions.length > 80 ? "…" : ""
+                }`
+              : "—"
+          }
+        />
       </div>
 
-      {tab === "manage" ? (
-        <div className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <InfoTile label="Status" value={agent.status || "—"} />
-            <InfoTile label="Type" value={agent.agent_type || "—"} />
-            <InfoTile
-              label="Published version"
-              value={
-                agent.published_version == null ? "—" : String(agent.published_version)
-              }
-            />
-            <InfoTile
-              label="Production routable"
-              value={agent.production_routable ? "Yes" : "No"}
-            />
-          </div>
+      <div>
+        <h3 className="m-0 mb-2 text-section text-text-primary">Errors</h3>
+        {errors.length === 0 ? (
+          <p className="m-0 text-body text-text-muted">No recent errors.</p>
+        ) : (
+          <ul className="m-0 list-none space-y-2 p-0">
+            {errors.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-default px-3 py-2.5"
+              >
+                <span className="text-body text-text-primary">
+                  {row.kind || "error"} · {row.id.slice(0, 8)}
+                </span>
+                <StatusBadge tone={statusTone(row.status)}>{row.status || "—"}</StatusBadge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-          <div className="flex flex-wrap gap-2">
-            <ActionButton onClick={onPublish} disabled={busy}>
-              Publish
-            </ActionButton>
-            <ActionButton variant="secondary" disabled title="API not available yet">
-              Edit
-            </ActionButton>
-            <ActionButton variant="secondary" disabled title="API not available yet">
-              Pause
-            </ActionButton>
-            <ActionButton variant="secondary" disabled title="API not available yet">
-              Clone
-            </ActionButton>
-            <ActionButton variant="outline" disabled title="API not available yet">
-              Archive
-            </ActionButton>
-          </div>
-
-          <ApiGap>
-            Edit requires PATCH /api/v1/platform/agents/{"{id}"} — abhi API nahi hai (sirf agency
-            route hai).
-          </ApiGap>
-          <ApiGap>
-            Pause requires POST /api/v1/platform/agents/{"{id}"}/pause — abhi API nahi hai.
-          </ApiGap>
-          <ApiGap>
-            Clone requires POST /api/v1/platform/agents/{"{id}"}/clone — abhi API nahi hai.
-          </ApiGap>
-          <ApiGap>
-            Archive requires POST /api/v1/platform/agents/{"{id}"}/archive — abhi API nahi hai.
-          </ApiGap>
-          <p className="m-0 text-body-sm text-text-muted">
-            Working now: create (`POST /platform/agents`) and publish (`POST
-            /platform/agents/{"{id}"}/publish`). Role: `agents.review`.
-          </p>
-        </div>
-      ) : null}
-
-      {tab === "diagnostics" ? (
-        <div className="grid gap-4">
-          <ApiGap>
-            Runtime configuration diagnostics API nahi hai — platform pe
-            `/resolved-instructions` aur `/routing` expose nahi (agency-only).
-          </ApiGap>
-          <ApiGap>
-            Agent error feed API nahi hai — errors / failure stream unavailable.
-          </ApiGap>
-
-          <div>
-            <h3 className="m-0 mb-2 text-section text-text-primary">Recent calls</h3>
-            <p className="mt-0 mb-3 text-body-sm text-text-muted">
-              Joined from <code>GET /platform/calls</code> where <code>agent_id</code> matches.
-            </p>
-            {calls.length === 0 ? (
-              <p className="m-0 text-body text-text-muted">No recent calls for this agent.</p>
-            ) : (
-              <div className="overflow-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="text-label uppercase text-text-muted">
-                      <th className="border-0 px-2 py-2 text-left">Call</th>
-                      <th className="border-0 px-2 py-2 text-left">Direction</th>
-                      <th className="border-0 px-2 py-2 text-left">Status</th>
-                      <th className="border-0 px-2 py-2 text-left">Minutes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calls.map((call) => (
-                      <tr key={call.id}>
-                        <td className="px-2 py-3 text-text-primary">
-                          {call.remote_e164 || call.id.slice(0, 8)}
-                        </td>
-                        <td className="px-2 py-3 text-text-secondary">
-                          {call.direction || "—"}
-                        </td>
-                        <td className="px-2 py-3">
-                          <StatusBadge tone={statusTone(call.status)}>
-                            {call.status || "unknown"}
-                          </StatusBadge>
-                        </td>
-                        <td className="px-2 py-3 text-text-secondary">
-                          {call.billed_minutes ?? "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <h3 className="m-0 mb-2 text-section text-text-primary">Integrations</h3>
-            <p className="mt-0 mb-3 text-body-sm text-text-muted">
-              Approximate from <code>GET /platform/integrations</code> by customer/agency — not
-              agent-scoped diagnostics.
-            </p>
-            {integrations.length === 0 ? (
-              <p className="m-0 text-body text-text-muted">No related integrations found.</p>
-            ) : (
-              <ul className="m-0 list-none space-y-2 p-0">
-                {integrations.map((row) => (
-                  <li
-                    key={row.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border-default px-3 py-2.5"
-                  >
-                    <span className="font-semibold text-text-primary">
-                      {row.provider || row.id.slice(0, 8)}
-                    </span>
-                    <StatusBadge tone={statusTone(row.status)}>
-                      {row.status || "unknown"}
-                    </StatusBadge>
-                  </li>
+      <div>
+        <h3 className="m-0 mb-2 text-section text-text-primary">Recent calls</h3>
+        {calls.length === 0 ? (
+          <p className="m-0 text-body text-text-muted">No recent calls.</p>
+        ) : (
+          <div className="overflow-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="text-label uppercase text-text-muted">
+                  <th className="border-0 px-2 py-2 text-left">Call</th>
+                  <th className="border-0 px-2 py-2 text-left">Direction</th>
+                  <th className="border-0 px-2 py-2 text-left">Status</th>
+                  <th className="border-0 px-2 py-2 text-left">Minutes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {calls.map((call) => (
+                  <tr key={call.id}>
+                    <td className="px-2 py-3 text-text-primary">
+                      {call.remote_e164 || call.e164 || call.id.slice(0, 8)}
+                    </td>
+                    <td className="px-2 py-3 text-text-secondary">{call.direction || "—"}</td>
+                    <td className="px-2 py-3">
+                      <StatusBadge tone={statusTone(call.status)}>
+                        {call.status || "unknown"}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-2 py-3 text-text-secondary">
+                      {call.billed_minutes ?? "—"}
+                    </td>
+                  </tr>
                 ))}
-              </ul>
-            )}
+              </tbody>
+            </table>
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
 
-      {tab === "override" ? (
-        <div className="grid gap-4">
-          <p className="m-0 text-body text-text-secondary">
-            SA5-004: Super Admin can disable an agent immediately for abuse, billing, or
-            operational reasons.
-          </p>
-          <ActionButton variant="outline" disabled title="API not available yet">
-            Disable agent now
-          </ActionButton>
-          <ApiGap>
-            Override/disable API nahi hai — e.g. POST /api/v1/platform/agents/{"{id}"}/disable
-            (ya suspend) abhi backend mein missing. Chargeback flow alag hai; manual Super Admin
-            override route nahi.
-          </ApiGap>
-        </div>
-      ) : null}
-    </article>
+      <div>
+        <h3 className="m-0 mb-2 text-section text-text-primary">Integrations</h3>
+        {integrations.length === 0 ? (
+          <p className="m-0 text-body text-text-muted">No integrations on diagnostics.</p>
+        ) : (
+          <ul className="m-0 list-none space-y-2 p-0">
+            {integrations.map((row) => (
+              <li
+                key={row.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border-default px-3 py-2.5"
+              >
+                <span className="font-semibold text-text-primary">
+                  {row.provider || row.id.slice(0, 8)}
+                </span>
+                <StatusBadge tone={statusTone(row.status)}>
+                  {row.status || "unknown"}
+                </StatusBadge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OverrideTab({
+  detail,
+  busy,
+  actionReason,
+  onActionReasonChange,
+  onDisable,
+  onRestore,
+}: {
+  detail: PlatformAgentDetail;
+  busy: boolean;
+  actionReason: string;
+  onActionReasonChange: (value: string) => void;
+  onDisable: () => void;
+  onRestore: () => void;
+}) {
+  return (
+    <div className="grid gap-4">
+      <p className="m-0 text-body text-text-secondary">
+        SA5-004: Super Admin can disable an agent immediately. This sets status to{" "}
+        <code>suspended</code> and locks agency from changing status until you restore.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <InfoTile label="Current status" value={detail.status || "—"} />
+        <InfoTile
+          label="Lock"
+          value={
+            detail.status_locked
+              ? `Locked (${detail.status_actor || "—"})`
+              : "Not locked"
+          }
+        />
+      </div>
+      <label className="m-0 grid gap-1.5 font-normal">
+        <span className="text-body-sm text-text-muted">Reason (required)</span>
+        <input
+          value={actionReason}
+          onChange={(event) => onActionReasonChange(event.target.value)}
+          placeholder="Abuse, billing, operational incident…"
+          className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <ActionButton
+          variant="outline"
+          disabled={busy || !actionReason.trim()}
+          onClick={onDisable}
+        >
+          Disable agent now
+        </ActionButton>
+        <ActionButton variant="secondary" disabled={busy} onClick={onRestore}>
+          Restore to active
+        </ActionButton>
+      </div>
+    </div>
   );
 }
 
@@ -553,7 +889,7 @@ function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border-default bg-canvas px-3 py-3">
       <p className="m-0 text-body-sm text-text-muted">{label}</p>
-      <p className="mt-1 mb-0 font-semibold text-text-primary">{value}</p>
+      <p className="mt-1 mb-0 break-words font-semibold text-text-primary">{value}</p>
     </div>
   );
 }
