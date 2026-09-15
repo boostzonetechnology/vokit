@@ -232,8 +232,8 @@ export function AgencyAgentsScreen() {
         </article>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
-        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[1.1fr_1fr]">
+        <article className="min-w-0 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <div className="mb-4 grid gap-3">
             <label className="m-0 grid gap-1.5 font-normal">
               <span className="text-body-sm text-text-muted">Search</span>
@@ -318,7 +318,7 @@ export function AgencyAgentsScreen() {
           )}
         </article>
 
-        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+        <article className="min-w-0 overflow-hidden rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           {!selectedId ? (
             <p className="m-0 py-10 text-center text-body text-text-muted">
               Select an agent to configure, test, or publish.
@@ -328,13 +328,13 @@ export function AgencyAgentsScreen() {
               Loading agent detail…
             </p>
           ) : (
-            <div className="grid gap-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="m-0 text-section text-text-primary">
+            <div className="grid min-w-0 gap-4">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="m-0 break-words text-section text-text-primary">
                     {detail.display_name || detail.id.slice(0, 8)}
                   </h2>
-                  <p className="mt-1 mb-0 text-body-sm text-text-muted">
+                  <p className="mt-1 mb-0 break-all text-body-sm text-text-muted">
                     {customerName(detail.customer_id)} · {detail.id}
                   </p>
                 </div>
@@ -367,7 +367,7 @@ export function AgencyAgentsScreen() {
               </div>
 
               {tab === "configure" ? (
-                <form className="grid gap-3" onSubmit={(event) => void onConfigure(event)}>
+                <form className="grid min-w-0 gap-3" onSubmit={(event) => void onConfigure(event)}>
                   <FormField
                     label="Display name"
                     name="display_name"

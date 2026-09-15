@@ -29,10 +29,10 @@ export function VoicePickerFields({
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div className="sm:col-span-2 rounded-xl border border-border-default bg-canvas px-3 py-2.5">
+    <div className="grid min-w-0 gap-3">
+      <div className="min-w-0 rounded-xl border border-border-default bg-canvas px-3 py-2.5">
         <p className="m-0 text-body-sm text-text-muted">Platform TTS</p>
-        <p className="mt-1 mb-0 font-semibold text-text-primary">
+        <p className="mt-1 mb-0 break-words font-semibold text-text-primary">
           {loading ? "Loading…" : provider || "Not available"}
         </p>
         {error ? (
@@ -49,24 +49,29 @@ export function VoicePickerFields({
         ) : null}
       </div>
 
-      <label className="m-0 grid gap-1.5 font-normal sm:col-span-2">
+      <label className="m-0 grid min-w-0 gap-1.5 font-normal">
         <span className="text-body-sm text-text-muted">Voice</span>
         <select
           value={voiceId}
           disabled={selectDisabled}
           onChange={(event) => onSelectVoice(event.target.value)}
-          className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body disabled:opacity-60"
+          className="box-border w-full max-w-full min-w-0 rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body disabled:opacity-60"
         >
           <option value="">
             {loading ? "Loading voices…" : voices.length ? "Select a voice…" : "No voices available"}
           </option>
-          {voices.map((voice) => (
-            <option key={voice.id} value={voice.id}>
-              {voice.name || voice.id}
-              {voice.language ? ` (${voice.language})` : ""}
-              {` · ${voice.id}`}
-            </option>
-          ))}
+          {voiceId && !voices.some((voice) => voice.id === voiceId) ? (
+            <option value={voiceId}>Current voice (not in catalog)</option>
+          ) : null}
+          {voices.map((voice) => {
+            const label = voice.name?.trim() || "Unnamed voice";
+            const withLang = voice.language ? `${label} (${voice.language})` : label;
+            return (
+              <option key={voice.id} value={voice.id} title={voice.id}>
+                {withLang.length > 56 ? `${withLang.slice(0, 53)}…` : withLang}
+              </option>
+            );
+          })}
         </select>
         {!loading && !error && voices.length === 0 ? (
           <span className="text-sm text-text-muted">
@@ -75,7 +80,7 @@ export function VoicePickerFields({
         ) : null}
       </label>
 
-      <label className="m-0 grid gap-1.5 font-normal sm:col-span-2">
+      <label className="m-0 grid min-w-0 gap-1.5 font-normal">
         <span className="text-body-sm text-text-muted">Language</span>
         <input
           value={language}
@@ -83,7 +88,7 @@ export function VoicePickerFields({
           onChange={(event) => onLanguageChange(event.target.value)}
           required
           placeholder="en"
-          className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body disabled:opacity-60"
+          className="box-border w-full max-w-full min-w-0 rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body disabled:opacity-60"
         />
       </label>
     </div>
