@@ -6,8 +6,11 @@ from control_plane.agents.domain.policies import (
     InstructionLayers,
     assert_no_secrets,
     assert_production_routable,
+    assert_status_unlocked,
     assert_tools,
     knowledge_group_id,
+    parse_agent_status,
+    platform_lock_flags,
     publish_failures,
     resolve_instructions,
 )
@@ -51,7 +54,29 @@ def test_unpublished_and_paused_are_not_production_routable() -> None:
     assert exc.value.code == "agent_not_routable"
     with pytest.raises(DomainError):
         assert_production_routable(status=AgentStatus.PAUSED, published_version=1)
+    with pytest.raises(DomainError) as archived:
+        assert_production_routable(status=AgentStatus.ARCHIVED, published_version=1)
+    assert archived.value.details.get("reason") == "archived"
+    with pytest.raises(DomainError):
+        assert_production_routable(status=AgentStatus.SUSPENDED, published_version=1)
     assert_production_routable(status=AgentStatus.ACTIVE, published_version=1)
+
+
+def test_status_lock_and_platform_restore_flags() -> None:
+    class _Agent:
+        status_locked = True
+
+    with pytest.raises(DomainError) as exc:
+        assert_status_unlocked(_Agent())
+    assert exc.value.code == "agent_status_locked"
+    assert platform_lock_flags(AgentStatus.PAUSED) == (True, "platform")
+    assert platform_lock_flags(AgentStatus.ARCHIVED) == (True, "platform")
+    assert platform_lock_flags(AgentStatus.SUSPENDED) == (True, "platform")
+    assert platform_lock_flags(AgentStatus.ACTIVE) == (False, "platform")
+    assert platform_lock_flags(AgentStatus.DRAFT) == (False, "platform")
+    assert parse_agent_status("testing") is AgentStatus.TESTING
+    with pytest.raises(DomainError):
+        parse_agent_status("nope")
 
 
 def test_publish_preflight_requires_voice_and_subscription() -> None:

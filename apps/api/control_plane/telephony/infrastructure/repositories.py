@@ -198,12 +198,15 @@ class DjangoCallIndexRepository:
         *,
         tenant_id: uuid.UUID | None = None,
         customer_id: uuid.UUID | None = None,
+        agent_id: uuid.UUID | None = None,
     ) -> list[CallIndexRecord]:
         rows = CallIndex.objects.all()
         if tenant_id is not None:
             rows = rows.filter(tenant_id=tenant_id)
         if customer_id is not None:
             rows = rows.filter(customer_id=customer_id)
+        if agent_id is not None:
+            rows = rows.filter(agent_id=agent_id)
         return [_to_call(row) for row in rows.order_by("-created_at")]
 
 

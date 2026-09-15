@@ -868,8 +868,8 @@ class MysqlRuntime:
                 INSERT INTO agents (
                     agent_id, tenant_id, customer_id, display_name, status,
                     created_at, updated_at, config_json, published_version,
-                    draft_version, template_id, customer_can_edit
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    draft_version, template_id, customer_can_edit, status_locked, status_actor
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     display_name = VALUES(display_name),
                     status = VALUES(status),
@@ -878,7 +878,9 @@ class MysqlRuntime:
                     published_version = VALUES(published_version),
                     draft_version = VALUES(draft_version),
                     template_id = VALUES(template_id),
-                    customer_can_edit = VALUES(customer_can_edit)
+                    customer_can_edit = VALUES(customer_can_edit),
+                    status_locked = VALUES(status_locked),
+                    status_actor = VALUES(status_actor)
                 """,
                 (
                     str(agent.agent_id),
@@ -893,6 +895,8 @@ class MysqlRuntime:
                     agent.draft_version,
                     str(agent.template_id) if agent.template_id else None,
                     1 if agent.customer_can_edit else 0,
+                    1 if agent.status_locked else 0,
+                    (agent.status_actor or "agency")[:16],
                 ),
             )
 
@@ -905,7 +909,8 @@ class MysqlRuntime:
                 """
                 SELECT agent_id, tenant_id, customer_id, display_name, status,
                        created_at, updated_at, config_json, published_version,
-                       draft_version, template_id, customer_can_edit
+                       draft_version, template_id, customer_can_edit,
+                       status_locked, status_actor
                 FROM agents
                 WHERE agent_id = %s AND tenant_id = %s
                 """,
@@ -925,7 +930,8 @@ class MysqlRuntime:
         sql = """
             SELECT agent_id, tenant_id, customer_id, display_name, status,
                    created_at, updated_at, config_json, published_version,
-                   draft_version, template_id, customer_can_edit
+                   draft_version, template_id, customer_can_edit,
+                   status_locked, status_actor
             FROM agents
             WHERE tenant_id = %s
         """
@@ -957,6 +963,8 @@ class MysqlRuntime:
             draft_version=int(row[9] or 1),
             template_id=template_id,
             customer_can_edit=bool(row[11]),
+            status_locked=bool(row[12]) if len(row) > 12 else False,
+            status_actor=str(row[13] or "agency") if len(row) > 13 else "agency",
         )
 
     def put_version(self, connection: TenantConnection, row: AgentVersionRecord) -> None:

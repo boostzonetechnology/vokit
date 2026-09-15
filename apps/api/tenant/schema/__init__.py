@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-CURRENT_VERSION = "0011_customer_profile"
+CURRENT_VERSION = "0012_agent_status_lock"
 
 SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
     "0001_isolation": (
@@ -399,6 +399,13 @@ SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
             ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT ''
         """,
     ),
+    "0012_agent_status_lock": (
+        """
+        ALTER TABLE agents
+            ADD COLUMN status_locked TINYINT(1) NOT NULL DEFAULT 0,
+            ADD COLUMN status_actor VARCHAR(16) NOT NULL DEFAULT 'agency'
+        """,
+    ),
 }
 
 VERSION_ORDER = (
@@ -413,4 +420,5 @@ VERSION_ORDER = (
     "0009_recordings",
     "0010_integrations",
     "0011_customer_profile",
+    "0012_agent_status_lock",
 )

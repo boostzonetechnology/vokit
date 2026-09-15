@@ -41,6 +41,11 @@ AGENT_TYPES = frozenset(
 FALLBACKS = frozenset({"message", "transfer", "hangup"})
 PRODUCTION_STATUSES = frozenset({AgentStatus.ACTIVE})
 TEST_STATUSES = frozenset({AgentStatus.DRAFT, AgentStatus.TESTING, AgentStatus.ACTIVE})
+STATUS_ACTORS = frozenset({"agency", "platform", "system"})
+RESTRICTIVE_STATUSES = frozenset(
+    {AgentStatus.PAUSED, AgentStatus.SUSPENDED, AgentStatus.ARCHIVED, AgentStatus.ERROR}
+)
+AGENCY_PAUSE_STATUSES = frozenset({AgentStatus.ACTIVE, AgentStatus.TESTING})
 
 
 class TemplateVisibility(StrEnum):

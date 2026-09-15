@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 from control_plane.agents.application.index import sync_agent_index
 from control_plane.agents.application.ports import AgentIndexRepository
+from control_plane.audit.application.record import RecordAuditCommand
+from control_plane.audit.infrastructure.container import record_audit
 from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.customers.domain.policies import customer_not_found
 from control_plane.risk.application.gate import CustomerRiskGate
@@ -82,6 +84,16 @@ class CreateAgent:
         )
         stored = self._agents.put_agent(customer.tenant_id, agent)
         sync_agent_index(self._index, stored)
+        record_audit().execute(
+            RecordAuditCommand(
+                action="agent.created",
+                entity_type="agent",
+                entity_id=str(stored.agent_id),
+                tenant_id=stored.tenant_id,
+                customer_id=stored.customer_id,
+                after_summary="draft",
+            )
+        )
         log_event(
             logger,
             "agent.created",

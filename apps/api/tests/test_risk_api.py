@@ -220,6 +220,8 @@ def test_chargeback_disables_agents_and_reverses_commission() -> None:
     )
     assert agents.status_code == 200
     assert agents.json()["data"][0]["status"] == "suspended"
+    assert agents.json()["data"][0]["status_locked"] is True
+    assert agents.json()["data"][0]["status_actor"] == "system"
     case = RiskCase.objects.get(customer_id=ctx["customer_id"])
     assert case.status == "chargeback_frozen"
     assert case.permanently_banned is True

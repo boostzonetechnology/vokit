@@ -49,6 +49,8 @@ class AgentIndexRecord:
     agent_type: str
     published_version: int | None
     created_at: datetime | None = None
+    status_locked: bool = False
+    status_actor: str = "agency"
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +118,7 @@ class AgentIndexRepository(Protocol):
         tenant_id: uuid.UUID | None = None,
         customer_id: uuid.UUID | None = None,
         status: AgentStatus | None = None,
+        agent_type: str | None = None,
     ) -> list[AgentIndexRecord]: ...
 
 

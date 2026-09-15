@@ -11,7 +11,7 @@ from control_plane.agents.application.ports import (
     KnowledgeVectorStore,
 )
 from control_plane.agents.application.resolve import resolve_for_agent
-from control_plane.agents.domain.policies import assert_test_routable
+from control_plane.agents.domain.policies import assert_status_unlocked, assert_test_routable
 from control_plane.agents.domain.types import TestSessionKind, TestSessionStatus
 from control_plane.risk.domain.types import AgentStatus
 from control_plane.telephony.application.session import TrainingSessionIndexRepository
@@ -52,6 +52,8 @@ class StartTestSession:
         query: str = "",
     ) -> dict:
         agent = _load_agent(self._agents, agent_id, actor_tenant_id, privileged)
+        if not privileged:
+            assert_status_unlocked(agent)
         assert_test_routable(status=agent.status)
         try:
             session_kind = TestSessionKind(kind)

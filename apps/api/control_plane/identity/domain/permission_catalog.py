@@ -68,6 +68,7 @@ _PLATFORM: list[PermissionSpec] = [
     PermissionSpec("platform", "risk.review", "Platform risk review action", is_sensitive=True),
     # Agent review
     PermissionSpec("platform", "agent.view", "Review agents across agencies"),
+    PermissionSpec("platform", "agent.update", "Create, publish, and change agents across agencies"),
     # Number review
     PermissionSpec("platform", "number.view", "View numbers across agencies"),
     # Call review

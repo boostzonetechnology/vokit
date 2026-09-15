@@ -5,11 +5,14 @@ from rest_framework.response import Response
 
 from control_plane.agents.application.builder import (
     ConfigureAgentCommand,
+    _load_agent,
     assert_agent_routable,
 )
+from control_plane.agents.application.diagnostics import agent_diagnostics, assigned_e164_map
 from control_plane.agents.application.knowledge import IngestKnowledgeCommand
 from control_plane.agents.application.resolve import resolve_for_agent
 from control_plane.agents.application.templates import CreateTemplateCommand
+from control_plane.agents.domain.policies import parse_agent_status
 from control_plane.agents.domain.types import TemplateStatus, TemplateVisibility
 from control_plane.agents.infrastructure.container import (
     agent_index,
@@ -24,6 +27,7 @@ from control_plane.agents.infrastructure.container import (
     pause_agent,
     publish_agent,
     save_instruction,
+    set_agent_status,
     start_test_session,
     template_versions,
     templates,
@@ -66,6 +70,8 @@ def _agent_payload(row: TenantAgent) -> dict[str, object]:
         "tools": list(row.tools),
         "published_version": row.published_version,
         "draft_version": row.draft_version,
+        "status_locked": bool(row.status_locked),
+        "status_actor": row.status_actor,
         "template_id": str(row.template_id) if row.template_id else None,
         "customer_can_edit": row.customer_can_edit,
         "business_hours": list(row.business_hours),
@@ -80,7 +86,7 @@ def _agent_payload(row: TenantAgent) -> dict[str, object]:
     }
 
 
-def _index_payload(row) -> dict[str, object]:
+def _index_payload(row, *, assigned_e164: str | None = None) -> dict[str, object]:
     return {
         "id": str(row.id),
         "agency_id": str(row.tenant_id),
@@ -89,10 +95,30 @@ def _index_payload(row) -> dict[str, object]:
         "status": row.status.value,
         "agent_type": row.agent_type,
         "published_version": row.published_version,
+        "status_locked": bool(row.status_locked),
+        "status_actor": row.status_actor,
+        "assigned_e164": assigned_e164,
         "production_routable": bool(
             row.status.value == "active" and row.published_version is not None
         ),
     }
+
+
+def _load_platform_agent(agent_id: str) -> TenantAgent:
+    return _load_agent(tenant_agents(), parse_uuid(agent_id, field="agent_id"), None, True)
+
+
+def _set_platform_status(request: Request, agent_id: str, status: str | None = None) -> Response:
+    context = require_platform_perm(request, "agent.update")
+    target = status if status is not None else str(request.data.get("status") or "")
+    agent = set_agent_status().execute(
+        agent_id=parse_uuid(agent_id, field="agent_id"),
+        status=target,
+        reason=str(request.data.get("reason") or ""),
+        actor_id=context.user.id,
+        actor_role=context.membership.role,
+    )
+    return success(_agent_payload(agent))
 
 
 def _template_payload(row) -> dict[str, object]:
@@ -173,6 +199,9 @@ class PlatformAgentCollectionView(CsrfAPIView):
         limit, offset = parse_page(
             request.query_params.get("limit"), request.query_params.get("offset")
         )
+        status_raw = str(request.query_params.get("status") or "").strip()
+        status = parse_agent_status(status_raw) if status_raw else None
+        agent_type = str(request.query_params.get("agent_type") or "").strip() or None
         rows, page = page_slice(
             agent_index().list(
                 tenant_id=parse_optional_uuid(
@@ -181,14 +210,20 @@ class PlatformAgentCollectionView(CsrfAPIView):
                 customer_id=parse_optional_uuid(
                     request.query_params.get("customer_id"), field="customer_id"
                 ),
+                status=status,
+                agent_type=agent_type,
             ),
             offset,
             limit,
         )
-        return success([_index_payload(row) for row in rows], page=page)
+        assigned = assigned_e164_map([row.id for row in rows])
+        return success(
+            [_index_payload(row, assigned_e164=assigned.get(row.id)) for row in rows],
+            page=page,
+        )
 
     def post(self, request: Request) -> Response:
-        require_platform_perm(request, "agent.view")
+        require_platform_perm(request, "agent.update")
         agent = create_agent().execute(
             CreateAgentCommand(
                 customer_id=parse_uuid(request.data.get("customer_id"), field="customer_id"),
@@ -200,15 +235,82 @@ class PlatformAgentCollectionView(CsrfAPIView):
         return success(_agent_payload(agent), status=201)
 
 
+class PlatformAgentDetailView(CsrfAPIView):
+    def get(self, request: Request, agent_id: str) -> Response:
+        require_platform_perm(request, "agent.view")
+        agent = _load_platform_agent(agent_id)
+        assigned = assigned_e164_map([agent.agent_id])
+        payload = _agent_payload(agent)
+        payload["assigned_e164"] = assigned.get(agent.agent_id)
+        return success(payload)
+
+    def patch(self, request: Request, agent_id: str) -> Response:
+        require_platform_perm(request, "agent.update")
+        agent = configure_agent().execute(
+            _configure_command(
+                parse_uuid(agent_id, field="agent_id"),
+                dict(request.data),
+                tenant_id=None,
+                privileged=True,
+            )
+        )
+        return success(_agent_payload(agent))
+
+
 class PlatformAgentPublishView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
-        require_platform_perm(request, "agent.view")
+        require_platform_perm(request, "agent.update")
         agent = publish_agent().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             actor_tenant_id=None,
             privileged=True,
         )
         return success(_agent_payload(agent))
+
+
+class PlatformAgentStatusView(CsrfAPIView):
+    def post(self, request: Request, agent_id: str) -> Response:
+        return _set_platform_status(request, agent_id)
+
+
+class PlatformAgentPauseView(CsrfAPIView):
+    def post(self, request: Request, agent_id: str) -> Response:
+        return _set_platform_status(request, agent_id, "paused")
+
+
+class PlatformAgentArchiveView(CsrfAPIView):
+    def post(self, request: Request, agent_id: str) -> Response:
+        return _set_platform_status(request, agent_id, "archived")
+
+
+class PlatformAgentDisableView(CsrfAPIView):
+    def post(self, request: Request, agent_id: str) -> Response:
+        return _set_platform_status(request, agent_id, "suspended")
+
+
+class PlatformAgentCloneView(CsrfAPIView):
+    def post(self, request: Request, agent_id: str) -> Response:
+        require_platform_perm(request, "agent.update")
+        agent = clone_agent().execute(
+            agent_id=parse_uuid(agent_id, field="agent_id"),
+            actor_tenant_id=None,
+            privileged=True,
+            customer_id=parse_uuid(request.data.get("customer_id"), field="customer_id"),
+            display_name=str(request.data.get("display_name") or "") or None,
+            greeting=None
+            if "greeting" not in request.data
+            else str(request.data.get("greeting") or ""),
+            system_prompt=None
+            if "system_prompt" not in request.data
+            else str(request.data.get("system_prompt") or ""),
+        )
+        return success(_agent_payload(agent), status=201)
+
+
+class PlatformAgentDiagnosticsView(CsrfAPIView):
+    def get(self, request: Request, agent_id: str) -> Response:
+        require_platform_perm(request, "agent.view")
+        return success(agent_diagnostics(_load_platform_agent(agent_id)))
 
 
 class PlatformTemplateCollectionView(CsrfAPIView):
