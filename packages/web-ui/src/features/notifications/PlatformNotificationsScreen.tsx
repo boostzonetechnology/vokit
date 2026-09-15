@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformNotifications } from "./hooks/usePlatformNotifications";
 import type { NotificationTab } from "./types";
@@ -140,8 +141,11 @@ export function PlatformNotificationsScreen({ route = "notifications" }: { route
                 className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
               />
             </label>
-            {loading ? (
-              <p className="m-0 text-body text-text-muted">Loading templates…</p>
+            {loading && templates.length === 0 ? (
+              <TableSkeleton
+                headers={["Event", "Channel", "Subject", "Version"]}
+                rows={8}
+              />
             ) : (
               <div className="overflow-auto">
                 <table className="min-w-full">

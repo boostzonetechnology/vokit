@@ -3,6 +3,8 @@ import { useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
+import { MetricGridSkeleton } from "@/components/ui/MetricCardSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -55,8 +57,11 @@ export function CustomerUsageScreen(_props: CustomerUsageScreenProps = {}) {
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="text-body text-text-muted">Loading…</p>
+      {loading && !usage ? (
+        <div className="grid gap-4">
+          <MetricGridSkeleton count={4} />
+          <ListRowsSkeleton rows={4} />
+        </div>
       ) : (
         <div className="grid gap-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -246,8 +251,8 @@ export function CustomerInvoicesScreen({
               <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
                 Invoices ({invoices.length})
               </h2>
-              {loading ? (
-                <p className="m-0 text-body text-text-muted">Loading…</p>
+              {loading && invoices.length === 0 ? (
+                <ListRowsSkeleton rows={8} />
               ) : !invoices.length ? (
                 <p className="m-0 text-body text-text-muted">No invoices.</p>
               ) : (

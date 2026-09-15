@@ -1,7 +1,5 @@
+import { PageContentSkeleton } from "@/components/ui/PageContentSkeleton";
+
 export function ModuleFallback() {
-  return (
-    <p className="m-0 p-2 text-body text-text-muted" role="status">
-      Loading module…
-    </p>
-  );
+  return <PageContentSkeleton />;
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformIntegrations } from "./hooks/usePlatformIntegrations";
 
@@ -140,8 +141,11 @@ export function PlatformIntegrationsScreen() {
               ({connections.length})
             </span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading connections…</p>
+          {loading && connections.length === 0 ? (
+            <TableSkeleton
+              headers={["Provider", "Status", "Agency", "Customer", "Secret"]}
+              rows={8}
+            />
           ) : connections.length === 0 ? (
             <p className="m-0 py-8 text-center text-body text-text-muted">No connections found.</p>
           ) : (

@@ -3,6 +3,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import {
@@ -257,10 +258,9 @@ export function AgencyWebhooksScreen() {
             <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
               {tab === "deliveries" ? "Delivery log" : `Endpoints (${endpoints.length})`}
             </h2>
-            {loading ? (
-              <p className="m-0 text-body text-text-muted" role="status">
-                Loading…
-              </p>
+            {loading &&
+            (tab === "deliveries" ? deliveries.length === 0 : endpoints.length === 0) ? (
+              <ListRowsSkeleton rows={8} />
             ) : tab === "deliveries" ? (
               !deliveries.length ? (
                 <p className="m-0 text-body text-text-muted">No deliveries yet.</p>

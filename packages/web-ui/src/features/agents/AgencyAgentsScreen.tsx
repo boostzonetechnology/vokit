@@ -3,6 +3,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { VoicePickerFields } from "@/features/agents/components/VoicePickerFields";
 import { useAgencyAgentsDirectory } from "./hooks/useAgencyAgentsDirectory";
@@ -278,10 +280,8 @@ export function AgencyAgentsScreen() {
             </div>
           </div>
 
-          {loading ? (
-            <p className="m-0 text-body text-text-muted" role="status">
-              Loading agents…
-            </p>
+          {loading && agents.length === 0 ? (
+            <ListRowsSkeleton rows={8} />
           ) : filtered.length === 0 ? (
             <p className="m-0 py-8 text-center text-body text-text-muted">No agents match.</p>
           ) : (
@@ -324,9 +324,7 @@ export function AgencyAgentsScreen() {
               Select an agent to configure, test, or publish.
             </p>
           ) : !detail ? (
-            <p className="m-0 text-body text-text-muted" role="status">
-              Loading agent detail…
-            </p>
+            <FormSectionSkeleton fields={5} />
           ) : (
             <div className="grid min-w-0 gap-4">
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">

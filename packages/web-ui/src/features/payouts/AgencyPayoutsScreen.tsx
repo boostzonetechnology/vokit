@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -126,8 +127,8 @@ export function AgencyPayoutsScreen() {
               <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
                 Payouts ({payouts.length})
               </h2>
-              {loading ? (
-                <p className="m-0 text-body text-text-muted">Loading…</p>
+              {loading && payouts.length === 0 ? (
+                <ListRowsSkeleton rows={8} />
               ) : !payouts.length ? (
                 <p className="m-0 text-body text-text-muted">No payouts yet.</p>
               ) : (

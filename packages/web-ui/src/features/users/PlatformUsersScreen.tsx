@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { apiGet, isApiError } from "@/api";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { asList } from "@/features/platform/lib/list";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -288,8 +289,8 @@ export function PlatformUsersScreen() {
             Users
             <span className="ml-2 text-body font-normal text-text-muted">({users.length})</span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading users…</p>
+          {loading && users.length === 0 ? (
+            <TableSkeleton headers={["Email", "Role", "Status", "Id"]} rows={8} />
           ) : users.length === 0 ? (
             <p className="m-0 py-8 text-center text-body text-text-muted">No users.</p>
           ) : (

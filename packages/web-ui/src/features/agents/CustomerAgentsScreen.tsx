@@ -3,6 +3,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useTtsVoices } from "@/features/agents/hooks/useTtsVoices";
@@ -120,8 +121,8 @@ export function CustomerAgentsScreen() {
           <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
             Assigned agents ({agents.length})
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading…</p>
+          {loading && agents.length === 0 ? (
+            <ListRowsSkeleton rows={8} />
           ) : !agents.length ? (
             <p className="m-0 text-body text-text-muted">No agents assigned yet.</p>
           ) : (

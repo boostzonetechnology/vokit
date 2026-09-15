@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { MfaSettingsPanel } from "@/features/auth/components/MfaSettingsPanel";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -82,11 +84,15 @@ export function CustomerSettingsScreen({
         </ActionButton>
       </div>
 
-      {loading && tab !== "security" ? (
-        <p className="text-body text-text-muted">Loading…</p>
-      ) : tab === "security" ? (
+      {tab === "security" ? (
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <MfaSettingsPanel />
+        </article>
+      ) : loading &&
+        ((tab === "inbox" && inbox.length === 0) ||
+          (tab === "preferences" && preferences.length === 0)) ? (
+        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          {tab === "inbox" ? <ListRowsSkeleton rows={5} /> : <FormSectionSkeleton fields={5} />}
         </article>
       ) : tab === "inbox" ? (
         <article className="rounded-xl border border-border-default bg-surface p-4 shadow-subtle">

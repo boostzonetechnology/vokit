@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import {
   BrowserRouter,
   Navigate,
@@ -16,6 +17,7 @@ import {
   logout,
 } from "@/api";
 import { AppShell } from "@/components/layout/AppShell";
+import { PageContentSkeleton } from "@/components/ui/PageContentSkeleton";
 import { LoginScreen } from "@/features/auth/components/LoginScreen";
 import { AcceptInviteScreen } from "@/features/auth/components/AcceptInviteScreen";
 import { SessionProvider } from "@/features/auth/context/SessionContext";
@@ -24,6 +26,7 @@ import { HighRiskRouteGate } from "@/features/rbac/components/HighRiskRouteGate"
 import { AgencyDashboard } from "@/features/dashboard/AgencyDashboard";
 import { CustomerDashboard } from "@/features/dashboard/CustomerDashboard";
 import { PlatformDashboard } from "@/features/dashboard/PlatformDashboard";
+import { createAppQueryClient } from "@/lib/query/queryClient";
 import { portalNav, routeFromPathname, toAppPath } from "@/nav";
 import { renderProductScreen } from "@/productScreens";
 
@@ -55,15 +58,19 @@ function LegacyHashRedirect() {
 }
 
 export function PortalApp({ portal, title }: { portal: Portal; title: string }) {
+  const [queryClient] = useState(() => createAppQueryClient());
+
   return (
-    <BrowserRouter>
-      <LegacyHashRedirect />
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={<PortalAppContent portal={portal} title={title} />} />
-        <Route path="/*" element={<PortalAppContent portal={portal} title={title} />} />
-      </Routes>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <LegacyHashRedirect />
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={<PortalAppContent portal={portal} title={title} />} />
+          <Route path="/*" element={<PortalAppContent portal={portal} title={title} />} />
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 
@@ -131,9 +138,9 @@ function PortalAppContent({ portal, title }: { portal: Portal; title: string }) 
       return <AcceptInviteScreen portal={portal} />;
     }
     return (
-      <p className="p-5 text-body text-text-muted" role="status">
-        Checking session…
-      </p>
+      <div className="p-5">
+        <PageContentSkeleton showTable={false} />
+      </div>
     );
   }
 

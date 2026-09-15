@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useCustomerCalls } from "./hooks/useCustomerCalls";
@@ -149,8 +151,8 @@ export function CustomerCallsScreen() {
           <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
             Calls ({calls.length})
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading…</p>
+          {loading && calls.length === 0 ? (
+            <ListRowsSkeleton rows={8} />
           ) : !calls.length ? (
             <p className="m-0 text-body text-text-muted">No calls match these filters.</p>
           ) : (
@@ -201,9 +203,11 @@ export function CustomerCallsScreen() {
                 {selected.duration_seconds != null ? `${selected.duration_seconds}s` : "—"}
               </p>
               <h3 className="m-0 text-sm font-semibold text-text-primary">Artifacts</h3>
-              {!artifacts.length ? (
+              {busy && !artifacts.length ? (
+                <FormSectionSkeleton fields={2} />
+              ) : !artifacts.length ? (
                 <p className="m-0 text-body text-text-muted">
-                  {busy ? "Loading…" : "No recording/transcript/summary yet."}
+                  No recording/transcript/summary yet.
                 </p>
               ) : (
                 <ul className="m-0 grid list-none gap-2 p-0">

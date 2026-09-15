@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { usePlatformPermissions } from "@/features/rbac/hooks/usePlatformPermissions";
@@ -44,8 +46,8 @@ function PermissionPicker({
     }
   }
 
-  if (loading) {
-    return <p className="m-0 text-body text-text-muted">Loading permissions…</p>;
+  if (loading && allPermissions.length === 0) {
+    return <FormSectionSkeleton fields={4} />;
   }
 
   return (
@@ -245,8 +247,8 @@ export function PlatformRolesScreen() {
             Roles
             <span className="ml-2 text-body font-normal text-text-muted">({roles.length})</span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading…</p>
+          {loading && roles.length === 0 ? (
+            <ListRowsSkeleton rows={6} />
           ) : roles.length === 0 ? (
             <p className="m-0 text-body text-text-muted">No roles.</p>
           ) : (

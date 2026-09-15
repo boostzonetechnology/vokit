@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { usePlatformPermissions } from "@/features/rbac/hooks/usePlatformPermissions";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -182,8 +183,11 @@ export function PlatformPermissionsScreen() {
             ({permissions.length})
           </span>
         </h2>
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading…</p>
+        {loading && permissions.length === 0 ? (
+          <TableSkeleton
+            headers={["Code", "Namespace", "Description", "Flags"]}
+            rows={8}
+          />
         ) : permissions.length === 0 ? (
           <p className="m-0 text-body text-text-muted">No permissions match filters.</p>
         ) : (

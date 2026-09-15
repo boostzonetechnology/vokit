@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { MetricCard, type MetricAccent } from "@/components/ui/MetricCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { DashboardBodySkeleton } from "./components/DashboardBodySkeleton";
 import { DualLineChart, useInvoiceSeries } from "./components/DualLineChart";
 import { useDashboardBundle } from "./hooks/useDashboardBundle";
 import {
@@ -147,14 +148,43 @@ export function PlatformDashboard({ onNavigate }: { onNavigate: (href: string) =
     }));
   }, [kycCases, agencyName]);
 
-  if (loading && !data) {
-    return <p className="text-body text-text-muted">Loading dashboard…</p>;
-  }
   if (error && !data) {
     return (
       <p className="text-danger" role="alert">
         {error}
       </p>
+    );
+  }
+  if (loading && !data) {
+    return (
+      <section className="mx-auto max-w-[1200px]">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
+              Today
+            </h1>
+            <p className="mt-1 mb-0 text-body text-text-muted">All agencies</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="m-0 font-normal" htmlFor="platform-period-loading">
+              <span className="sr-only">Date range</span>
+              <select
+                id="platform-period-loading"
+                value={period}
+                onChange={(event) => setPeriod(event.target.value)}
+                className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body text-text-secondary"
+              >
+                <option value="today">Today</option>
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="mtd">Month to date</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <DashboardBodySkeleton metricCount={8} />
+      </section>
     );
   }
   if (!data) {

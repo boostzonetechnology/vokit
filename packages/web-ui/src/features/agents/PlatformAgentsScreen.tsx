@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState, type ReactNode } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { usePlatformAgentsDirectory } from "./hooks/usePlatformAgentsDirectory";
 import type { PlatformAgentRow } from "./types";
 
@@ -233,8 +234,11 @@ export function PlatformAgentsScreen() {
           </span>
         </h2>
 
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading agents…</p>
+        {loading && agents.length === 0 ? (
+          <TableSkeleton
+            headers={["Agent", "Agency", "Customer", "Status", "Type", "Number"]}
+            rows={8}
+          />
         ) : filtered.length === 0 ? (
           <p className="m-0 py-10 text-center text-body text-text-muted">No agents found.</p>
         ) : (

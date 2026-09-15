@@ -1,5 +1,6 @@
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useCustomerKnowledge } from "./hooks/useCustomerKnowledge";
@@ -67,8 +68,8 @@ export function CustomerKnowledgeScreen() {
           <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
             Sources ({sources.length})
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading…</p>
+          {loading && sources.length === 0 ? (
+            <ListRowsSkeleton rows={8} />
           ) : !sources.length ? (
             <p className="m-0 text-body text-text-muted">No customer knowledge sources.</p>
           ) : (

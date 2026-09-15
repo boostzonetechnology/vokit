@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -215,8 +216,8 @@ export function AgencyBillingScreen({ initialTab = "plans" }: AgencyBillingScree
               <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
                 Invoices ({invoices.length})
               </h2>
-              {loading ? (
-                <p className="m-0 text-body text-text-muted">Loading…</p>
+              {loading && invoices.length === 0 ? (
+                <ListRowsSkeleton rows={8} />
               ) : !invoices.length ? (
                 <p className="m-0 text-body text-text-muted">No invoices.</p>
               ) : (
@@ -290,8 +291,8 @@ export function AgencyBillingScreen({ initialTab = "plans" }: AgencyBillingScree
             <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
               Available plans ({plans.length})
             </h2>
-            {loading ? (
-              <p className="m-0 text-body text-text-muted">Loading…</p>
+            {loading && plans.length === 0 ? (
+              <ListRowsSkeleton rows={8} />
             ) : !plans.length ? (
               <p className="m-0 text-body text-text-muted">No plans available for assignment.</p>
             ) : (

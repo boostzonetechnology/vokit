@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { MfaSettingsPanel } from "@/features/auth/components/MfaSettingsPanel";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -78,11 +80,7 @@ export function AgencySettingsScreen({ initialTab = "preferences" }: AgencySetti
         ))}
       </div>
 
-      {loading && tab !== "security" ? (
-        <p className="text-body text-text-muted" role="status">
-          Loading…
-        </p>
-      ) : tab === "brand" ? (
+      {tab === "brand" ? (
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <h2 className="m-0 mb-2 text-[1.05rem] font-semibold text-text-primary">
             Brand / profile
@@ -95,6 +93,12 @@ export function AgencySettingsScreen({ initialTab = "preferences" }: AgencySetti
       ) : tab === "security" ? (
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <MfaSettingsPanel />
+        </article>
+      ) : loading &&
+        ((tab === "inbox" && inbox.length === 0) ||
+          (tab === "preferences" && preferences.length === 0)) ? (
+        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          {tab === "inbox" ? <ListRowsSkeleton rows={5} /> : <FormSectionSkeleton fields={5} />}
         </article>
       ) : tab === "inbox" ? (
         <article className="rounded-xl border border-border-default bg-surface p-4 shadow-subtle">

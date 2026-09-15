@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -150,8 +151,8 @@ export function AgencyTeamScreen() {
           <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
             Members ({members.length})
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading…</p>
+          {loading && members.length === 0 ? (
+            <ListRowsSkeleton rows={8} />
           ) : !members.length ? (
             <p className="m-0 text-body text-text-muted">No team members yet.</p>
           ) : (

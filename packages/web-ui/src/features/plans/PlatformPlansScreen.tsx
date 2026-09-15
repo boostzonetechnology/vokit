@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformPlans } from "./hooks/usePlatformPlans";
@@ -192,8 +193,11 @@ export function PlatformPlansScreen() {
           <span className="ml-2 text-body font-normal text-text-muted">({plans.length})</span>
         </h2>
 
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading plans…</p>
+        {loading && plans.length === 0 ? (
+          <TableSkeleton
+            headers={["Plan", "Status", "Versions", "Latest price"]}
+            rows={8}
+          />
         ) : plans.length === 0 ? (
           <p className="m-0 py-10 text-center text-body text-text-muted">No plans yet.</p>
         ) : (

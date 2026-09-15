@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
+import { MetricGridSkeleton } from "@/components/ui/MetricCardSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -101,10 +102,11 @@ export function AgencyWalletScreen() {
         ))}
       </div>
 
-      {loading ? (
-        <p className="text-body text-text-muted" role="status">
-          Loading…
-        </p>
+      {loading && !buckets ? (
+        <MetricGridSkeleton
+          count={6}
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        />
       ) : tab === "method" ? (
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <h2 className="m-0 mb-2 text-[1.05rem] font-semibold text-text-primary">

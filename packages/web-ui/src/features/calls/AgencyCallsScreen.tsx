@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useAgencyCalls } from "./hooks/useAgencyCalls";
@@ -187,10 +188,8 @@ export function AgencyCallsScreen() {
             <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
               Agency calls ({calls.length})
             </h2>
-            {loading ? (
-              <p className="m-0 text-body text-text-muted" role="status">
-                Loading…
-              </p>
+            {loading && calls.length === 0 ? (
+              <ListRowsSkeleton rows={8} />
             ) : !calls.length ? (
               <p className="m-0 text-body text-text-muted">No calls match these filters.</p>
             ) : (
@@ -276,7 +275,7 @@ export function AgencyCallsScreen() {
                   Artifacts (recording / transcript / summary)
                 </h3>
                 {busy && !artifacts.length ? (
-                  <p className="m-0 text-body text-text-muted">Loading artifacts…</p>
+                  <ListRowsSkeleton rows={3} />
                 ) : !artifacts.length ? (
                   <p className="m-0 text-body text-text-muted">No artifacts available.</p>
                 ) : (

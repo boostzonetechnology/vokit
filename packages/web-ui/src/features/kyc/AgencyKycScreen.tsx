@@ -1,4 +1,5 @@
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useAgencyKyc } from "./hooks/useAgencyKyc";
@@ -53,10 +54,8 @@ export function AgencyKycScreen() {
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="text-body text-text-muted" role="status">
-          Loading…
-        </p>
+      {loading && !status ? (
+        <FormSectionSkeleton fields={5} />
       ) : (
         <div className="grid gap-4">
           <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">

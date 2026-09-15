@@ -8,6 +8,7 @@ import {
   getDashboard,
   isApiError,
 } from "@/api";
+import { DashboardBodySkeleton } from "@/features/dashboard/components/DashboardBodySkeleton";
 
 function asRows(data: unknown): Record<string, unknown>[] {
   if (Array.isArray(data)) {
@@ -228,7 +229,7 @@ export function DashboardScreen({
           ) : null}
         </>
       ) : (
-        <p>Loading dashboard…</p>
+        <DashboardBodySkeleton metricCount={4} />
       )}
     </section>
   );

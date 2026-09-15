@@ -1,5 +1,7 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 
+import { PageContentSkeleton } from "@/components/ui/PageContentSkeleton";
+
 import { isAgenciesRoute } from "@/features/agencies/lib/routes";
 import { renderAgencyRoutes } from "@/features/agencies/renderAgencyRoutes";
 import { isCustomersRoute } from "@/features/customers/lib/routes";
@@ -89,11 +91,7 @@ const PlatformResourceScreen = lazy(() =>
 ) as unknown as ComponentType<{ route: string }>;
 
 function ScreenFallback() {
-  return (
-    <p className="m-0 p-2 text-body text-text-muted" role="status">
-      Loading module…
-    </p>
-  );
+  return <PageContentSkeleton />;
 }
 
 function Lazy({ children }: { children: ReactNode }) {

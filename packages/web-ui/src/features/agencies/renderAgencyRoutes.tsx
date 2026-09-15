@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 
+import { PageContentSkeleton } from "@/components/ui/PageContentSkeleton";
 import { isAgenciesRoute, parseAgencyRoute } from "@/features/agencies/lib/routes";
 
 const PlatformAgenciesScreen = lazy(() =>
@@ -19,11 +20,7 @@ const PlatformAgencyDetailScreen = lazy(() =>
 );
 
 function ScreenFallback() {
-  return (
-    <p className="m-0 p-2 text-body text-text-muted" role="status">
-      Loading module…
-    </p>
-  );
+  return <PageContentSkeleton />;
 }
 
 export function renderAgencyRoutes(route: string) {

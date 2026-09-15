@@ -3,6 +3,8 @@ import { FormEvent, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -130,8 +132,8 @@ export function CustomerTeamScreen() {
           <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
             Members ({members.length})
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading…</p>
+          {loading && members.length === 0 ? (
+            <ListRowsSkeleton rows={8} />
           ) : !members.length ? (
             <p className="m-0 text-body text-text-muted">No team members yet.</p>
           ) : (
@@ -216,8 +218,10 @@ export function CustomerProfileScreen() {
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="text-body text-text-muted">Loading…</p>
+      {loading && !account ? (
+        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          <FormSectionSkeleton fields={6} />
+        </article>
       ) : !account ? (
         <p className="text-body text-text-muted">Account profile unavailable.</p>
       ) : (

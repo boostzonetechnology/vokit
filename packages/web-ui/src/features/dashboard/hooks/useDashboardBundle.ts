@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   DashboardPayload,
@@ -7,6 +7,11 @@ import {
   getDashboard,
   isApiError,
 } from "@/api";
+import {
+  DASHBOARD_LISTS_STALE_MS,
+  DASHBOARD_SUMMARY_STALE_MS,
+  dashboardQueryKeys,
+} from "@/features/dashboard/dashboardQueryKeys";
 
 export type CallRow = {
   id: string;
@@ -72,6 +77,17 @@ export type PaymentMethodRow = {
   is_default?: boolean;
 };
 
+type DashboardListsPayload = {
+  calls: CallRow[];
+  agents: AgentRow[];
+  agencies: AgencyRow[];
+  invoices: InvoiceRow[];
+  payouts: PayoutRow[];
+  kycCases: KycRow[];
+  paymentMethods: PaymentMethodRow[];
+  knowledgeCount: number;
+};
+
 function asList<T>(data: unknown): T[] {
   if (Array.isArray(data)) {
     return data as T[];
@@ -104,134 +120,136 @@ async function safeGet<T>(path: string): Promise<T[]> {
   }
 }
 
+function emptyLists(): DashboardListsPayload {
+  return {
+    calls: [],
+    agents: [],
+    agencies: [],
+    invoices: [],
+    payouts: [],
+    kycCases: [],
+    paymentMethods: [],
+    knowledgeCount: 0,
+  };
+}
+
+async function fetchDashboardLists(portal: Portal): Promise<DashboardListsPayload> {
+  if (portal === "platform") {
+    const [callRows, agentRows, agencyRows, invoiceRows, payoutRows, kycRows] =
+      await Promise.all([
+        safeGet<CallRow>("/api/v1/platform/calls"),
+        safeGet<AgentRow>("/api/v1/platform/agents"),
+        safeGet<AgencyRow>("/api/v1/platform/agencies"),
+        safeGet<InvoiceRow>("/api/v1/platform/invoices"),
+        safeGet<PayoutRow>("/api/v1/platform/payouts"),
+        safeGet<KycRow>("/api/v1/platform/kyc/cases"),
+      ]);
+    return {
+      calls: callRows,
+      agents: agentRows,
+      agencies: agencyRows,
+      invoices: invoiceRows,
+      payouts: payoutRows,
+      kycCases: kycRows,
+      paymentMethods: [],
+      knowledgeCount: 0,
+    };
+  }
+
+  if (portal === "agency") {
+    const [callRows, agentRows, knowledgeRows] = await Promise.all([
+      safeGet<CallRow>("/api/v1/agency/calls"),
+      safeGet<AgentRow>("/api/v1/agency/agents"),
+      safeGet<{ id: string }>("/api/v1/agency/knowledge"),
+    ]);
+    return {
+      calls: callRows,
+      agents: agentRows,
+      agencies: [],
+      invoices: [],
+      payouts: [],
+      kycCases: [],
+      paymentMethods: [],
+      knowledgeCount: knowledgeRows.length,
+    };
+  }
+
+  const [invoiceRows, methodRows, callRows, agentRows] = await Promise.all([
+    safeGet<InvoiceRow>("/api/v1/customer/invoices"),
+    safeGet<PaymentMethodRow>("/api/v1/customer/payment-methods"),
+    safeGet<CallRow>("/api/v1/customer/calls"),
+    safeGet<AgentRow>("/api/v1/customer/agents"),
+  ]);
+  return {
+    calls: callRows,
+    agents: agentRows,
+    agencies: [],
+    invoices: invoiceRows,
+    payouts: [],
+    kycCases: [],
+    paymentMethods: methodRows,
+    knowledgeCount: 0,
+  };
+}
+
 export function useDashboardBundle(
   portal: Portal,
   period: string,
   timezone: string,
   range?: { since?: string; until?: string },
 ) {
-  const [data, setData] = useState<DashboardPayload | null>(null);
-  const [calls, setCalls] = useState<CallRow[]>([]);
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [agencies, setAgencies] = useState<AgencyRow[]>([]);
-  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
-  const [payouts, setPayouts] = useState<PayoutRow[]>([]);
-  const [kycCases, setKycCases] = useState<KycRow[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([]);
-  const [knowledgeCount, setKnowledgeCount] = useState(0);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
   const since = range?.since;
   const until = range?.until;
+  const customIncomplete = period === "custom" && (!since || !until);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-
-    const load = async () => {
-      const dashboard = await getDashboard(portal, {
+  const summaryQuery = useQuery<DashboardPayload, Error>({
+    queryKey: dashboardQueryKeys.summary(portal, period, timezone, since, until),
+    queryFn: () =>
+      getDashboard(portal, {
         period,
         timezone,
         since: period === "custom" ? since : undefined,
         until: period === "custom" ? until : undefined,
-      });
-      if (portal === "platform") {
-        const [callRows, agentRows, agencyRows, invoiceRows, payoutRows, kycRows] =
-          await Promise.all([
-            safeGet<CallRow>("/api/v1/platform/calls"),
-            safeGet<AgentRow>("/api/v1/platform/agents"),
-            safeGet<AgencyRow>("/api/v1/platform/agencies"),
-            safeGet<InvoiceRow>("/api/v1/platform/invoices"),
-            safeGet<PayoutRow>("/api/v1/platform/payouts"),
-            safeGet<KycRow>("/api/v1/platform/kyc/cases"),
-          ]);
-        if (!active) return;
-        setData(dashboard);
-        setCalls(callRows);
-        setAgents(agentRows);
-        setAgencies(agencyRows);
-        setInvoices(invoiceRows);
-        setPayouts(payoutRows);
-        setKycCases(kycRows);
-        setPaymentMethods([]);
-        setKnowledgeCount(0);
-        setError("");
-        return;
-      }
+      }),
+    enabled: !customIncomplete,
+    staleTime: DASHBOARD_SUMMARY_STALE_MS,
+  });
 
-      if (portal === "agency") {
-        const [callRows, agentRows, knowledgeRows] = await Promise.all([
-          safeGet<CallRow>("/api/v1/agency/calls"),
-          safeGet<AgentRow>("/api/v1/agency/agents"),
-          safeGet<{ id: string }>("/api/v1/agency/knowledge"),
-        ]);
-        if (!active) return;
-        setData(dashboard);
-        setCalls(callRows);
-        setAgents(agentRows);
-        setAgencies([]);
-        setInvoices([]);
-        setPayouts([]);
-        setKycCases([]);
-        setPaymentMethods([]);
-        setKnowledgeCount(knowledgeRows.length);
-        setError("");
-        return;
-      }
+  const listsQuery = useQuery<DashboardListsPayload, Error>({
+    queryKey: dashboardQueryKeys.lists(portal),
+    queryFn: () => fetchDashboardLists(portal),
+    enabled: !customIncomplete,
+    staleTime: DASHBOARD_LISTS_STALE_MS,
+  });
 
-      const [invoiceRows, methodRows, callRows, agentRows] = await Promise.all([
-        safeGet<InvoiceRow>("/api/v1/customer/invoices"),
-        safeGet<PaymentMethodRow>("/api/v1/customer/payment-methods"),
-        safeGet<CallRow>("/api/v1/customer/calls"),
-        safeGet<AgentRow>("/api/v1/customer/agents"),
-      ]);
-      if (!active) return;
-      setData(dashboard);
-      setCalls(callRows);
-      setAgents(agentRows);
-      setAgencies([]);
-      setInvoices(invoiceRows);
-      setPayouts([]);
-      setKycCases([]);
-      setPaymentMethods(methodRows);
-      setKnowledgeCount(0);
-      setError("");
-    };
+  const lists = listsQuery.data ?? emptyLists();
+  const summaryError = summaryQuery.error
+    ? isApiError(summaryQuery.error)
+      ? summaryQuery.error.message
+      : summaryQuery.error.message || "Dashboard failed."
+    : "";
+  const listsError = listsQuery.error
+    ? isApiError(listsQuery.error)
+      ? listsQuery.error.message
+      : listsQuery.error.message || "Dashboard lists failed."
+    : "";
 
-    if (period === "custom" && (!since || !until)) {
-      setLoading(false);
-      return;
-    }
-
-    load()
-      .catch((cause) => {
-        if (active) {
-          setError(isApiError(cause) ? cause.message : "Dashboard failed.");
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [portal, period, timezone, since, until]);
+  const loading =
+    !customIncomplete &&
+    ((summaryQuery.isPending && !summaryQuery.data) ||
+      (listsQuery.isPending && !listsQuery.data));
 
   return {
-    data,
-    calls,
-    agents,
-    agencies,
-    invoices,
-    payouts,
-    kycCases,
-    paymentMethods,
-    knowledgeCount,
-    error,
+    data: summaryQuery.data ?? null,
+    calls: lists.calls,
+    agents: lists.agents,
+    agencies: lists.agencies,
+    invoices: lists.invoices,
+    payouts: lists.payouts,
+    kycCases: lists.kycCases,
+    paymentMethods: lists.paymentMethods,
+    knowledgeCount: lists.knowledgeCount,
+    error: summaryError || listsError,
     loading,
   };
 }

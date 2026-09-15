@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { useAgencyIntegrations } from "./hooks/useAgencyIntegrations";
@@ -359,10 +360,8 @@ export function AgencyIntegrationsScreen() {
             </h2>
             {!customerId ? (
               <p className="m-0 text-body text-text-muted">Select a customer to load connections.</p>
-            ) : loading ? (
-              <p className="m-0 text-body text-text-muted" role="status">
-                Loading…
-              </p>
+            ) : loading && connections.length === 0 ? (
+              <ListRowsSkeleton rows={8} />
             ) : !connections.length ? (
               <p className="m-0 text-body text-text-muted">No connections for this customer.</p>
             ) : (

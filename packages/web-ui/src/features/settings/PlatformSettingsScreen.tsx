@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { ProvidersSettingsPanel } from "@/features/settings/components/ProvidersSettingsPanel";
@@ -99,6 +100,7 @@ export function PlatformSettingsScreen() {
 
   const activeGroup =
     tab === "providers" ? undefined : SETTING_GROUPS.find((group) => group.id === tab);
+  const showSkeleton = loading && byKey.size === 0;
 
   return (
     <section className="mx-auto max-w-[1200px]">
@@ -147,11 +149,13 @@ export function PlatformSettingsScreen() {
         ))}
       </div>
 
-      {loading ? (
-        <p className="m-0 text-body text-text-muted">Loading settings…</p>
+      {showSkeleton ? (
+        <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          <FormSectionSkeleton fields={5} />
+        </article>
       ) : null}
 
-      {!loading && tab === "providers" ? (
+      {!showSkeleton && tab === "providers" ? (
         <div className="mb-4">
           <ProvidersSettingsPanel
             byKey={byKey}
@@ -161,7 +165,7 @@ export function PlatformSettingsScreen() {
         </div>
       ) : null}
 
-      {activeGroup ? (
+      {!showSkeleton && activeGroup ? (
         <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <h2 className="m-0 mb-3 text-section text-text-primary">{activeGroup.label}</h2>
           <div className="grid gap-3">
@@ -282,7 +286,7 @@ export function PlatformSettingsScreen() {
         </article>
       ) : null}
 
-      {tab === "agency-flags" ? (
+      {tab === "agency-flags" && !showSkeleton ? (
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <h2 className="m-0 mb-3 text-section text-text-primary">Agency feature flags</h2>
           {agencyFlags.length === 0 ? (

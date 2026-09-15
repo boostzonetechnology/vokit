@@ -2,7 +2,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } 
 
 import { apiGet, apiSend, isApiError } from "@/api";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import {
   PLATFORM_MODULES,
   cellValue,
@@ -153,8 +155,8 @@ function PlatformListScreen({ config }: { config: PlatformModuleConfig }) {
       ) : null}
 
       <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading…</p>
+        {loading && rows.length === 0 ? (
+          <TableSkeleton columns={config.columns.length || 5} rows={6} />
         ) : rows.length === 0 ? (
           <p className="m-0 py-10 text-center text-body text-text-muted">{config.empty}</p>
         ) : (
@@ -243,8 +245,8 @@ function PlatformInstructionsScreen({ config }: { config: PlatformModuleConfig }
         </p>
       ) : null}
       <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading…</p>
+        {loading && rows.length === 0 ? (
+          <FormSectionSkeleton fields={3} />
         ) : (
           <form className="grid gap-3" onSubmit={(event) => void onSave(event)}>
             <label className="m-0 grid gap-1.5 font-normal">
@@ -303,8 +305,8 @@ function PlatformSettingsScreen({ config }: { config: PlatformModuleConfig }) {
         </p>
       ) : null}
       <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading…</p>
+        {loading && Object.keys(settings).length === 0 ? (
+          <FormSectionSkeleton fields={3} />
         ) : (
           <form className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end" onSubmit={(e) => void onSave(e)}>
             <label className="m-0 grid gap-1.5 font-normal">

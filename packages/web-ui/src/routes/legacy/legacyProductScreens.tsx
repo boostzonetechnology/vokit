@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { Portal, apiGet, apiSend, isApiError } from "@/api";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 
 type Row = Record<string, unknown>;
 
@@ -25,15 +26,18 @@ function asList(data: unknown): Row[] {
 function useRows(path: string | null) {
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(Boolean(path));
   const [reload, setReload] = useState(0);
   const refresh = useCallback(() => setReload((n) => n + 1), []);
 
   useEffect(() => {
     if (!path) {
       setRows([]);
+      setLoading(false);
       return;
     }
     let active = true;
+    setLoading(true);
     apiGet<unknown>(path)
       .then((data) => {
         if (active) {
@@ -46,13 +50,16 @@ function useRows(path: string | null) {
           setError(isApiError(cause) ? cause.message : "Load failed.");
           setRows([]);
         }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
   }, [path, reload]);
 
-  return { rows, error, refresh, setError };
+  return { rows, error, refresh, setError, loading };
 }
 
 function Message({ value }: { value: string }) {
@@ -69,12 +76,25 @@ function DataTable({
   columns,
   empty,
   onSelect,
+  loading = false,
 }: {
   rows: Row[];
   columns: { key: string; label: string }[];
   empty: string;
   onSelect?: (row: Row) => void;
+  loading?: boolean;
 }) {
+  if (loading && !rows.length) {
+    return (
+      <div className="rounded-lg border border-border-default bg-surface p-4">
+        <TableSkeleton
+          columns={columns.length}
+          rows={6}
+          headers={columns.map((col) => col.label)}
+        />
+      </div>
+    );
+  }
   if (!rows.length) {
     return <p className="rounded-lg border border-dashed border-border-strong bg-surface p-6 text-text-muted">{empty}</p>;
   }
@@ -107,7 +127,7 @@ function DataTable({
 }
 
 export function AgenciesScreen() {
-  const { rows, error, refresh } = useRows("/api/v1/platform/agencies");
+  const { rows, error, loading, refresh } = useRows("/api/v1/platform/agencies");
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState<Row | null>(null);
 
@@ -183,6 +203,7 @@ export function AgenciesScreen() {
         ]}
         empty="No agencies yet."
         onSelect={setSelected}
+        loading={loading}
       />
       {selected ? (
         <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
@@ -213,7 +234,7 @@ export function AgenciesScreen() {
 
 export function CustomersScreen({ portal }: { portal: Portal }) {
   const base = portal === "platform" ? "/api/v1/platform/customers" : "/api/v1/agency/customers";
-  const { rows, error, refresh } = useRows(base);
+  const { rows, error, loading, refresh } = useRows(base);
   const [message, setMessage] = useState("");
   const [agencies, setAgencies] = useState<Row[]>([]);
 
@@ -313,6 +334,7 @@ export function CustomersScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No customers yet."
+        loading={loading}
       />
     </section>
   );
@@ -321,7 +343,7 @@ export function CustomersScreen({ portal }: { portal: Portal }) {
 export function AgentsScreen({ portal }: { portal: Portal }) {
   const listPath =
     portal === "agency" ? "/api/v1/agency/agents" : "/api/v1/customer/agents";
-  const { rows, error, refresh } = useRows(listPath);
+  const { rows, error, loading, refresh } = useRows(listPath);
   const [message, setMessage] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [detail, setDetail] = useState<Row | null>(null);
@@ -454,6 +476,7 @@ export function AgentsScreen({ portal }: { portal: Portal }) {
         ]}
         empty="No agents yet."
         onSelect={(row) => setSelectedId(String(row.id))}
+        loading={loading}
       />
       {detail ? (
         <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
@@ -548,7 +571,7 @@ export function NumbersScreen({ portal }: { portal: Portal }) {
     portal === "platform"
       ? "/api/v1/platform/phone-numbers"
       : "/api/v1/agency/phone-numbers";
-  const { rows, error, refresh } = useRows(listPath);
+  const { rows, error, loading, refresh } = useRows(listPath);
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState<Row[]>([]);
   const [agents, setAgents] = useState<Row[]>([]);
@@ -667,7 +690,8 @@ export function NumbersScreen({ portal }: { portal: Portal }) {
                 { key: "id", label: "Id" },
               ]}
               empty="Run a search to list stock."
-            />
+        loading={loading}
+      />
           </article>
           <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
             <h3>Reserve & assign</h3>
@@ -711,6 +735,7 @@ export function NumbersScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No numbers yet."
+        loading={loading}
       />
     </section>
   );
@@ -723,7 +748,7 @@ export function CallsScreen({ portal }: { portal: Portal }) {
       : portal === "agency"
         ? "/api/v1/agency/calls"
         : "/api/v1/customer/calls";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [selected, setSelected] = useState<Row | null>(null);
   const [message, setMessage] = useState("");
   const [recordingUrl, setRecordingUrl] = useState("");
@@ -805,6 +830,7 @@ export function CallsScreen({ portal }: { portal: Portal }) {
         ]}
         empty="No calls yet — place a lab inbound after Wave 1C wiring."
         onSelect={setSelected}
+        loading={loading}
       />
       {selected ? (
         <article className="grid gap-3 rounded-lg border border-border-default bg-surface p-5">
@@ -840,7 +866,7 @@ export function CallsScreen({ portal }: { portal: Portal }) {
 export function BillingPlansScreen({ portal }: { portal: Portal }) {
   const path =
     portal === "platform" ? "/api/v1/platform/plans" : "/api/v1/agency/plans";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function createPlan(event: FormEvent<HTMLFormElement>) {
@@ -902,6 +928,7 @@ export function BillingPlansScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No plans."
+        loading={loading}
       />
     </section>
   );
@@ -914,7 +941,7 @@ export function PaymentsScreen({ portal }: { portal: Portal }) {
       : portal === "agency"
         ? "/api/v1/agency/wallet"
         : "/api/v1/customer/invoices";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function sandboxSettle(event: FormEvent<HTMLFormElement>) {
@@ -995,6 +1022,7 @@ export function PaymentsScreen({ portal }: { portal: Portal }) {
           { key: "balance_minor", label: "Balance" },
         ]}
         empty="No payment rows."
+        loading={loading}
       />
     </section>
   );
@@ -1007,7 +1035,7 @@ export function KnowledgeScreen({ portal }: { portal: Portal }) {
       : portal === "agency"
         ? "/api/v1/agency/knowledge"
         : "/api/v1/customer/knowledge";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function ingest(event: FormEvent<HTMLFormElement>) {
@@ -1067,6 +1095,7 @@ export function KnowledgeScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No knowledge documents."
+        loading={loading}
       />
     </section>
   );
@@ -1087,7 +1116,7 @@ export function KycRiskScreen({
       : portal === "platform"
         ? "/api/v1/platform/risk/cases"
         : "/api/v1/customer/risk";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function startKyc(event: FormEvent<HTMLFormElement>) {
@@ -1123,6 +1152,7 @@ export function KycRiskScreen({
           { key: "agency_id", label: "Agency" },
         ]}
         empty={`No ${kind} cases.`}
+        loading={loading}
       />
     </section>
   );
@@ -1138,7 +1168,7 @@ export function IntegrationsScreen({ portal }: { portal: Portal }) {
           ? `/api/v1/agency/integrations?customer_id=${encodeURIComponent(customerId)}`
           : null
         : "/api/v1/customer/integrations";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function connect(event: FormEvent<HTMLFormElement>) {
@@ -1208,13 +1238,14 @@ export function IntegrationsScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No integrations."
+        loading={loading}
       />
     </section>
   );
 }
 
 export function AuditScreen() {
-  const { rows, error } = useRows("/api/v1/platform/audit-events");
+  const { rows, error, loading } = useRows("/api/v1/platform/audit-events");
   const [q, setQ] = useState("");
   const filtered = q
     ? rows.filter((row) => JSON.stringify(row).toLowerCase().includes(q.toLowerCase()))
@@ -1236,6 +1267,7 @@ export function AuditScreen() {
           { key: "id", label: "Id" },
         ]}
         empty="No audit events."
+        loading={loading}
       />
     </section>
   );
@@ -1248,7 +1280,7 @@ export function GenericModuleScreen({
   title: string;
   path: string;
 }) {
-  const { rows, error } = useRows(path);
+  const { rows, error, loading } = useRows(path);
   const columns =
     rows[0] != null
       ? Object.keys(rows[0])
@@ -1259,7 +1291,7 @@ export function GenericModuleScreen({
     <section className="grid gap-4">
       <h2>{title}</h2>
       <Message value={error} />
-      <DataTable rows={rows} columns={columns} empty={`No ${title.toLowerCase()} yet.`} />
+      <DataTable rows={rows} columns={columns} empty={`No ${title.toLowerCase()} yet.`} loading={loading} />
     </section>
   );
 }
@@ -1267,7 +1299,7 @@ export function GenericModuleScreen({
 export function TransfersScreen({ portal }: { portal: Portal }) {
   const path =
     portal === "platform" ? "/api/v1/platform/transfers" : "/api/v1/agency/transfers";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
@@ -1320,6 +1352,7 @@ export function TransfersScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No transfer destinations."
+        loading={loading}
       />
     </section>
   );
@@ -1332,7 +1365,7 @@ export function TeamScreen({ portal }: { portal: Portal }) {
       : portal === "agency"
         ? "/api/v1/agency/team"
         : "/api/v1/customer/team";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function invite(event: FormEvent<HTMLFormElement>) {
@@ -1387,13 +1420,14 @@ export function TeamScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No team members."
+        loading={loading}
       />
     </section>
   );
 }
 
 export function WebhooksScreen() {
-  const { rows, error, refresh } = useRows("/api/v1/agency/webhooks");
+  const { rows, error, loading, refresh } = useRows("/api/v1/agency/webhooks");
   const [message, setMessage] = useState("");
 
   async function createEndpoint(event: FormEvent<HTMLFormElement>) {
@@ -1437,6 +1471,7 @@ export function WebhooksScreen() {
           { key: "id", label: "Id" },
         ]}
         empty="No webhook endpoints."
+        loading={loading}
       />
     </section>
   );
@@ -1447,7 +1482,7 @@ export function SettingsScreen({ portal }: { portal: Portal }) {
     portal === "platform"
       ? "/api/v1/platform/settings"
       : "/api/v1/agency/notification-preferences";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function patch(event: FormEvent<HTMLFormElement>) {
@@ -1491,6 +1526,7 @@ export function SettingsScreen({ portal }: { portal: Portal }) {
             : [{ key: "id", label: "Id" }]
         }
         empty="No settings rows."
+        loading={loading}
       />
     </section>
   );
@@ -1509,7 +1545,7 @@ export function InvoicesScreen({ portal }: { portal: Portal }) {
 export function PayoutsScreen({ portal }: { portal: Portal }) {
   const path =
     portal === "platform" ? "/api/v1/platform/payouts" : "/api/v1/agency/payouts";
-  const { rows, error, refresh } = useRows(path);
+  const { rows, error, loading, refresh } = useRows(path);
   const [message, setMessage] = useState("");
 
   async function requestPayout(event: FormEvent<HTMLFormElement>) {
@@ -1543,6 +1579,7 @@ export function PayoutsScreen({ portal }: { portal: Portal }) {
           { key: "id", label: "Id" },
         ]}
         empty="No payouts."
+        loading={loading}
       />
     </section>
   );

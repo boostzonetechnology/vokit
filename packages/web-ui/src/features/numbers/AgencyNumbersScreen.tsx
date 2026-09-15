@@ -3,6 +3,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
@@ -206,11 +207,7 @@ export function AgencyNumbersScreen() {
           <h2 className="m-0 mb-3 text-[1.05rem] font-semibold text-text-primary">
             {tab === "search" ? "Search results" : "Assigned numbers"}
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted" role="status">
-              Loading…
-            </p>
-          ) : tab === "search" ? (
+          {tab === "search" ? (
             <div className="grid gap-4">
               <form className="grid gap-3 sm:grid-cols-3" onSubmit={(event) => void onSearch(event)}>
                 <FormField
@@ -231,6 +228,10 @@ export function AgencyNumbersScreen() {
                   </ActionButton>
                 </div>
               </form>
+              {loading && inventory.length === 0 && offers.length === 0 ? (
+                <ListRowsSkeleton rows={6} />
+              ) : (
+                <>
               <div>
                 <h3 className="m-0 mb-2 text-sm font-semibold text-text-primary">
                   Platform inventory
@@ -291,7 +292,11 @@ export function AgencyNumbersScreen() {
                   from inventory rows to start assign (AG4-001).
                 </ApiNote>
               </div>
+                </>
+              )}
             </div>
+          ) : loading && assigned.length === 0 ? (
+            <ListRowsSkeleton rows={8} />
           ) : !assigned.length ? (
             <p className="m-0 text-body text-text-muted">No assigned numbers yet.</p>
           ) : (

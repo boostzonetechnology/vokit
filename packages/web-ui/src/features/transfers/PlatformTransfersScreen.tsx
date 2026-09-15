@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformTransfers } from "./hooks/usePlatformTransfers";
 
@@ -117,8 +118,11 @@ export function PlatformTransfersScreen() {
             </span>
           </h2>
 
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading destinations…</p>
+          {loading && destinations.length === 0 ? (
+            <TableSkeleton
+              headers={["Label", "Kind", "Status", "Agency", "Customer"]}
+              rows={8}
+            />
           ) : destinations.length === 0 ? (
             <p className="m-0 py-10 text-center text-body text-text-muted">
               No transfer destinations indexed.
