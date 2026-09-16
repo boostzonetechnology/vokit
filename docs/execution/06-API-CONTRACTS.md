@@ -78,7 +78,8 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET | `/platform/agents/{id}/diagnostics` | SA5-003 read-only runtime/calls/errors/integrations |
 | GET/POST | `/platform/templates` | SA6-* |
 | GET/POST | `/platform/instructions` | SA7-* |
-| GET/POST | `/platform/knowledge` | SA8-* |
+| GET/POST | `/platform/knowledge` | SA8-* — same ingest states as agency; file upload supported |
+| DELETE | `/platform/knowledge/{source_id}` | KB-004 — `confirm=true` required |
 | GET/POST | `/platform/phone-numbers` | SA9-*, Q-002 |
 | GET/POST | `/platform/plans` | SA11-*, PLAN-* |
 | GET | `/platform/payments` `/invoices` `/disputes` | SA12-* |
@@ -103,13 +104,18 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET | `/agency/dashboard` | AG1-* — session tenant only |
 | GET/POST | `/agency/customers` | AG2-* |
 | GET/POST | `/agency/agents` | AG3-* |
-| GET | `/agency/tts/voices` | SA19-003 — active platform TTS voices |
+| GET/PATCH | `/agency/agents/{id}` | AG3-*, AGT-* builder fields including persona, timers, speaking style/speed, `tool_schema_overrides` |
+| POST | `/agency/agents/{id}/clone` | AG3-005 / ADR-009 — optional `customer_id` in same agency; independent draft |
 | POST | `/agency/agents/{id}/publish` | AGT-002 |
+| GET/DELETE | `/agency/agents/{id}/knowledge` `/{source_id}` | KB-004 attach list + detach (source not deleted) |
+| GET/POST | `/agency/knowledge` | AG7-*, KB-001..003 — text/QA or file upload (`md`, `txt`, `pdf`, `docx`, `html`, `csv`, `json`); `queued` → `processing` → `ready` only after Qdrant/vector upsert, else `failed` |
+| GET/DELETE | `/agency/knowledge/{source_id}` | KB-004 impact preview; delete requires `confirm=true` when agents are attached |
+| GET/POST | `/agency/instructions` | INS-* — agency layer; `?customer_id=` / POST `customer_id` for customer layer |
+| GET | `/agency/tts/voices` | SA19-003 — active platform TTS voices |
 | GET/POST | `/agency/phone-numbers/search` `reservations` `assignments` | AG4-*, Q-002 |
 | GET | `/agency/calls` | AG5-* |
 | GET/POST | `/agency/calls/{id}/artifacts` `/access` `/hold` `/delete` | CALL-003–005, ADR-002 |
 | GET/POST | `/agency/transfers` | AG6-*, XFER-* |
-| GET/POST | `/agency/knowledge` | AG7-* |
 | GET/POST | `/agency/integrations` | AG8-* — **customer-owned connections only** |
 | GET/POST | `/agency/webhooks` | AG9-* |
 | GET | `/agency/plans` `/customer-invoices` | AG10-* |
@@ -122,6 +128,8 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 
 Agency cannot change Vokit payment destination (AG10-003).  
 Agency cannot approve payouts or view payout proof.
+
+Call Handling (VKT-068 / §12.2) inbound/outbound, business hours, voicemail/fallback, and silence/max-duration timers are agent PATCH + bootstrap fields. **Interruption/barge-in is owned by Pipecat** (`InterruptionFrame` / Cartesia turn-start and Edge RTP `clear`); Django does not duplicate those settings on the agent builder API.
 
 ### Customer
 
