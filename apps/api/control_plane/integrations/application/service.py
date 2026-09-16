@@ -26,6 +26,7 @@ from control_plane.integrations.domain.policies import (
     assert_webhook_url,
     provider_supports_action,
     sanitized_tool_error,
+    validate_invoke_arguments,
 )
 from control_plane.integrations.domain.types import (
     ALLOWED_EVENT_TYPES,
@@ -497,6 +498,14 @@ class IntegrationControl:
         if agent is None or action not in agent.tools:
             return sanitized_tool_error("invalid_tool")
         payload = arguments if isinstance(arguments, dict) else {}
+        overrides = getattr(agent, "tool_schema_overrides", None) or {}
+        override = overrides.get(action) if type(overrides) is dict else None
+        try:
+            validate_invoke_arguments(
+                action, payload, override if type(override) is dict else None
+            )
+        except DomainError:
+            return sanitized_tool_error("invalid_arguments")
         raw_id = str(payload.get("connection_id") or "").strip()
         try:
             connection = self._resolve_connection(

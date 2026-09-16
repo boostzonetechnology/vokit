@@ -39,6 +39,14 @@ AGENT_TYPES = frozenset(
 )
 
 FALLBACKS = frozenset({"message", "transfer", "hangup"})
+DEFAULT_SILENCE_TIMEOUT_SECONDS = 20
+DEFAULT_MAX_CALL_DURATION_SECONDS = 1800
+SILENCE_TIMEOUT_RANGE = (5, 120)
+MAX_CALL_DURATION_RANGE = (60, 7200)
+SPEAKING_SPEED_RANGE = (0.5, 2.0)
+PERSONA_FIELD_MAX = 2000
+ROLE_FIELD_MAX = 128
+SPEAKING_STYLE_MAX = 64
 PRODUCTION_STATUSES = frozenset({AgentStatus.ACTIVE})
 TEST_STATUSES = frozenset({AgentStatus.DRAFT, AgentStatus.TESTING, AgentStatus.ACTIVE})
 STATUS_ACTORS = frozenset({"agency", "platform", "system"})
@@ -71,6 +79,13 @@ class KnowledgeKind(StrEnum):
     QA = "qa"
     FILE = "file"
     URL = "url"
+
+
+KNOWLEDGE_FILE_EXTENSIONS = frozenset(
+    {"txt", "md", "markdown", "pdf", "docx", "html", "htm", "csv", "json"}
+)
+MAX_KNOWLEDGE_FILE_BYTES = 5 * 1024 * 1024
+MAX_KNOWLEDGE_TEXT_CHARS = 400_000
 
 
 class KnowledgeStatus(StrEnum):

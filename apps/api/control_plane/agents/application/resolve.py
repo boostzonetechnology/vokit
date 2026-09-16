@@ -19,6 +19,9 @@ def resolve_for_agent(
             template_base=agent.template_instructions,
             agency=agency.body if agency else "",
             customer=customer.body if customer else "",
+            role=agent.role,
+            goals=agent.goals,
+            constraints=agent.constraints,
             agent=agent.instructions,
         )
     )

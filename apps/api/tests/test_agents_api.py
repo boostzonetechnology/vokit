@@ -12,6 +12,7 @@ from control_plane.identity.application.ports import MembershipRecord
 from control_plane.identity.domain.types import MembershipStatus, PrincipalType
 from control_plane.identity.infrastructure.repositories import DjangoMembershipRepository
 from control_plane.identity.models import User
+from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
@@ -44,6 +45,10 @@ def _patch(client: Client, path: str, payload: dict):
         content_type="application/json",
         HTTP_X_CSRFTOKEN=_csrf(client),
     )
+
+
+def _delete(client: Client, path: str):
+    return client.delete(path, HTTP_X_CSRFTOKEN=_csrf(client))
 
 
 def _user(
@@ -625,3 +630,366 @@ def test_platform_clone_is_independent_across_customers() -> None:
     _login(other_client, "agency-clone-b@vokit.test")
     foreign = other_client.get(f"/api/v1/agency/agents/{ctx['agent_id']}")
     assert foreign.status_code == 404
+
+
+@pytest.mark.django_db
+def test_agency_clone_to_own_customer_is_independent() -> None:
+    from control_plane.risk.infrastructure.container import tenant_agents
+
+    ctx = _ready_agent()
+    transfer_id = str(new_uuid7())
+    configured = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        {
+            "instructions": "Source only.",
+            "greeting": "Hello source",
+            "default_transfer_id": transfer_id,
+            "role": "Receptionist",
+            "tools": ["create_lead"],
+        },
+    )
+    assert configured.status_code == 200
+    source_knowledge = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "Source facts", "body": "keep on source", "scope": "agency"},
+    )
+    assert source_knowledge.status_code == 201
+    attach = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge",
+        {"source_id": source_knowledge.json()["data"]["id"]},
+    )
+    assert attach.status_code == 200
+    other = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(ctx["agency_id"], "Clone Cust 2"),
+    )
+    assert other.status_code == 201
+    other_customer_id = uuid.UUID(other.json()["data"]["id"])
+    activated = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{other_customer_id}/status",
+        {"action": "activate"},
+    )
+    assert activated.status_code == 200
+    cloned = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/clone",
+        {"customer_id": str(other_customer_id)},
+    )
+    assert cloned.status_code == 201
+    body = cloned.json()["data"]
+    assert body["id"] != ctx["agent_id"]
+    assert body["customer_id"] == str(other_customer_id)
+    assert body["agency_id"] == str(ctx["agency_id"])
+    assert body["status"] == "draft"
+    assert body["instructions"] == "Source only."
+    assert body["role"] == "Receptionist"
+    assert body["default_transfer_id"] is None
+    assert body["published_version"] is None
+    assert tenant_agents().list_attachments(ctx["agency_id"], uuid.UUID(body["id"])) == []
+    assert tenant_agents().list_attachments(
+        ctx["agency_id"], uuid.UUID(ctx["agent_id"])
+    )
+    source = ctx["agency_client"].get(f"/api/v1/agency/agents/{ctx['agent_id']}")
+    assert source.json()["data"]["default_transfer_id"] == transfer_id
+    rewritten = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{body['id']}",
+        {"instructions": "Clone rewrite", "greeting": "Hello clone"},
+    )
+    assert rewritten.status_code == 200
+    source_after = ctx["agency_client"].get(f"/api/v1/agency/agents/{ctx['agent_id']}")
+    assert source_after.json()["data"]["instructions"] == "Source only."
+    assert source_after.json()["data"]["greeting"] == "Hello source"
+
+
+@pytest.mark.django_db
+def test_agency_clone_foreign_customer_is_hidden() -> None:
+    ctx = _ready_agent()
+    other = _create_agency(ctx["platform"], "Clone X", "clone_x", "oa-clone-x@vokit.test")
+    other_id = uuid.UUID(other.json()["data"]["id"])
+    other_customer = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(other_id, "Foreign Cust"),
+    )
+    assert other_customer.status_code == 201
+    denied = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/clone",
+        {"customer_id": other_customer.json()["data"]["id"]},
+    )
+    assert denied.status_code == 404
+
+
+@pytest.mark.django_db
+def test_builder_persona_timers_and_schema_overrides() -> None:
+    ctx = _ready_agent()
+    patched = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        {
+            "speaking_style": "warm",
+            "speaking_speed": 1.1,
+            "role": "Night receptionist",
+            "goals": "Book visits.",
+            "constraints": "Do not quote prices.",
+            "silence_timeout_seconds": 25,
+            "max_call_duration_seconds": 900,
+            "tools": ["create_lead"],
+            "tool_schema_overrides": {
+                "create_lead": {
+                    "input_schema": {"required": ["name", "email", "phone"]},
+                    "timeout_seconds": 10,
+                }
+            },
+        },
+    )
+    assert patched.status_code == 200
+    data = patched.json()["data"]
+    assert data["speaking_style"] == "warm"
+    assert data["speaking_speed"] == 1.1
+    assert data["role"] == "Night receptionist"
+    assert data["silence_timeout_seconds"] == 25
+    assert data["max_call_duration_seconds"] == 900
+    assert "phone" in data["tool_schemas"]["create_lead"]["input_schema"]["required"]
+    dropped = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        {"tool_schema_overrides": {"update_contact": {"input_schema": {"required": []}}}},
+    )
+    assert dropped.status_code == 400
+    too_fast = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        {"speaking_speed": 9},
+    )
+    assert too_fast.status_code == 400
+    resolved = ctx["agency_client"].get(
+        f"/api/v1/agency/agents/{ctx['agent_id']}/resolved-instructions"
+    )
+    assert "[PERSONA]" in resolved.json()["data"]["resolved"]
+    allow_customer = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        {"customer_can_edit": True},
+    )
+    assert allow_customer.status_code == 200
+    customer_ignored = _patch(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}",
+        {
+            "greeting": "Hi from customer",
+            "tool_schema_overrides": {"create_lead": {"timeout_seconds": 2}},
+            "speaking_style": "robot",
+        },
+    )
+    assert customer_ignored.status_code == 200
+    after = ctx["agency_client"].get(f"/api/v1/agency/agents/{ctx['agent_id']}")
+    assert after.json()["data"]["greeting"] == "Hi from customer"
+    assert after.json()["data"]["speaking_style"] == "warm"
+    assert after.json()["data"]["tool_schemas"]["create_lead"]["timeout_seconds"] == 10
+
+
+@pytest.mark.django_db
+def test_customer_layer_instructions_and_knowledge_detach() -> None:
+    ctx = _ready_agent()
+    saved = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/instructions",
+        {"customer_id": str(ctx["customer_id"]), "body": "Acme hours 9-5."},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["data"]["scope"] == "customer"
+    fetched = ctx["agency_client"].get(
+        f"/api/v1/agency/instructions?customer_id={ctx['customer_id']}"
+    )
+    assert fetched.json()["data"]["body"] == "Acme hours 9-5."
+    agency_layer = ctx["agency_client"].get("/api/v1/agency/instructions")
+    assert agency_layer.json()["data"]["scope"] == "agency"
+    other = _create_agency(ctx["platform"], "Inst X", "inst_x", "oa-inst-x@vokit.test")
+    other_id = uuid.UUID(other.json()["data"]["id"])
+    foreign_customer = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(other_id, "Foreign Inst"),
+    )
+    hidden = ctx["agency_client"].get(
+        f"/api/v1/agency/instructions?customer_id={foreign_customer.json()['data']['id']}"
+    )
+    assert hidden.status_code == 404
+    source = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "Detach me", "body": "facts", "scope": "agency"},
+    )
+    assert source.status_code == 201
+    source_id = source.json()["data"]["id"]
+    attached = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge",
+        {"source_id": source_id},
+    )
+    assert attached.status_code == 200
+    listed = ctx["agency_client"].get(
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge"
+    )
+    assert listed.status_code == 200
+    assert listed.json()["data"][0]["source_id"] == source_id
+    detached = _delete(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge/{source_id}",
+    )
+    assert detached.status_code == 200
+    empty = ctx["agency_client"].get(
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge"
+    )
+    assert empty.json()["data"] == []
+    still_there = ctx["agency_client"].get("/api/v1/agency/knowledge")
+    assert any(row["id"] == source_id for row in still_there.json()["data"])
+    missing = _delete(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge/{source_id}",
+    )
+    assert missing.status_code == 404
+    audit = ctx["platform"].get("/api/v1/platform/audit-events?action=instruction.updated")
+    assert audit.status_code == 200
+    assert audit.json()["data"]
+
+
+def _post_file(client: Client, path: str, fields: dict, upload):
+    payload = dict(fields)
+    payload["file"] = upload
+    return client.post(path, data=payload, HTTP_X_CSRFTOKEN=_csrf(client))
+
+
+@pytest.mark.django_db
+def test_knowledge_ingest_is_ready_only_after_vector_write() -> None:
+    from io import BytesIO
+    from unittest.mock import patch
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from docx import Document
+
+    ctx = _ready_agent()
+    markdown = _post_file(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "Playbook", "scope": "agency"},
+        SimpleUploadedFile(
+            "playbook.md", b"# Marker cedar\nHours 9-5.", content_type="text/markdown"
+        ),
+    )
+    assert markdown.status_code == 201
+    assert markdown.json()["data"]["status"] == "ready"
+    assert markdown.json()["data"]["kind"] == "file"
+    hits = vector_store().search(
+        [markdown.json()["data"]["group_id"]],
+        HashEmbedding().embed("Marker cedar"),
+    )
+    assert any("cedar" in str(hit.get("text")) for hit in hits)
+
+    buffer = BytesIO()
+    document = Document()
+    document.add_paragraph("Docx marker maple.")
+    document.save(buffer)
+    docx = _post_file(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "Policy", "scope": "agency"},
+        SimpleUploadedFile(
+            "policy.docx",
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),
+    )
+    assert docx.status_code == 201
+    assert docx.json()["data"]["status"] == "ready"
+
+    denied_type = _post_file(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "No", "scope": "agency"},
+        SimpleUploadedFile("payload.exe", b"MZ", content_type="application/octet-stream"),
+    )
+    assert denied_type.status_code == 422
+
+    with patch(
+        "control_plane.agents.infrastructure.vectors.MemoryVectorStore.upsert",
+        side_effect=DomainError("knowledge_store_unavailable", "Knowledge store write failed."),
+    ):
+        failed = _post(
+            ctx["agency_client"],
+            "/api/v1/agency/knowledge",
+            {"title": "Broken", "body": "Never ready until vectors persist.", "scope": "agency"},
+        )
+    assert failed.status_code == 201
+    assert failed.json()["data"]["status"] == "failed"
+    failed_hits = vector_store().search(
+        [failed.json()["data"]["group_id"]],
+        HashEmbedding().embed("Never ready until vectors persist."),
+    )
+    assert all("Never ready" not in str(hit.get("text")) for hit in failed_hits)
+
+
+@pytest.mark.django_db
+def test_knowledge_delete_requires_confirm_and_respects_customer_scope() -> None:
+    ctx = _ready_agent()
+    source = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "Shared", "body": "Agency playbook.", "scope": "agency"},
+    )
+    assert source.status_code == 201
+    source_id = source.json()["data"]["id"]
+    attached = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge",
+        {"source_id": source_id},
+    )
+    assert attached.status_code == 200
+    blocked = _delete(ctx["agency_client"], f"/api/v1/agency/knowledge/{source_id}")
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "knowledge_in_use"
+    assert ctx["agent_id"] in blocked.json()["error"]["details"]["attached_agent_ids"]
+    impact = ctx["agency_client"].get(f"/api/v1/agency/knowledge/{source_id}")
+    assert impact.json()["data"]["attached_count"] == 1
+    deleted = _delete(
+        ctx["agency_client"],
+        f"/api/v1/agency/knowledge/{source_id}?confirm=true",
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["data"]["deleted"] is True
+    gone = ctx["agency_client"].get(f"/api/v1/agency/knowledge/{source_id}")
+    assert gone.status_code == 404
+    empty = ctx["agency_client"].get(f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge")
+    assert empty.json()["data"] == []
+
+    other = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(ctx["agency_id"], "Other customer"),
+    )
+    other_id = other.json()["data"]["id"]
+    foreign_source = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {
+            "title": "Other FAQ",
+            "body": "Other customer only.",
+            "scope": "customer",
+            "owner_id": other_id,
+        },
+    )
+    assert foreign_source.status_code == 201
+    denied_attach = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}/knowledge",
+        {"source_id": foreign_source.json()["data"]["id"]},
+    )
+    assert denied_attach.status_code == 404
+

@@ -36,6 +36,21 @@ def test_instruction_precedence_keeps_platform_safety_first() -> None:
     assert resolved.index("[CUSTOMER]") < resolved.index("[AGENT]")
 
 
+def test_persona_is_injected_before_agent_layer() -> None:
+    resolved = resolve_instructions(
+        InstructionLayers(
+            customer="Acme hours 9-5.",
+            role="Receptionist",
+            goals="Book visits.",
+            constraints="No prices.",
+            agent="Greet with hello.",
+        )
+    )
+    assert resolved.index("[CUSTOMER]") < resolved.index("[PERSONA]")
+    assert resolved.index("[PERSONA]") < resolved.index("[AGENT]")
+    assert "Role: Receptionist" in resolved
+
+
 def test_unknown_tool_is_rejected() -> None:
     with pytest.raises(DomainError) as exc:
         assert_tools(["create_lead", "drop_database"])

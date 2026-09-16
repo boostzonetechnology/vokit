@@ -352,6 +352,46 @@ def test_tool_gateway_and_webhooks_stay_customer_scoped() -> None:
     )
     assert own.json()["data"]["ok"] is True
     assert integration_adapter().calls[-1].customer_id == str(ctx["customer_a_id"])
+    override = ctx["agency_client"].patch(
+        f"/api/v1/agency/agents/{agent_id}",
+        data=json.dumps(
+            {
+                "tool_schema_overrides": {
+                    "create_lead": {
+                        "input_schema": {"required": ["name", "email", "phone"]}
+                    }
+                }
+            }
+        ),
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=_csrf(ctx["agency_client"]),
+    )
+    assert override.status_code == 200
+    missing = _internal(
+        "/internal/telephony/v1/tools/invoke/",
+        {
+            "edge_call_id": "edge-int-1",
+            "tool": "create_lead",
+            "arguments": {"name": "Ada"},
+        },
+    )
+    assert missing.json()["data"]["ok"] is False
+    assert missing.json()["data"]["error"] == "invalid_arguments"
+    assert missing.json()["data"]["continue_call"] is True
+    complete = _internal(
+        "/internal/telephony/v1/tools/invoke/",
+        {
+            "edge_call_id": "edge-int-1",
+            "tool": "create_lead",
+            "arguments": {
+                "connection_id": conn_a.json()["data"]["id"],
+                "name": "Ada",
+                "email": "ada@test.com",
+                "phone": "555",
+            },
+        },
+    )
+    assert complete.json()["data"]["ok"] is True
     ended = _internal(
         "/internal/telephony/v1/voice-session/end/",
         {"edge_call_id": "edge-int-1", "reason": "completed", "status": "completed"},

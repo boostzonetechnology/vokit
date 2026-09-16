@@ -9,9 +9,16 @@ from control_plane.agents.application.builder import (
     PublishAgent,
     SetAgentStatus,
 )
-from control_plane.agents.application.knowledge import AttachKnowledge, IngestKnowledge
+from control_plane.agents.application.knowledge import (
+    AttachKnowledge,
+    DeleteKnowledge,
+    DetachKnowledge,
+    IngestKnowledge,
+    ProcessKnowledge,
+)
 from control_plane.agents.application.sessions import SaveInstruction, StartTestSession
 from control_plane.agents.application.templates import CreateTemplate, InstallTemplate
+from control_plane.agents.infrastructure.extract import extract_knowledge_text
 from control_plane.agents.infrastructure.repositories import (
     DjangoAgentIndexRepository,
     DjangoGlobalInstructionRepository,
@@ -125,8 +132,32 @@ def install_template() -> InstallTemplate:
     )
 
 
+class CeleryKnowledgeJobQueue:
+    def enqueue_process(
+        self, *, source_id, tenant_id, correlation_id: str
+    ) -> None:
+        from control_plane.agents.tasks import process_knowledge_source_task
+
+        process_knowledge_source_task.delay(
+            str(source_id),
+            str(tenant_id) if tenant_id else None,
+            correlation_id,
+        )
+
+
 def ingest_knowledge() -> IngestKnowledge:
     return IngestKnowledge(
+        tenant_agents(),
+        global_knowledge(),
+        SystemClock(),
+        customer_index(),
+        CeleryKnowledgeJobQueue(),
+        extract_knowledge_text,
+    )
+
+
+def process_knowledge() -> ProcessKnowledge:
+    return ProcessKnowledge(
         tenant_agents(),
         vector_store(),
         embeddings(),
@@ -136,7 +167,15 @@ def ingest_knowledge() -> IngestKnowledge:
 
 
 def attach_knowledge() -> AttachKnowledge:
-    return AttachKnowledge(tenant_agents())
+    return AttachKnowledge(tenant_agents(), global_knowledge())
+
+
+def detach_knowledge() -> DetachKnowledge:
+    return DetachKnowledge(tenant_agents())
+
+
+def delete_knowledge() -> DeleteKnowledge:
+    return DeleteKnowledge(tenant_agents(), vector_store(), global_knowledge())
 
 
 def start_test_session() -> StartTestSession:

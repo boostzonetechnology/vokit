@@ -4,6 +4,7 @@ import uuid
 
 from control_plane.agents.application.ports import (
     AgentIndexRecord,
+    GlobalKnowledgeRecord,
     TemplateRecord,
     TemplateVersionRecord,
 )
@@ -143,19 +144,52 @@ class DjangoGlobalInstructionRepository:
 
 
 class DjangoGlobalKnowledgeRepository:
-    def create(self, source_id: uuid.UUID, title: str, body: str) -> None:
+    def create(self, record: GlobalKnowledgeRecord) -> None:
         GlobalKnowledgeSource.objects.create(
-            id=source_id, title=title, body=body, status="ready", group_id="global"
+            id=record.source_id,
+            title=record.title,
+            body=record.body,
+            status=record.status,
+            kind=record.kind,
+            object_ref=record.object_ref,
+            checksum=record.checksum,
+            group_id=record.group_id or "global",
         )
 
-    def get(self, source_id: uuid.UUID) -> tuple[uuid.UUID, str, str] | None:
+    def save(self, record: GlobalKnowledgeRecord) -> None:
+        GlobalKnowledgeSource.objects.filter(id=record.source_id).update(
+            title=record.title,
+            body=record.body,
+            status=record.status,
+            kind=record.kind,
+            object_ref=record.object_ref,
+            checksum=record.checksum,
+            group_id=record.group_id or "global",
+        )
+
+    def get(self, source_id: uuid.UUID) -> GlobalKnowledgeRecord | None:
         row = GlobalKnowledgeSource.objects.filter(id=source_id).first()
         if row is None:
             return None
-        return (row.id, row.title, row.body)
+        return self._record(row)
 
-    def list(self) -> list[tuple[uuid.UUID, str, str]]:
-        return [(row.id, row.title, row.body) for row in GlobalKnowledgeSource.objects.all()]
+    def list(self) -> list[GlobalKnowledgeRecord]:
+        return [self._record(row) for row in GlobalKnowledgeSource.objects.all()]
+
+    def delete(self, source_id: uuid.UUID) -> None:
+        GlobalKnowledgeSource.objects.filter(id=source_id).delete()
+
+    def _record(self, row: GlobalKnowledgeSource) -> GlobalKnowledgeRecord:
+        return GlobalKnowledgeRecord(
+            source_id=row.id,
+            title=row.title,
+            body=row.body,
+            status=row.status,
+            kind=row.kind,
+            object_ref=row.object_ref,
+            checksum=row.checksum,
+            group_id=row.group_id,
+        )
 
 
 class DjangoAgentIndexRepository:

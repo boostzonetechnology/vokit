@@ -13,8 +13,13 @@ from control_plane.agents.application.resolve import resolve_for_agent
 from control_plane.agents.domain.policies import (
     assert_agent_type,
     assert_fallback,
+    assert_max_call_duration,
     assert_no_secrets,
+    assert_persona_field,
     assert_production_routable,
+    assert_silence_timeout,
+    assert_speaking_speed,
+    assert_speaking_style,
     assert_status_unlocked,
     assert_tools,
     parse_agent_status,
@@ -26,6 +31,7 @@ from control_plane.audit.application.record import RecordAuditCommand
 from control_plane.audit.infrastructure.container import record_audit
 from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.customers.domain.policies import customer_not_found
+from control_plane.integrations.domain.policies import assert_tool_schema_overrides
 from control_plane.risk.application.gate import CustomerRiskGate
 from control_plane.risk.domain.types import AgentStatus
 from control_plane.telephony.domain.destinations import parse_hours
@@ -39,6 +45,8 @@ from tenant.billing.service import TenantBillingService
 from tenant.lifecycle.service import TenantLifecycleService
 
 logger = logging.getLogger("vokit.agents")
+
+UNSET = object()
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +72,14 @@ class ConfigureAgentCommand:
     voicemail_greeting: str | None = None
     outbound_voicemail_message: str | None = None
     default_transfer_id: uuid.UUID | None = None
+    speaking_style: str | None = None
+    speaking_speed: object = UNSET
+    role: str | None = None
+    goals: str | None = None
+    constraints: str | None = None
+    silence_timeout_seconds: object = UNSET
+    max_call_duration_seconds: object = UNSET
+    tool_schema_overrides: object = UNSET
 
 
 class ConfigureAgent:
@@ -140,6 +156,38 @@ class ConfigureAgent:
             if command.default_transfer_id is None
             else command.default_transfer_id
         )
+        speaking_style = (
+            agent.speaking_style
+            if command.speaking_style is None
+            else assert_speaking_style(command.speaking_style)
+        )
+        speaking_speed = agent.speaking_speed
+        if command.speaking_speed is not UNSET:
+            speaking_speed = assert_speaking_speed(command.speaking_speed)
+        role = (
+            agent.role
+            if command.role is None
+            else assert_persona_field(command.role, field="role")
+        )
+        goals = (
+            agent.goals
+            if command.goals is None
+            else assert_persona_field(command.goals, field="goals")
+        )
+        constraints = (
+            agent.constraints
+            if command.constraints is None
+            else assert_persona_field(command.constraints, field="constraints")
+        )
+        silence_timeout = agent.silence_timeout_seconds
+        if command.silence_timeout_seconds is not UNSET:
+            silence_timeout = assert_silence_timeout(command.silence_timeout_seconds)
+        max_duration = agent.max_call_duration_seconds
+        if command.max_call_duration_seconds is not UNSET:
+            max_duration = assert_max_call_duration(command.max_call_duration_seconds)
+        overrides = agent.tool_schema_overrides or {}
+        if command.tool_schema_overrides is not UNSET:
+            overrides = assert_tool_schema_overrides(command.tool_schema_overrides)
         updated = replace(
             agent,
             display_name=name[:128],
@@ -170,11 +218,32 @@ class ConfigureAgent:
             voicemail_greeting=vm_greeting,
             outbound_voicemail_message=outbound_vm,
             default_transfer_id=transfer_id,
+            speaking_style=speaking_style,
+            speaking_speed=speaking_speed,
+            role=role,
+            goals=goals,
+            constraints=constraints,
+            silence_timeout_seconds=silence_timeout,
+            max_call_duration_seconds=max_duration,
+            tool_schema_overrides=overrides,
             draft_version=agent.draft_version + 1,
             updated_at=self._clock.now(),
         )
         stored = self._agents.put_agent(agent.tenant_id, updated)
         sync_agent_index(self._index, stored)
+        if (
+            command.instructions is not None
+            or command.role is not None
+            or command.goals is not None
+            or command.constraints is not None
+        ):
+            _record_agent_audit(
+                action="instruction.updated",
+                agent=stored,
+                before="configured",
+                after="configured",
+                payload={"scope": "agent"},
+            )
         return stored
 
 
@@ -364,8 +433,13 @@ class CloneAgent:
                 raise customer_not_found()
             target_customer_id = customer.id
             target_tenant_id = customer.tenant_id
-        elif customer_id is not None and customer_id != source.customer_id:
-            raise DomainError("not_found", "Resource not found.", http_status=404)
+        elif customer_id is not None:
+            customer = self._customers.get(customer_id)
+            if customer is None or customer.tenant_id != source.tenant_id:
+                raise DomainError("not_found", "Resource not found.", http_status=404)
+            if actor_tenant_id is None or actor_tenant_id != customer.tenant_id:
+                raise DomainError("not_found", "Resource not found.", http_status=404)
+            target_customer_id = customer.id
         self._gate.assert_open(target_customer_id)
         now = self._clock.now()
         name = (display_name or "").strip() if privileged else ""
@@ -383,7 +457,7 @@ class CloneAgent:
         else:
             name = f"{source.display_name} copy"
         transfer_id = source.default_transfer_id
-        if target_tenant_id != source.tenant_id:
+        if target_customer_id != source.customer_id:
             transfer_id = None
         clone = replace(
             source,
