@@ -23,6 +23,8 @@ DATABASES = {
     }
 }
 
+QDRANT_URL = ""
+QDRANT_COLLECTION = "vokit_knowledge"
 CELERY_TASK_ALWAYS_EAGER = True
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"

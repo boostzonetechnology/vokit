@@ -513,6 +513,13 @@ class MemoryRuntime:
                 rows.append(row)
         return rows
 
+    def delete_knowledge(self, connection: TenantConnection, source_id: uuid.UUID) -> None:
+        memory = self._as_memory(connection)
+        row = memory.backend.knowledge.get(source_id)
+        if row is not None and row.tenant_id != memory.tenant_id:
+            raise isolation_violation()
+        memory.backend.knowledge.pop(source_id, None)
+
     def put_attachment(
         self, connection: TenantConnection, row: KnowledgeAttachmentRecord
     ) -> None:
@@ -541,6 +548,33 @@ class MemoryRuntime:
         if row is not None and row.tenant_id != memory.tenant_id:
             raise isolation_violation()
         memory.backend.attachments.pop((agent_id, source_id), None)
+
+    def list_attachments_for_source(
+        self, connection: TenantConnection, source_id: uuid.UUID
+    ) -> list[KnowledgeAttachmentRecord]:
+        memory = self._as_memory(connection)
+        rows = []
+        for row in memory.backend.attachments.values():
+            if row.tenant_id != memory.tenant_id:
+                raise isolation_violation()
+            if row.source_id == source_id:
+                rows.append(row)
+        return rows
+
+    def delete_attachments_for_source(
+        self, connection: TenantConnection, source_id: uuid.UUID
+    ) -> None:
+        memory = self._as_memory(connection)
+        doomed = [
+            key
+            for key, row in memory.backend.attachments.items()
+            if row.source_id == source_id
+        ]
+        for key in doomed:
+            row = memory.backend.attachments.get(key)
+            if row is not None and row.tenant_id != memory.tenant_id:
+                raise isolation_violation()
+            memory.backend.attachments.pop(key, None)
 
     def put_session(self, connection: TenantConnection, row: TestSessionRecord) -> None:
         memory = self._as_memory(connection)

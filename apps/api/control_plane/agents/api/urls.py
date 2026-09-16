@@ -13,6 +13,8 @@ from control_plane.agents.api.views import (
     AgencyAgentTestSessionView,
     AgencyInstructionView,
     AgencyKnowledgeAttachView,
+    AgencyKnowledgeDetachView,
+    AgencyKnowledgeSourceView,
     AgencyKnowledgeView,
     AgencyTemplateCollectionView,
     CustomerAgentDetailView,
@@ -27,6 +29,7 @@ from control_plane.agents.api.views import (
     PlatformAgentPublishView,
     PlatformAgentStatusView,
     PlatformInstructionView,
+    PlatformKnowledgeSourceView,
     PlatformKnowledgeView,
     PlatformTemplateCollectionView,
 )
@@ -80,6 +83,11 @@ urlpatterns = [
         name="platform-instructions",
     ),
     path("platform/knowledge", PlatformKnowledgeView.as_view(), name="platform-knowledge"),
+    path(
+        "platform/knowledge/<str:source_id>",
+        PlatformKnowledgeSourceView.as_view(),
+        name="platform-knowledge-source",
+    ),
     path("agency/agents", AgencyAgentCollectionView.as_view(), name="agency-agents"),
     path(
         "agency/agents/<str:agent_id>",
@@ -121,9 +129,19 @@ urlpatterns = [
         AgencyKnowledgeAttachView.as_view(),
         name="agency-agent-knowledge-attach",
     ),
+    path(
+        "agency/agents/<str:agent_id>/knowledge/<str:source_id>",
+        AgencyKnowledgeDetachView.as_view(),
+        name="agency-agent-knowledge-detach",
+    ),
     path("agency/templates", AgencyTemplateCollectionView.as_view(), name="agency-templates"),
     path("agency/instructions", AgencyInstructionView.as_view(), name="agency-instructions"),
     path("agency/knowledge", AgencyKnowledgeView.as_view(), name="agency-knowledge"),
+    path(
+        "agency/knowledge/<str:source_id>",
+        AgencyKnowledgeSourceView.as_view(),
+        name="agency-knowledge-source",
+    ),
     path(
         "customer/agents/<str:agent_id>",
         CustomerAgentDetailView.as_view(),

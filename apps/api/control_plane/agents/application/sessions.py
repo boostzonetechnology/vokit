@@ -13,6 +13,8 @@ from control_plane.agents.application.ports import (
 from control_plane.agents.application.resolve import resolve_for_agent
 from control_plane.agents.domain.policies import assert_status_unlocked, assert_test_routable
 from control_plane.agents.domain.types import TestSessionKind, TestSessionStatus
+from control_plane.audit.application.record import RecordAuditCommand
+from control_plane.audit.infrastructure.container import record_audit
 from control_plane.risk.domain.types import AgentStatus
 from control_plane.telephony.application.session import TrainingSessionIndexRepository
 from control_plane.tenancy.application.ports import Clock
@@ -124,6 +126,9 @@ class SaveInstruction:
         body: str,
         actor_tenant_id: uuid.UUID | None,
         privileged: bool,
+        actor_id=None,
+        actor_role: str = "",
+        customer_id: uuid.UUID | None = None,
     ) -> dict:
         if scope not in {"agency", "customer"}:
             raise DomainError("validation_error", "scope is invalid.")
@@ -143,5 +148,18 @@ class SaveInstruction:
                 body=body,
                 updated_at=self._clock.now(),
             ),
+        )
+        record_audit().execute(
+            RecordAuditCommand(
+                action="instruction.updated",
+                entity_type="instruction",
+                entity_id=str(owner_id),
+                actor_id=actor_id,
+                actor_role=actor_role,
+                tenant_id=tenant_id,
+                customer_id=customer_id if scope == "customer" else None,
+                after_summary=scope,
+                payload={"scope": scope},
+            )
         )
         return {"scope": scope, "owner_id": str(owner_id), "body": body}
