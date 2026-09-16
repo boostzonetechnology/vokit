@@ -12,7 +12,12 @@ from control_plane.agents.domain.policies import (
     assert_production_routable,
     assert_test_routable,
 )
-from control_plane.agents.domain.types import ALLOWED_TOOLS, TestSessionStatus
+from control_plane.agents.domain.types import (
+    ALLOWED_TOOLS,
+    DEFAULT_MAX_CALL_DURATION_SECONDS,
+    DEFAULT_SILENCE_TIMEOUT_SECONDS,
+    TestSessionStatus,
+)
 from control_plane.billing.application.ports import (
     BillingIdempotencyRepository,
     IdempotencyRecord,
@@ -751,7 +756,7 @@ class VoiceControl:
             "edge_call_id": str(session.session_id),
             "agent": self._agent_payload(agent, resolved),
             "providers": self._provider_payload(agent),
-            "timers": {"silence_timeout_seconds": 20, "max_call_duration_seconds": 1800},
+            "timers": self._timer_payload(agent),
             "transfer": {"configured": False},
             "knowledge": {
                 "enabled": bool(attachments),
@@ -870,10 +875,7 @@ class VoiceControl:
             "from_number": from_number,
             "agent": self._agent_payload(agent, resolved),
             "providers": self._provider_payload(agent),
-            "timers": {
-                "silence_timeout_seconds": 20,
-                "max_call_duration_seconds": 1800,
-            },
+            "timers": self._timer_payload(agent),
             "transfer": self._transfer_spec(indexed, agent),
             "voicemail": self._voicemail_spec(indexed, agent),
             "knowledge": {
@@ -903,10 +905,22 @@ class VoiceControl:
             tts["voice_id"] = agent.voice_id
         if agent.language:
             tts["language"] = agent.language
+        if agent.speaking_style:
+            tts["speaking_style"] = agent.speaking_style
+        if agent.speaking_speed is not None:
+            tts["speaking_speed"] = agent.speaking_speed
         return {
             "stt": dict(self._providers.stt),
             "tts": tts,
             "llm": dict(self._providers.llm),
+        }
+
+    def _timer_payload(self, agent) -> dict[str, object]:
+        silence = getattr(agent, "silence_timeout_seconds", None)
+        duration = getattr(agent, "max_call_duration_seconds", None)
+        return {
+            "silence_timeout_seconds": int(silence or DEFAULT_SILENCE_TIMEOUT_SECONDS),
+            "max_call_duration_seconds": int(duration or DEFAULT_MAX_CALL_DURATION_SECONDS),
         }
 
     def _require_call(self, edge_call_id: str) -> CallIndexRecord:

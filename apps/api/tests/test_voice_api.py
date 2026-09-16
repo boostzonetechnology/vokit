@@ -247,6 +247,8 @@ def test_pipecat_bootstrap_succeeds_in_lab() -> None:
     data = bootstrap.json()["data"]
     assert data["admitted"] is True
     assert data["edge_call_id"] == "edge-lab-1"
+    assert data["timers"]["silence_timeout_seconds"] == 20
+    assert data["timers"]["max_call_duration_seconds"] == 1800
     assert "api_key=" not in data["agent"]["resolved_system_prompt"]
     assert data["agent"]["welcome_greeting"] == "Hello from Vokit."
     replay = _internal(

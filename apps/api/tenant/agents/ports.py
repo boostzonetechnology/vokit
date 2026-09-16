@@ -51,6 +51,8 @@ class TenantAgentStore(Protocol):
         self, connection: TenantConnection, *, scope: str | None = None
     ) -> list[KnowledgeSourceRecord]: ...
 
+    def delete_knowledge(self, connection: TenantConnection, source_id: uuid.UUID) -> None: ...
+
     def put_attachment(
         self, connection: TenantConnection, row: KnowledgeAttachmentRecord
     ) -> None: ...
@@ -61,6 +63,14 @@ class TenantAgentStore(Protocol):
 
     def delete_attachment(
         self, connection: TenantConnection, agent_id: uuid.UUID, source_id: uuid.UUID
+    ) -> None: ...
+
+    def list_attachments_for_source(
+        self, connection: TenantConnection, source_id: uuid.UUID
+    ) -> list[KnowledgeAttachmentRecord]: ...
+
+    def delete_attachments_for_source(
+        self, connection: TenantConnection, source_id: uuid.UUID
     ) -> None: ...
 
     def put_session(self, connection: TenantConnection, row: TestSessionRecord) -> None: ...

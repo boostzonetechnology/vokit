@@ -5,6 +5,12 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
 
+from control_plane.agents.domain.types import (
+    DEFAULT_MAX_CALL_DURATION_SECONDS,
+    DEFAULT_SILENCE_TIMEOUT_SECONDS,
+    MAX_CALL_DURATION_RANGE,
+    SILENCE_TIMEOUT_RANGE,
+)
 from control_plane.risk.domain.types import AgentStatus
 
 
@@ -40,6 +46,14 @@ class TenantAgent:
     default_transfer_id: uuid.UUID | None = None
     status_locked: bool = False
     status_actor: str = "agency"
+    speaking_style: str = ""
+    speaking_speed: float | None = None
+    role: str = ""
+    goals: str = ""
+    constraints: str = ""
+    silence_timeout_seconds: int = 20
+    max_call_duration_seconds: int = 1800
+    tool_schema_overrides: dict[str, dict[str, object]] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +140,14 @@ def agent_config_json(agent: TenantAgent) -> str:
         "default_transfer_id": (
             str(agent.default_transfer_id) if agent.default_transfer_id else None
         ),
+        "speaking_style": agent.speaking_style,
+        "speaking_speed": agent.speaking_speed,
+        "role": agent.role,
+        "goals": agent.goals,
+        "constraints": agent.constraints,
+        "silence_timeout_seconds": agent.silence_timeout_seconds,
+        "max_call_duration_seconds": agent.max_call_duration_seconds,
+        "tool_schema_overrides": dict(agent.tool_schema_overrides or {}),
     }
     return json.dumps(payload)
 
@@ -195,6 +217,22 @@ def agent_from_config(
         default_transfer_id=_optional_uuid(data.get("default_transfer_id")),
         status_locked=bool(status_locked),
         status_actor=(status_actor or "agency").strip().lower() or "agency",
+        speaking_style=str(data.get("speaking_style") or ""),
+        speaking_speed=_optional_float(data.get("speaking_speed")),
+        role=str(data.get("role") or ""),
+        goals=str(data.get("goals") or ""),
+        constraints=str(data.get("constraints") or ""),
+        silence_timeout_seconds=_timer(
+            data.get("silence_timeout_seconds"),
+            DEFAULT_SILENCE_TIMEOUT_SECONDS,
+            SILENCE_TIMEOUT_RANGE,
+        ),
+        max_call_duration_seconds=_timer(
+            data.get("max_call_duration_seconds"),
+            DEFAULT_MAX_CALL_DURATION_SECONDS,
+            MAX_CALL_DURATION_RANGE,
+        ),
+        tool_schema_overrides=_overrides(data.get("tool_schema_overrides")),
     )
 
 
@@ -213,6 +251,38 @@ def _optional_uuid(raw: object) -> uuid.UUID | None:
         return None
 
 
+def _optional_float(raw: object) -> float | None:
+    if raw in (None, ""):
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _timer(raw: object, default: int, bounds: tuple[int, int]) -> int:
+    if raw in (None, ""):
+        return default
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return default
+    low, high = bounds
+    if parsed < low or parsed > high:
+        return default
+    return parsed
+
+
+def _overrides(raw: object) -> dict[str, dict[str, object]]:
+    if type(raw) is not dict:
+        return {}
+    cleaned: dict[str, dict[str, object]] = {}
+    for key, spec in raw.items():
+        if type(spec) is dict:
+            cleaned[str(key)] = dict(spec)
+    return cleaned
+
+
 def agent_snapshot(agent: TenantAgent) -> str:
     payload = asdict(agent)
     payload["agent_id"] = str(agent.agent_id)
@@ -229,4 +299,5 @@ def agent_snapshot(agent: TenantAgent) -> str:
     payload["business_hours"] = list(agent.business_hours)
     payload["status_locked"] = bool(agent.status_locked)
     payload["status_actor"] = agent.status_actor
+    payload["tool_schema_overrides"] = dict(agent.tool_schema_overrides or {})
     return json.dumps(payload)

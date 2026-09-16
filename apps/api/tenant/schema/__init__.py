@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-CURRENT_VERSION = "0012_agent_status_lock"
+CURRENT_VERSION = "0013_knowledge_longtext"
 
 SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
     "0001_isolation": (
@@ -174,7 +174,7 @@ SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
             owner_id CHAR(36) NOT NULL,
             kind VARCHAR(16) NOT NULL,
             title VARCHAR(128) NOT NULL,
-            body TEXT NOT NULL,
+            body LONGTEXT NOT NULL,
             object_ref VARCHAR(128) NOT NULL,
             checksum VARCHAR(128) NOT NULL,
             status VARCHAR(16) NOT NULL,
@@ -406,6 +406,12 @@ SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
             ADD COLUMN status_actor VARCHAR(16) NOT NULL DEFAULT 'agency'
         """,
     ),
+    "0013_knowledge_longtext": (
+        """
+        ALTER TABLE knowledge_sources
+            MODIFY body LONGTEXT NOT NULL
+        """,
+    ),
 }
 
 VERSION_ORDER = (
@@ -421,4 +427,5 @@ VERSION_ORDER = (
     "0010_integrations",
     "0011_customer_profile",
     "0012_agent_status_lock",
+    "0013_knowledge_longtext",
 )
