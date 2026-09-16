@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { agencyCreateHref, agencyDetailHref } from "@/features/agencies/lib/routes";
 import { agencyStatusTone, bpsToPercent } from "@/features/agencies/lib/status";
 import { usePlatformAgencyList } from "@/features/agencies/hooks/usePlatformAgencyList";
@@ -91,10 +92,11 @@ export function PlatformAgenciesScreen() {
           </div>
         </div>
 
-        {loading ? (
-          <p className="m-0 text-body text-text-muted" role="status">
-            Loading agencies…
-          </p>
+        {loading && agencies.length === 0 ? (
+          <TableSkeleton
+            headers={["Agency", "Status", "Database", "Commission", "Currency"]}
+            rows={8}
+          />
         ) : filtered.length === 0 ? (
           <div className="grid gap-3 py-12 text-center">
             <p className="m-0 text-body text-text-muted">No agencies match this view.</p>

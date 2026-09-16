@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformBilling } from "./hooks/usePlatformBilling";
@@ -131,8 +132,11 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
             Payments
             <span className="ml-2 text-body font-normal text-text-muted">({payments.length})</span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading payments…</p>
+          {loading && payments.length === 0 ? (
+            <TableSkeleton
+              headers={["Payment", "Status", "Amount", "Processor", "Invoice"]}
+              rows={8}
+            />
           ) : payments.length === 0 ? (
             <p className="m-0 py-10 text-center text-body text-text-muted">No payments yet.</p>
           ) : (
@@ -205,8 +209,11 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
               Generate invoice
             </ActionButton>
           </div>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading invoices…</p>
+          {loading && invoices.length === 0 ? (
+            <TableSkeleton
+              headers={["Invoice", "Status", "Total", "Customer", "Paid at"]}
+              rows={8}
+            />
           ) : invoices.length === 0 ? (
             <p className="m-0 py-10 text-center text-body text-text-muted">No invoices yet.</p>
           ) : (
@@ -295,8 +302,11 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
             Disputes / chargebacks
             <span className="ml-2 text-body font-normal text-text-muted">({disputes.length})</span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading disputes…</p>
+          {loading && disputes.length === 0 ? (
+            <TableSkeleton
+              headers={["Event", "Status", "Kind", "Processor", "Customer"]}
+              rows={8}
+            />
           ) : disputes.length === 0 ? (
             <p className="m-0 py-10 text-center text-body text-text-muted">No disputes yet.</p>
           ) : (

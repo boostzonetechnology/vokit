@@ -3,7 +3,10 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { MetricGridSkeleton } from "@/components/ui/MetricCardSkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AgencyField } from "@/features/agencies/components/AgencyField";
 import { usePlatformAgencyDetail } from "@/features/agencies/hooks/usePlatformAgencyDetail";
@@ -106,12 +109,24 @@ export function PlatformAgencyDetailScreen({ agencyId }: { agencyId: string }) {
   const gross = Number(dashboard?.financial?.gross_revenue_minor ?? 0);
   const commissionMrr = Number(dashboard?.financial?.agency_commission_minor ?? 0);
 
-  if (loading) {
+  if (loading && !detail) {
     return (
       <section className="mx-auto max-w-[1200px]">
-        <p className="m-0 text-body text-text-muted" role="status">
-          Loading agency…
-        </p>
+        <div className="mb-6">
+          <Link
+            to={agenciesListHref()}
+            className="mb-3 inline-flex items-center gap-2 text-body font-semibold text-text-secondary no-underline hover:text-text-primary"
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+            Back to agencies
+          </Link>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="mt-2 h-4 w-64 max-w-full" />
+        </div>
+        <MetricGridSkeleton count={4} />
+        <article className="mt-6 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          <FormSectionSkeleton fields={5} />
+        </article>
       </section>
     );
   }

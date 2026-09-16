@@ -2,6 +2,7 @@ import { FormEvent, useState, type ReactNode } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { usePlatformKnowledge } from "./hooks/usePlatformKnowledge";
 import { KNOWLEDGE_KINDS } from "./types";
 
@@ -214,8 +215,8 @@ export function PlatformKnowledgeScreen() {
             <span className="ml-2 text-body font-normal text-text-muted">({sources.length})</span>
           </h2>
 
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading knowledge…</p>
+          {loading && sources.length === 0 ? (
+            <TableSkeleton headers={["Title", "Scope", "Kind", "Status"]} rows={8} />
           ) : sources.length === 0 ? (
             <p className="m-0 py-10 text-center text-body text-text-muted">
               No global knowledge sources yet.

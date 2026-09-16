@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { customerCreateHref, customerDetailHref } from "@/features/customers/lib/routes";
 import { customerStatusTone } from "@/features/customers/lib/status";
 import { useAgencyCustomerList } from "@/features/customers/hooks/useAgencyCustomerList";
@@ -77,10 +78,11 @@ export function AgencyCustomersScreen() {
           <span className="ml-2 text-body font-normal text-text-muted">({customers.length})</span>
         </h2>
 
-        {loading ? (
-          <p className="m-0 text-body text-text-muted" role="status">
-            Loading customers…
-          </p>
+        {loading && customers.length === 0 ? (
+          <TableSkeleton
+            headers={["Customer", "Owner", "Status", "Created"]}
+            rows={8}
+          />
         ) : customers.length === 0 ? (
           <div className="grid gap-3 py-12 text-center">
             <p className="m-0 text-body text-text-muted">No customers match this view.</p>

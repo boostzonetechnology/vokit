@@ -1,6 +1,7 @@
 import { FormEvent, useState, type ReactNode } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { usePlatformInstructions } from "./hooks/usePlatformInstructions";
 import { INSTRUCTION_PRECEDENCE } from "./types";
 
@@ -86,8 +87,8 @@ export function PlatformInstructionsScreen() {
             GET/POST /api/v1/platform/instructions — each save creates a new GlobalInstruction
             revision on the server.
           </p>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading instructions…</p>
+          {loading && !draft ? (
+            <FormSectionSkeleton fields={2} />
           ) : (
             <form className="grid gap-4" onSubmit={(event) => void onSave(event)}>
               <label className="m-0 grid gap-1.5 font-normal">

@@ -2,6 +2,7 @@ import { FormEvent, useState, type ReactNode } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { VoicePickerFields } from "@/features/agents/components/VoicePickerFields";
 import { usePlatformTemplates } from "./hooks/usePlatformTemplates";
 import {
@@ -313,8 +314,11 @@ export function PlatformTemplatesScreen() {
           <span className="ml-2 text-body font-normal text-text-muted">({templates.length})</span>
         </h2>
 
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading templates…</p>
+        {loading && templates.length === 0 ? (
+          <TableSkeleton
+            headers={["Name", "Industry", "Use case", "Visibility", "Status", "Version"]}
+            rows={8}
+          />
         ) : templates.length === 0 ? (
           <p className="m-0 py-10 text-center text-body text-text-muted">No templates yet.</p>
         ) : (

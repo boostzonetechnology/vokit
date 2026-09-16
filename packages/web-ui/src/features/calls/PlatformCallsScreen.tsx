@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformCalls } from "./hooks/usePlatformCalls";
 
@@ -140,8 +142,11 @@ export function PlatformCallsScreen() {
             Calls
             <span className="ml-2 text-body font-normal text-text-muted">({calls.length})</span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading calls…</p>
+          {loading && calls.length === 0 ? (
+            <TableSkeleton
+              headers={["Call", "Status", "Direction", "Number", "Minutes", "Agency"]}
+              rows={8}
+            />
           ) : calls.length === 0 ? (
             <p className="m-0 py-8 text-center text-body text-text-muted">No calls found.</p>
           ) : (
@@ -211,7 +216,7 @@ export function PlatformCallsScreen() {
             Artifacts (recording / transcript / summary)
           </h3>
           {busy && artifacts.length === 0 ? (
-            <p className="m-0 text-body text-text-muted">Loading artifacts…</p>
+            <ListRowsSkeleton rows={3} />
           ) : artifacts.length === 0 ? (
             <p className="m-0 text-body text-text-muted">No artifacts for this call.</p>
           ) : (

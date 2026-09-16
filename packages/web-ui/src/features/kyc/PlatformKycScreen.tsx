@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformKyc } from "./hooks/usePlatformKyc";
 import { DECISION_STATUSES, KYC_STATUSES } from "./types";
@@ -215,8 +216,11 @@ export function PlatformKycScreen() {
             Cases
             <span className="ml-2 text-body font-normal text-text-muted">({cases.length})</span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading KYC cases…</p>
+          {loading && cases.length === 0 ? (
+            <TableSkeleton
+              headers={["Agency", "Status", "Frozen", "Reason", "Case"]}
+              rows={8}
+            />
           ) : cases.length === 0 ? (
             <p className="m-0 py-8 text-center text-body text-text-muted">No KYC cases found.</p>
           ) : (

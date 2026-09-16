@@ -1,5 +1,6 @@
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformAudit } from "./hooks/usePlatformAudit";
 
@@ -89,8 +90,11 @@ export function PlatformAuditScreen() {
           Events
           <span className="ml-2 text-body font-normal text-text-muted">({events.length})</span>
         </h2>
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading audit events…</p>
+        {loading && events.length === 0 ? (
+          <TableSkeleton
+            headers={["When", "Action", "Actor", "Entity", "Severity", "IP"]}
+            rows={8}
+          />
         ) : events.length === 0 ? (
           <p className="m-0 py-8 text-center text-body text-text-muted">No audit events found.</p>
         ) : (

@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { RecoveryCodesModal } from "@/features/auth/components/RecoveryCodesModal";
 import { TotpEnrollPreview } from "@/features/auth/components/TotpEnrollPreview";
@@ -139,10 +140,8 @@ export function MfaSettingsPanel() {
         </p>
       ) : null}
 
-      {loading ? (
-        <p className="m-0 text-body text-text-muted" role="status">
-          Loading MFA methods…
-        </p>
+      {loading && methods.length === 0 ? (
+        <FormSectionSkeleton fields={4} />
       ) : (
         <ul className="m-0 grid list-none gap-2 p-0">
           {!activeMethods.length ? (

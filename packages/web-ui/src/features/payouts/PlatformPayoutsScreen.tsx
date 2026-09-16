@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformPayouts } from "./hooks/usePlatformPayouts";
@@ -265,8 +266,11 @@ export function PlatformPayoutsScreen() {
             Payout queue
             <span className="ml-2 text-body font-normal text-text-muted">({payouts.length})</span>
           </h2>
-          {loading ? (
-            <p className="m-0 text-body text-text-muted">Loading payouts…</p>
+          {loading && payouts.length === 0 ? (
+            <TableSkeleton
+              headers={["Payout", "Agency", "Amount", "Status", "Receipt"]}
+              rows={8}
+            />
           ) : payouts.length === 0 ? (
             <p className="m-0 py-8 text-center text-body text-text-muted">No payouts in this filter.</p>
           ) : (

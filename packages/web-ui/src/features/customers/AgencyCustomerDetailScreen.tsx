@@ -5,6 +5,9 @@ import { Link } from "react-router-dom";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
+import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { MetricGridSkeleton } from "@/components/ui/MetricCardSkeleton";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAgencyCustomerDetail } from "@/features/customers/hooks/useAgencyCustomerDetail";
 import { customersListHref } from "@/features/customers/lib/routes";
@@ -71,12 +74,24 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
     { id: "resources", label: "Resources" },
   ];
 
-  if (loading) {
+  if (loading && !detail) {
     return (
       <section className="mx-auto max-w-[1200px]">
-        <p className="m-0 text-body text-text-muted" role="status">
-          Loading customer…
-        </p>
+        <div className="mb-6">
+          <Link
+            to={customersListHref()}
+            className="mb-3 inline-flex items-center gap-2 text-body font-semibold text-text-secondary no-underline hover:text-text-primary"
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+            Back to customers
+          </Link>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="mt-2 h-4 w-64 max-w-full" />
+        </div>
+        <MetricGridSkeleton count={4} />
+        <article className="mt-6 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+          <FormSectionSkeleton fields={5} />
+        </article>
       </section>
     );
   }

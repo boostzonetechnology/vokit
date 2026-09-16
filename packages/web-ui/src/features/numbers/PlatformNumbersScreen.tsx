@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformNumbers } from "./hooks/usePlatformNumbers";
@@ -195,8 +196,11 @@ export function PlatformNumbersScreen() {
           <span className="ml-2 text-body font-normal text-text-muted">({numbers.length})</span>
         </h2>
 
-        {loading ? (
-          <p className="m-0 text-body text-text-muted">Loading numbers…</p>
+        {loading && numbers.length === 0 ? (
+          <TableSkeleton
+            headers={["Number", "Status", "Country", "Agency", "Monthly", "Provider"]}
+            rows={8}
+          />
         ) : numbers.length === 0 ? (
           <p className="m-0 py-10 text-center text-body text-text-muted">No numbers in inventory.</p>
         ) : (
