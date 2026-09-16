@@ -48,8 +48,82 @@ export type AgentOption = {
   status?: string;
 };
 
+export type AssignNumberResult = {
+  assignment?: NumberAssignment;
+  invoice?: { id?: string; total_minor?: number; currency?: string };
+};
+
 function idempotencyKey(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
+}
+
+/** Map DomainError codes from number reserve/assign/release to actionable copy. */
+export function mapNumbersError(cause: unknown, fallback: string): string {
+  if (!isApiError(cause)) {
+    return fallback;
+  }
+  switch (cause.code) {
+    case "subscription_required":
+      return (
+        cause.message ||
+        "Assign an active plan subscription to this customer before confirming the number."
+      );
+    case "customer_inactive":
+      return (
+        cause.message ||
+        "Customer must be Active before reserving or assigning a number."
+      );
+    case "customer_risk_blocked":
+      return (
+        cause.message ||
+        "Customer is risk-blocked. Clear the risk case before assigning a number."
+      );
+    case "number_reserved":
+      return (
+        cause.message ||
+        "This number is reserved by another agency. Search again for available inventory."
+      );
+    case "number_assigned":
+      return (
+        cause.message ||
+        "This number already has an active routing target. Release it first or pick another DID."
+      );
+    case "number_unavailable":
+      return (
+        cause.message ||
+        "This number is not available for reservation."
+      );
+    case "number_purchase_blocked":
+      return (
+        cause.message ||
+        "Agency cannot purchase numbers right now (capability or agency status)."
+      );
+    case "reservation_expired":
+      return (
+        cause.message ||
+        "Reservation expired (10-minute hold). Reserve the number again from Search."
+      );
+    case "assign_confirmation_required":
+      return (
+        cause.message ||
+        "Confirm assign is required to complete purchase. Use Preview for a local cost estimate only."
+      );
+    case "release_confirmation_required":
+      return (
+        cause.message ||
+        "Type RELEASE and confirm to release this number."
+      );
+    case "validation_error":
+      return cause.message || fallback;
+    case "forbidden":
+    case "permission_denied":
+      return (
+        cause.message ||
+        "You do not have permission for this numbers action."
+      );
+    default:
+      return cause.message || fallback;
+  }
 }
 
 export function useAgencyNumbers() {
@@ -69,6 +143,7 @@ export function useAgencyNumbers() {
   const [customerFilter, setCustomerFilter] = useState("");
   const [searchCountry, setSearchCountry] = useState("US");
   const [searchArea, setSearchArea] = useState("");
+  const [searchCapability, setSearchCapability] = useState("voice");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -86,7 +161,7 @@ export function useAgencyNumbers() {
       setAgents(agentRows);
       setError("");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load phone numbers.");
+      setError(mapNumbersError(cause, "Failed to load phone numbers."));
     } finally {
       setLoading(false);
     }
@@ -114,16 +189,21 @@ export function useAgencyNumbers() {
     assigned.find((row) => row.id === selectedId) ??
     null;
 
-  async function searchNumbers(input?: { country?: string; area?: string }) {
+  async function searchNumbers(input?: {
+    country?: string;
+    area?: string;
+    capability?: string;
+  }) {
     setBusy(true);
     setMessage("");
     try {
       const params = new URLSearchParams();
       const country = (input?.country ?? searchCountry).trim();
       const area = (input?.area ?? searchArea).trim();
+      const capability = (input?.capability ?? searchCapability).trim() || "voice";
       if (country) params.set("country", country);
       if (area) params.set("area", area);
-      params.set("capability", "voice");
+      params.set("capability", capability);
       const data = await apiGet<Record<string, unknown>>(
         `/api/v1/agency/phone-numbers/search?${params.toString()}`,
       );
@@ -135,7 +215,7 @@ export function useAgencyNumbers() {
     } catch (cause) {
       setInventory([]);
       setOffers([]);
-      setMessage(isApiError(cause) ? cause.message : "Search failed.");
+      setMessage(mapNumbersError(cause, "Search failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -152,11 +232,13 @@ export function useAgencyNumbers() {
         { number_id: numberId, agent_id: agentId },
       );
       setLastReservation(reserved);
-      setMessage(`Reserved until ${reserved.expires_at ?? "expiry"} · confirm assign next.`);
+      setMessage(
+        `Reserved until ${reserved.expires_at ?? "expiry"} · confirm assign next (10-minute hold).`,
+      );
       await reload();
       return reserved;
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Reserve failed.");
+      setMessage(mapNumbersError(cause, "Reserve failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -167,24 +249,29 @@ export function useAgencyNumbers() {
     setBusy(true);
     setMessage("");
     try {
-      const result = await apiSend<{
-        assignment?: NumberAssignment;
-        invoice?: { id?: string; total_minor?: number };
-      }>(
-          "/api/v1/agency/phone-numbers/assignments",
-          "POST",
+      const result = await apiSend<AssignNumberResult>(
+        "/api/v1/agency/phone-numbers/assignments",
+        "POST",
         { reservation_id: reservationId, confirm },
         { "Idempotency-Key": idempotencyKey("number-assign") },
       );
-      setMessage(
-        confirm
-          ? `Number assigned${result.invoice?.id ? ` · invoice ${result.invoice.id.slice(0, 8)}` : ""}.`
-          : "Assignment preview ready — confirm to complete purchase.",
-      );
+      if (confirm) {
+        const invoiceId = result.invoice?.id;
+        setLastReservation(null);
+        setMessage(
+          invoiceId
+            ? `Number assigned · invoice ${invoiceId}. Customer billed for monthly DID cost.`
+            : "Number assigned successfully.",
+        );
+      } else {
+        setMessage(
+          "Assignment preview ready — confirm to complete purchase.",
+        );
+      }
       await reload();
       return result;
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Assign failed.");
+      setMessage(mapNumbersError(cause, "Assign failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -200,14 +287,19 @@ export function useAgencyNumbers() {
       });
       setMessage("Number released. Active inbound routing for this DID will stop.");
       if (selectedId === numberId) setSelectedId("");
+      if (lastReservation?.number_id === numberId) setLastReservation(null);
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Release failed.");
+      setMessage(mapNumbersError(cause, "Release failed."));
       throw cause;
     } finally {
       setBusy(false);
     }
   }
+
+  const clearReservation = useCallback(() => {
+    setLastReservation(null);
+  }, []);
 
   function customerName(customerId?: string | null) {
     if (!customerId) return "—";
@@ -229,6 +321,7 @@ export function useAgencyNumbers() {
     customers,
     agents,
     lastReservation,
+    clearReservation,
     selected,
     selectedId,
     setSelectedId,
@@ -244,6 +337,8 @@ export function useAgencyNumbers() {
     setSearchCountry,
     searchArea,
     setSearchArea,
+    searchCapability,
+    setSearchCapability,
     customerName,
     agentName,
     reload,
