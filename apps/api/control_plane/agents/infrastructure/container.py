@@ -7,6 +7,7 @@ from control_plane.agents.application.builder import (
     ConfigureAgent,
     PauseAgent,
     PublishAgent,
+    ResumeAgent,
     SetAgentStatus,
 )
 from control_plane.agents.application.knowledge import (
@@ -103,6 +104,10 @@ def publish_agent() -> PublishAgent:
 
 def pause_agent() -> PauseAgent:
     return PauseAgent(tenant_agents(), agent_index(), SystemClock())
+
+
+def resume_agent() -> ResumeAgent:
+    return ResumeAgent(tenant_agents(), agent_index(), SystemClock())
 
 
 def set_agent_status() -> SetAgentStatus:

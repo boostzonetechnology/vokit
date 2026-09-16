@@ -17,7 +17,10 @@ from control_plane.agents.api.views import (
     AgencyKnowledgeSourceView,
     AgencyKnowledgeView,
     AgencyTemplateCollectionView,
+    CustomerAgentCollectionView,
     CustomerAgentDetailView,
+    CustomerAgentPauseView,
+    CustomerAgentResumeView,
     CustomerKnowledgeView,
     PlatformAgentArchiveView,
     PlatformAgentCloneView,
@@ -141,6 +144,17 @@ urlpatterns = [
         "agency/knowledge/<str:source_id>",
         AgencyKnowledgeSourceView.as_view(),
         name="agency-knowledge-source",
+    ),
+    path("customer/agents", CustomerAgentCollectionView.as_view(), name="customer-agents"),
+    path(
+        "customer/agents/<str:agent_id>/pause",
+        CustomerAgentPauseView.as_view(),
+        name="customer-agent-pause",
+    ),
+    path(
+        "customer/agents/<str:agent_id>/resume",
+        CustomerAgentResumeView.as_view(),
+        name="customer-agent-resume",
     ),
     path(
         "customer/agents/<str:agent_id>",

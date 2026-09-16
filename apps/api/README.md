@@ -109,7 +109,8 @@ Agents / templates / knowledge (unpublished is not production-routable):
 - `POST /api/v1/agency/agents/{id}/publish|pause|clone|test-sessions`
 - `GET /api/v1/agency/agents/{id}/resolved-instructions` `/routing`
 - `GET/POST /api/v1/agency/templates` `/agency/instructions` `/agency/knowledge`
-- `GET/PATCH /api/v1/customer/agents/{id}` — greeting/instructions only when `customer_can_edit`
+- `GET /api/v1/customer/agents` `GET/PATCH /api/v1/customer/agents/{id}` — list/detail include `assigned_e164`; PATCH greeting/instructions only when `customer_can_edit`
+- `POST /api/v1/customer/agents/{id}/pause|resume` — same `customer_can_edit` grant; no portal UI in this ticket
 - Empty `QDRANT_URL` uses in-process memory vectors; collection `vokit_knowledge`
 
 Phone numbers (platform inventory; 10-minute exclusive reservation; customer billed on assign):

@@ -6,7 +6,6 @@ from control_plane.risk.api.views import (
     AgencyCustomerAgentCollectionView,
     AgencyCustomerRiskOverrideView,
     AgencyCustomerRiskView,
-    CustomerAgentCollectionView,
     CustomerRiskView,
     CustomerVerificationView,
     PlatformRiskCaseCollectionView,
@@ -45,5 +44,4 @@ urlpatterns = [
         CustomerVerificationView.as_view(),
         name="customer-verification",
     ),
-    path("customer/agents", CustomerAgentCollectionView.as_view(), name="customer-agents"),
 ]

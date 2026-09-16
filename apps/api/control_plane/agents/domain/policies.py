@@ -296,6 +296,13 @@ def assert_status_unlocked(agent) -> None:
         )
 
 
+def assert_customer_agent_granted(agent, customer_id) -> None:
+    if getattr(agent, "customer_id", None) != customer_id:
+        raise DomainError("not_found", "Resource not found.", http_status=404)
+    if not bool(getattr(agent, "customer_can_edit", False)):
+        raise DomainError("forbidden", "Not permitted.", http_status=403)
+
+
 def parse_agent_status(value: object) -> AgentStatus:
     raw = str(value or "").strip().lower()
     try:

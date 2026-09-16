@@ -993,3 +993,125 @@ def test_knowledge_delete_requires_confirm_and_respects_customer_scope() -> None
     )
     assert denied_attach.status_code == 404
 
+
+@pytest.mark.django_db
+def test_customer_agent_monitor_number_and_pause_resume() -> None:
+    from control_plane.risk.infrastructure.container import tenant_agents
+    from control_plane.telephony.models import PhoneNumber
+    from shared_kernel.time import utc_now
+
+    ctx = _ready_agent()
+    PhoneNumber.objects.create(
+        e164="+15550002222",
+        assigned_agent_id=uuid.UUID(ctx["agent_id"]),
+        assigned_tenant_id=ctx["agency_id"],
+        assigned_customer_id=ctx["customer_id"],
+        status="assigned",
+    )
+    other = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(ctx["agency_id"], "Other monitor"),
+    )
+    assert other.status_code == 201
+    other_id = uuid.UUID(other.json()["data"]["id"])
+    other_agent = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/agents",
+        {"customer_id": str(other_id), "display_name": "Other bot"},
+    )
+    assert other_agent.status_code == 201
+    other_agent_id = other_agent.json()["data"]["id"]
+
+    listing = ctx["customer_client"].get("/api/v1/customer/agents")
+    assert listing.status_code == 200
+    rows = listing.json()["data"]
+    assert [row["id"] for row in rows] == [ctx["agent_id"]]
+    row = rows[0]
+    assert row["status"] == "draft"
+    assert row["assigned_e164"] == "+15550002222"
+    assert row["customer_can_edit"] is False
+    assert "language" in row
+    assert "inbound_enabled" in row
+    assert "outbound_enabled" in row
+    hidden = ctx["customer_client"].get(f"/api/v1/customer/agents/{other_agent_id}")
+    assert hidden.status_code == 404
+    detail = ctx["customer_client"].get(f"/api/v1/customer/agents/{ctx['agent_id']}")
+    assert detail.status_code == 200
+    assert detail.json()["data"]["assigned_e164"] == "+15550002222"
+
+    denied_pause = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}/pause",
+        {},
+    )
+    assert denied_pause.status_code == 403
+    denied_resume = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}/resume",
+        {},
+    )
+    assert denied_resume.status_code == 403
+
+    greeting_before = _publish_ready(ctx)["greeting"]
+    allow = _patch(
+        ctx["agency_client"],
+        f"/api/v1/agency/agents/{ctx['agent_id']}",
+        {"customer_can_edit": True},
+    )
+    assert allow.status_code == 200
+    paused = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}/pause",
+        {},
+    )
+    assert paused.status_code == 200
+    paused_body = paused.json()["data"]
+    assert paused_body["status"] == "paused"
+    assert paused_body["status_actor"] == "customer"
+    assert paused_body["status_locked"] is False
+    assert paused_body["production_routable"] is False
+    assert paused_body["greeting"] == greeting_before
+    resumed = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}/resume",
+        {},
+    )
+    assert resumed.status_code == 200
+    assert resumed.json()["data"]["status"] == "active"
+    assert resumed.json()["data"]["production_routable"] is True
+
+    platform_pause = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/pause",
+        {"reason": "SA pause"},
+    )
+    assert platform_pause.status_code == 200
+    locked = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}/pause",
+        {},
+    )
+    assert locked.status_code == 409
+    assert locked.json()["error"]["code"] == "agent_status_locked"
+    locked_resume = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}/resume",
+        {},
+    )
+    assert locked_resume.status_code == 409
+
+    restored = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{ctx['agent_id']}/status",
+        {"status": "active", "reason": "restore"},
+    )
+    assert restored.status_code == 200
+    tenant_agents().suspend_for_customer(ctx["agency_id"], ctx["customer_id"], utc_now())
+    frozen = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/agents/{ctx['agent_id']}/pause",
+        {},
+    )
+    assert frozen.status_code == 409
+
