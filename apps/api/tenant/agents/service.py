@@ -119,6 +119,10 @@ class TenantAgentService:
         with self._router.connection_for_tenant(tenant_id) as connection:
             return self._store.list_knowledge(connection, scope=scope)
 
+    def delete_knowledge(self, tenant_id: uuid.UUID, source_id: uuid.UUID) -> None:
+        with self._router.connection_for_tenant(tenant_id) as connection:
+            self._store.delete_knowledge(connection, source_id)
+
     def put_attachment(self, tenant_id: uuid.UUID, row: KnowledgeAttachmentRecord) -> None:
         with self._router.connection_for_tenant(tenant_id) as connection:
             self._store.put_attachment(connection, row)
@@ -134,6 +138,16 @@ class TenantAgentService:
     ) -> None:
         with self._router.connection_for_tenant(tenant_id) as connection:
             self._store.delete_attachment(connection, agent_id, source_id)
+
+    def list_attachments_for_source(
+        self, tenant_id: uuid.UUID, source_id: uuid.UUID
+    ) -> list[KnowledgeAttachmentRecord]:
+        with self._router.connection_for_tenant(tenant_id) as connection:
+            return self._store.list_attachments_for_source(connection, source_id)
+
+    def delete_attachments_for_source(self, tenant_id: uuid.UUID, source_id: uuid.UUID) -> None:
+        with self._router.connection_for_tenant(tenant_id) as connection:
+            self._store.delete_attachments_for_source(connection, source_id)
 
     def put_session(self, tenant_id: uuid.UUID, row: TestSessionRecord) -> TestSessionRecord:
         with self._router.connection_for_tenant(tenant_id) as connection:

@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from control_plane.agents.application.builder import (
+    UNSET,
     ConfigureAgentCommand,
     _load_agent,
     assert_agent_routable,
 )
 from control_plane.agents.application.diagnostics import agent_diagnostics, assigned_e164_map
-from control_plane.agents.application.knowledge import IngestKnowledgeCommand
+from control_plane.agents.application.knowledge import IngestKnowledgeCommand, source_impact
 from control_plane.agents.application.resolve import resolve_for_agent
 from control_plane.agents.application.templates import CreateTemplateCommand
 from control_plane.agents.domain.policies import parse_agent_status
@@ -20,6 +22,8 @@ from control_plane.agents.infrastructure.container import (
     clone_agent,
     configure_agent,
     create_template,
+    delete_knowledge,
+    detach_knowledge,
     global_instructions,
     global_knowledge,
     ingest_knowledge,
@@ -32,6 +36,7 @@ from control_plane.agents.infrastructure.container import (
     template_versions,
     templates,
 )
+from control_plane.customers.infrastructure.container import customer_index
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
     parse_uuid,
@@ -40,6 +45,7 @@ from control_plane.identity.api.auth import (
     require_platform_perm,
 )
 from control_plane.identity.api.views import CsrfAPIView
+from control_plane.integrations.domain.policies import merged_tool_schemas
 from control_plane.risk.application.create_agent import CreateAgentCommand
 from control_plane.risk.infrastructure.container import create_agent, tenant_agents
 from shared_kernel.errors import DomainError
@@ -80,6 +86,15 @@ def _agent_payload(row: TenantAgent) -> dict[str, object]:
         "default_transfer_id": (
             str(row.default_transfer_id) if row.default_transfer_id else None
         ),
+        "speaking_style": row.speaking_style,
+        "speaking_speed": row.speaking_speed,
+        "role": row.role,
+        "goals": row.goals,
+        "constraints": row.constraints,
+        "silence_timeout_seconds": row.silence_timeout_seconds,
+        "max_call_duration_seconds": row.max_call_duration_seconds,
+        "tool_schema_overrides": dict(row.tool_schema_overrides or {}),
+        "tool_schemas": merged_tool_schemas(row.tools, row.tool_schema_overrides),
         "production_routable": bool(
             row.status.value == "active" and row.published_version is not None
         ),
@@ -181,7 +196,50 @@ def _configure_command(
         if "outbound_voicemail_message" not in data
         else str(data.get("outbound_voicemail_message") or ""),
         default_transfer_id=_optional_uuid(data, "default_transfer_id"),
+        speaking_style=None
+        if "speaking_style" not in data
+        else str(data.get("speaking_style") or ""),
+        speaking_speed=UNSET if "speaking_speed" not in data else data.get("speaking_speed"),
+        role=None if "role" not in data else str(data.get("role") or ""),
+        goals=None if "goals" not in data else str(data.get("goals") or ""),
+        constraints=None if "constraints" not in data else str(data.get("constraints") or ""),
+        silence_timeout_seconds=UNSET
+        if "silence_timeout_seconds" not in data
+        else data.get("silence_timeout_seconds"),
+        max_call_duration_seconds=UNSET
+        if "max_call_duration_seconds" not in data
+        else data.get("max_call_duration_seconds"),
+        tool_schema_overrides=UNSET
+        if "tool_schema_overrides" not in data
+        else data.get("tool_schema_overrides"),
     )
+
+
+def _file_from_request(request: Request) -> tuple[bytes | None, str, str]:
+    upload = request.FILES.get("file") if getattr(request, "FILES", None) is not None else None
+    if upload is None:
+        return None, "", ""
+    return upload.read(), str(getattr(upload, "name", "") or ""), str(
+        getattr(upload, "content_type", "") or ""
+    )
+
+
+def _confirm_delete(request: Request) -> bool:
+    raw = request.query_params.get("confirm")
+    if raw in (None, "") and hasattr(request, "data"):
+        raw = request.data.get("confirm") if request.data is not None else None
+    return str(raw or "").strip().lower() in {"1", "true", "yes"}
+
+
+def _knowledge_list_item(row) -> dict[str, object]:
+    return {
+        "id": str(row.source_id),
+        "title": row.title,
+        "scope": row.scope,
+        "kind": row.kind,
+        "status": row.status,
+        "group_id": row.group_id,
+    }
 
 
 def _optional_uuid(data: dict, name: str):
@@ -364,6 +422,8 @@ class PlatformInstructionView(CsrfAPIView):
 
 
 class PlatformKnowledgeView(CsrfAPIView):
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
+
     def get(self, request: Request) -> Response:
         require_platform_perm(request, "agent.view")
         agency_id = parse_optional_uuid(
@@ -371,19 +431,19 @@ class PlatformKnowledgeView(CsrfAPIView):
         )
         if agency_id is not None:
             rows = [
-                {
-                    "id": str(row.source_id),
-                    "title": row.title,
-                    "scope": row.scope,
-                    "status": row.status,
-                    "group_id": row.group_id,
-                    "agency_id": str(agency_id),
-                }
+                {**_knowledge_list_item(row), "agency_id": str(agency_id)}
                 for row in tenant_agents().list_knowledge(agency_id)
             ]
             return success(rows)
         rows = [
-            {"id": str(item[0]), "title": item[1], "scope": "global"}
+            {
+                "id": str(item.source_id),
+                "title": item.title,
+                "scope": "global",
+                "kind": item.kind,
+                "status": item.status,
+                "group_id": item.group_id,
+            }
             for item in global_knowledge().list()
         ]
         return success(rows)
@@ -392,6 +452,7 @@ class PlatformKnowledgeView(CsrfAPIView):
         require_platform_perm(request, "agent.view")
         from uuid import UUID
 
+        file_bytes, filename, content_type = _file_from_request(request)
         result = ingest_knowledge().execute(
             IngestKnowledgeCommand(
                 tenant_id=UUID("00000000-0000-7000-8000-000000000009"),
@@ -400,10 +461,28 @@ class PlatformKnowledgeView(CsrfAPIView):
                 title=str(request.data.get("title") or ""),
                 body=str(request.data.get("body") or ""),
                 kind=str(request.data.get("kind") or "text"),
+                object_ref=str(request.data.get("object_ref") or ""),
                 privileged=True,
+                filename=filename,
+                content_type=content_type,
+                file_bytes=file_bytes,
             )
         )
         return success(result, status=201)
+
+
+class PlatformKnowledgeSourceView(CsrfAPIView):
+    def delete(self, request: Request, source_id: str) -> Response:
+        context = require_platform_perm(request, "agent.update")
+        result = delete_knowledge().execute(
+            source_id=parse_uuid(source_id, field="source_id"),
+            actor_tenant_id=None,
+            privileged=True,
+            confirm=_confirm_delete(request),
+            actor_id=context.user.id,
+            actor_role=context.membership.role,
+        )
+        return success(result)
 
 
 class AgencyAgentCollectionView(CsrfAPIView):
@@ -492,10 +571,17 @@ class AgencyAgentPauseView(CsrfAPIView):
 class AgencyAgentCloneView(CsrfAPIView):
     def post(self, request: Request, agent_id: str) -> Response:
         context = require_agency_perm(request, "agent.create")
+        raw_customer = request.data.get("customer_id") if request.data else None
+        customer_id = (
+            None
+            if raw_customer in (None, "")
+            else parse_uuid(raw_customer, field="customer_id")
+        )
         agent = clone_agent().execute(
             agent_id=parse_uuid(agent_id, field="agent_id"),
             actor_tenant_id=context.membership.tenant_id,
             privileged=False,
+            customer_id=customer_id,
         )
         return success(_agent_payload(agent), status=201)
 
@@ -575,6 +661,20 @@ class AgencyInstructionView(CsrfAPIView):
         context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
+        raw_customer = request.query_params.get("customer_id")
+        if raw_customer:
+            customer_id = parse_uuid(raw_customer, field="customer_id")
+            customer = customer_index().get(customer_id)
+            if customer is None or customer.tenant_id != tenant_id:
+                raise DomainError("not_found", "Resource not found.", http_status=404)
+            row = tenant_agents().get_instruction(tenant_id, "customer", customer_id)
+            return success(
+                {
+                    "scope": "customer",
+                    "owner_id": str(customer_id),
+                    "body": row.body if row else "",
+                }
+            )
         row = tenant_agents().get_instruction(tenant_id, "agency", tenant_id)
         return success({"scope": "agency", "body": row.body if row else ""})
 
@@ -582,6 +682,25 @@ class AgencyInstructionView(CsrfAPIView):
         context = require_agency_perm(request, "agent.update")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
+        raw_customer = request.data.get("customer_id")
+        if raw_customer:
+            customer_id = parse_uuid(raw_customer, field="customer_id")
+            customer = customer_index().get(customer_id)
+            if customer is None or customer.tenant_id != tenant_id:
+                raise DomainError("not_found", "Resource not found.", http_status=404)
+            return success(
+                save_instruction().execute(
+                    tenant_id=tenant_id,
+                    scope="customer",
+                    owner_id=customer_id,
+                    body=str(request.data.get("body") or ""),
+                    actor_tenant_id=tenant_id,
+                    privileged=False,
+                    actor_id=context.user.id,
+                    actor_role=context.membership.role,
+                    customer_id=customer_id,
+                )
+            )
         return success(
             save_instruction().execute(
                 tenant_id=tenant_id,
@@ -590,25 +709,20 @@ class AgencyInstructionView(CsrfAPIView):
                 body=str(request.data.get("body") or ""),
                 actor_tenant_id=tenant_id,
                 privileged=False,
+                actor_id=context.user.id,
+                actor_role=context.membership.role,
             )
         )
 
 
 class AgencyKnowledgeView(CsrfAPIView):
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
+
     def get(self, request: Request) -> Response:
         context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
-        rows = [
-            {
-                "id": str(row.source_id),
-                "title": row.title,
-                "scope": row.scope,
-                "status": row.status,
-                "group_id": row.group_id,
-            }
-            for row in tenant_agents().list_knowledge(tenant_id)
-        ]
+        rows = [_knowledge_list_item(row) for row in tenant_agents().list_knowledge(tenant_id)]
         return success(rows)
 
     def post(self, request: Request) -> Response:
@@ -616,24 +730,73 @@ class AgencyKnowledgeView(CsrfAPIView):
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         scope = str(request.data.get("scope") or "agency")
-        owner_id = parse_uuid(
-            request.data.get("owner_id") or str(tenant_id), field="owner_id"
+        owner_raw = (
+            request.data.get("owner_id") or request.data.get("customer_id") or str(tenant_id)
         )
+        file_bytes, filename, content_type = _file_from_request(request)
         result = ingest_knowledge().execute(
             IngestKnowledgeCommand(
                 tenant_id=tenant_id,
                 scope=scope,
-                owner_id=owner_id,
+                owner_id=parse_uuid(owner_raw, field="owner_id"),
                 title=str(request.data.get("title") or ""),
                 body=str(request.data.get("body") or ""),
                 kind=str(request.data.get("kind") or "text"),
+                object_ref=str(request.data.get("object_ref") or ""),
                 actor_tenant_id=tenant_id,
+                filename=filename,
+                content_type=content_type,
+                file_bytes=file_bytes,
             )
         )
         return success(result, status=201)
 
 
+class AgencyKnowledgeSourceView(CsrfAPIView):
+    def get(self, request: Request, source_id: str) -> Response:
+        context = require_agency_perm(request, "agent.view")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        return success(
+            source_impact(tenant_agents(), tenant_id, parse_uuid(source_id, field="source_id"))
+        )
+
+    def delete(self, request: Request, source_id: str) -> Response:
+        context = require_agency_perm(request, "agent.update")
+        result = delete_knowledge().execute(
+            source_id=parse_uuid(source_id, field="source_id"),
+            actor_tenant_id=context.membership.tenant_id,
+            privileged=False,
+            confirm=_confirm_delete(request),
+            actor_id=context.user.id,
+            actor_role=context.membership.role,
+        )
+        return success(result)
+
+
 class AgencyKnowledgeAttachView(CsrfAPIView):
+    def get(self, request: Request, agent_id: str) -> Response:
+        context = require_agency_perm(request, "agent.view")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        parsed = parse_uuid(agent_id, field="agent_id")
+        agent = tenant_agents().get_agent(tenant_id, parsed)
+        if agent is None:
+            raise DomainError("not_found", "Resource not found.", http_status=404)
+        rows = []
+        for row in tenant_agents().list_attachments(tenant_id, agent.agent_id):
+            source = tenant_agents().get_knowledge(tenant_id, row.source_id)
+            rows.append(
+                {
+                    "source_id": str(row.source_id),
+                    "scope": row.scope,
+                    "group_id": row.group_id,
+                    "title": source.title if source else "",
+                    "status": source.status if source else "",
+                }
+            )
+        return success(rows)
+
     def post(self, request: Request, agent_id: str) -> Response:
         context = require_agency_perm(request, "agent.update")
         attach_knowledge().execute(
@@ -644,6 +807,18 @@ class AgencyKnowledgeAttachView(CsrfAPIView):
             global_group=bool(request.data.get("global") or False),
         )
         return success({"attached": True})
+
+
+class AgencyKnowledgeDetachView(CsrfAPIView):
+    def delete(self, request: Request, agent_id: str, source_id: str) -> Response:
+        context = require_agency_perm(request, "agent.update")
+        detach_knowledge().execute(
+            agent_id=parse_uuid(agent_id, field="agent_id"),
+            source_id=parse_uuid(source_id, field="source_id"),
+            actor_tenant_id=context.membership.tenant_id,
+            privileged=False,
+        )
+        return success({"detached": True})
 
 
 class CustomerAgentDetailView(CsrfAPIView):

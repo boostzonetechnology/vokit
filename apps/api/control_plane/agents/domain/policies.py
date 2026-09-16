@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 from control_plane.agents.domain.types import (
     AGENT_TYPES,
     ALLOWED_TOOLS,
+    DEFAULT_MAX_CALL_DURATION_SECONDS,
+    DEFAULT_SILENCE_TIMEOUT_SECONDS,
     FALLBACKS,
+    MAX_CALL_DURATION_RANGE,
+    PERSONA_FIELD_MAX,
     PRODUCTION_STATUSES,
     RESTRICTIVE_STATUSES,
+    ROLE_FIELD_MAX,
+    SILENCE_TIMEOUT_RANGE,
+    SPEAKING_SPEED_RANGE,
+    SPEAKING_STYLE_MAX,
     TEST_STATUSES,
     KnowledgeScope,
+    KnowledgeStatus,
 )
 from control_plane.customers.domain.types import CustomerStatus
 from control_plane.risk.domain.types import AgentStatus
@@ -33,6 +43,9 @@ class InstructionLayers:
     template_base: str = ""
     agency: str = ""
     customer: str = ""
+    role: str = ""
+    goals: str = ""
+    constraints: str = ""
     agent: str = ""
 
 
@@ -84,9 +97,115 @@ def resolve_instructions(layers: InstructionLayers) -> str:
         parts.append(f"[AGENCY]\n{layers.agency.strip()}")
     if layers.customer.strip():
         parts.append(f"[CUSTOMER]\n{layers.customer.strip()}")
+    persona: list[str] = []
+    if layers.role.strip():
+        persona.append(f"Role: {layers.role.strip()}")
+    if layers.goals.strip():
+        persona.append(f"Goals: {layers.goals.strip()}")
+    if layers.constraints.strip():
+        persona.append(f"Constraints: {layers.constraints.strip()}")
+    if persona:
+        parts.append("[PERSONA]\n" + "\n".join(persona))
     if layers.agent.strip():
         parts.append(f"[AGENT]\n{layers.agent.strip()}")
     return "\n\n".join(parts)
+
+
+def assert_speaking_style(value: str) -> str:
+    cleaned = (value or "").strip()
+    if len(cleaned) > SPEAKING_STYLE_MAX:
+        raise DomainError("validation_error", "speaking_style is too long.")
+    assert_no_secrets(cleaned, field="speaking_style")
+    return cleaned
+
+
+def assert_speaking_speed(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        speed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise DomainError("validation_error", "speaking_speed is invalid.") from exc
+    low, high = SPEAKING_SPEED_RANGE
+    if speed < low or speed > high:
+        raise DomainError("validation_error", "speaking_speed is out of range.")
+    return speed
+
+
+def assert_persona_field(value: str, *, field: str, limit: int = PERSONA_FIELD_MAX) -> str:
+    cleaned = value or ""
+    if field == "role":
+        cleaned = cleaned.strip()
+        limit = ROLE_FIELD_MAX
+    if len(cleaned) > limit:
+        raise DomainError("validation_error", f"{field} is too long.")
+    assert_no_secrets(cleaned, field=field)
+    return cleaned
+
+
+def assert_silence_timeout(value: object) -> int:
+    return _bounded_int(
+        value,
+        field="silence_timeout_seconds",
+        default=DEFAULT_SILENCE_TIMEOUT_SECONDS,
+        bounds=SILENCE_TIMEOUT_RANGE,
+    )
+
+
+def assert_max_call_duration(value: object) -> int:
+    return _bounded_int(
+        value,
+        field="max_call_duration_seconds",
+        default=DEFAULT_MAX_CALL_DURATION_SECONDS,
+        bounds=MAX_CALL_DURATION_RANGE,
+    )
+
+
+def _bounded_int(
+    value: object, *, field: str, default: int, bounds: tuple[int, int]
+) -> int:
+    if value in (None, ""):
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise DomainError("validation_error", f"{field} is invalid.") from exc
+    low, high = bounds
+    if parsed < low or parsed > high:
+        raise DomainError("validation_error", f"{field} is out of range.")
+    return parsed
+
+
+def knowledge_checksum(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def assert_knowledge_attach_scope(*, agent, source) -> None:
+    scope = str(getattr(source, "scope", "") or "")
+    owner_id = getattr(source, "owner_id", None)
+    if scope == KnowledgeScope.CUSTOMER.value and owner_id != agent.customer_id:
+        raise DomainError("not_found", "Resource not found.", http_status=404)
+    if scope == KnowledgeScope.AGENT.value and owner_id != agent.agent_id:
+        raise DomainError("not_found", "Resource not found.", http_status=404)
+    status = str(getattr(source, "status", "") or "")
+    if status != KnowledgeStatus.READY.value:
+        raise DomainError(
+            "knowledge_not_ready",
+            "Knowledge source is not ready to attach.",
+            http_status=409,
+        )
+
+
+def knowledge_in_use(agent_ids: list[str]) -> DomainError:
+    return DomainError(
+        "knowledge_in_use",
+        "Deleting this source detaches it from attached agents. Retry with confirm=true.",
+        http_status=409,
+        details={
+            "attached_agent_ids": agent_ids,
+            "attached_count": len(agent_ids),
+        },
+    )
 
 
 def knowledge_group_id(

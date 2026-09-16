@@ -1156,6 +1156,17 @@ class MysqlRuntime:
             rows = cursor.fetchall()
         return [self._knowledge_row(mysql, row) for row in rows]
 
+    def delete_knowledge(self, connection: TenantConnection, source_id: uuid.UUID) -> None:
+        mysql = self._as_mysql(connection)
+        with mysql.raw.cursor() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM knowledge_sources
+                WHERE source_id = %s AND tenant_id = %s
+                """,
+                (str(source_id), str(mysql.tenant_id)),
+            )
+
     def _knowledge_row(self, mysql: MysqlConnection, row) -> KnowledgeSourceRecord:
         tenant_id = uuid.UUID(str(row[1]))
         if tenant_id != mysql.tenant_id:
@@ -1243,6 +1254,49 @@ class MysqlRuntime:
                 WHERE tenant_id = %s AND agent_id = %s AND source_id = %s
                 """,
                 (str(mysql.tenant_id), str(agent_id), str(source_id)),
+            )
+
+    def list_attachments_for_source(
+        self, connection: TenantConnection, source_id: uuid.UUID
+    ) -> list[KnowledgeAttachmentRecord]:
+        mysql = self._as_mysql(connection)
+        with mysql.raw.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT agent_id, source_id, tenant_id, scope, group_id
+                FROM knowledge_attachments
+                WHERE tenant_id = %s AND source_id = %s
+                """,
+                (str(mysql.tenant_id), str(source_id)),
+            )
+            rows = cursor.fetchall()
+        attachments = []
+        for row in rows:
+            tenant_id = uuid.UUID(str(row[2]))
+            if tenant_id != mysql.tenant_id:
+                raise isolation_violation()
+            attachments.append(
+                KnowledgeAttachmentRecord(
+                    agent_id=uuid.UUID(str(row[0])),
+                    source_id=uuid.UUID(str(row[1])),
+                    tenant_id=tenant_id,
+                    scope=str(row[3]),
+                    group_id=str(row[4]),
+                )
+            )
+        return attachments
+
+    def delete_attachments_for_source(
+        self, connection: TenantConnection, source_id: uuid.UUID
+    ) -> None:
+        mysql = self._as_mysql(connection)
+        with mysql.raw.cursor() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM knowledge_attachments
+                WHERE tenant_id = %s AND source_id = %s
+                """,
+                (str(mysql.tenant_id), str(source_id)),
             )
 
     def put_session(self, connection: TenantConnection, row: TestSessionRecord) -> None:

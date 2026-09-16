@@ -99,12 +99,34 @@ class GlobalInstructionRepository(Protocol):
     def save(self, body: str) -> str: ...
 
 
+@dataclass(frozen=True, slots=True)
+class GlobalKnowledgeRecord:
+    source_id: uuid.UUID
+    title: str
+    body: str
+    status: str = "queued"
+    kind: str = "text"
+    object_ref: str = ""
+    checksum: str = ""
+    group_id: str = "global"
+
+
 class GlobalKnowledgeRepository(Protocol):
-    def create(self, source_id: uuid.UUID, title: str, body: str) -> None: ...
+    def create(self, record: GlobalKnowledgeRecord) -> None: ...
 
-    def get(self, source_id: uuid.UUID) -> tuple[uuid.UUID, str, str] | None: ...
+    def save(self, record: GlobalKnowledgeRecord) -> None: ...
 
-    def list(self) -> list[tuple[uuid.UUID, str, str]]: ...
+    def get(self, source_id: uuid.UUID) -> GlobalKnowledgeRecord | None: ...
+
+    def list(self) -> list[GlobalKnowledgeRecord]: ...
+
+    def delete(self, source_id: uuid.UUID) -> None: ...
+
+
+class KnowledgeJobQueue(Protocol):
+    def enqueue_process(
+        self, *, source_id: uuid.UUID, tenant_id: uuid.UUID | None, correlation_id: str
+    ) -> None: ...
 
 
 class AgentIndexRepository(Protocol):
