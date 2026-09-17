@@ -1,35 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "@/api";
+import { apiGet, apiSend } from "@/api";
+import { mapAgentError } from "@/features/agents/lib/mapAgentError";
 import { asList } from "@/features/platform/lib/list";
 import type {
+  AgencyAgentDetail,
+  AgentKnowledgeAttachment,
+  AgentRoutingResult,
   CallRow,
   CustomerOption,
   IntegrationRow,
   PhoneNumberRow,
   PlatformAgentRow,
 } from "@/features/agents/types";
+import type { KnowledgeRecord } from "@/features/knowledge/types";
+import type { TransferDestination } from "@/features/transfers/types";
 
 export type AgencyTemplateOption = {
   id: string;
   name?: string;
   industry?: string;
   use_case?: string;
-};
-
-export type AgencyAgentDetail = PlatformAgentRow & {
-  timezone?: string;
-  voice_provider?: string;
-  voice_id?: string;
-  language?: string;
-  greeting?: string;
-  fallback_behavior?: string;
-  inbound_enabled?: boolean;
-  outbound_enabled?: boolean;
-  recording_disclosure?: boolean;
-  instructions?: string;
-  draft_version?: number | null;
-  template_id?: string | null;
 };
 
 async function safeGet<T>(path: string): Promise<T[]> {
@@ -47,6 +38,12 @@ export function useAgencyAgentsDirectory() {
   const [numbers, setNumbers] = useState<PhoneNumberRow[]>([]);
   const [calls, setCalls] = useState<CallRow[]>([]);
   const [integrations, setIntegrations] = useState<IntegrationRow[]>([]);
+  const [transfers, setTransfers] = useState<TransferDestination[]>([]);
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeRecord[]>([]);
+  const [attachedKnowledge, setAttachedKnowledge] = useState<AgentKnowledgeAttachment[]>([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false);
+  const [routing, setRouting] = useState<AgentRoutingResult | null>(null);
+  const [routingLoading, setRoutingLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<AgencyAgentDetail | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -56,24 +53,36 @@ export function useAgencyAgentsDirectory() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [agentRows, customerRows, templateRows, numberRows, callRows, integrationRows] =
-        await Promise.all([
-          safeGet<PlatformAgentRow>("/api/v1/agency/agents"),
-          safeGet<CustomerOption>("/api/v1/agency/customers"),
-          safeGet<AgencyTemplateOption>("/api/v1/agency/templates"),
-          safeGet<PhoneNumberRow>("/api/v1/agency/phone-numbers"),
-          safeGet<CallRow>("/api/v1/agency/calls"),
-          safeGet<IntegrationRow>("/api/v1/agency/integrations"),
-        ]);
+      const [
+        agentRows,
+        customerRows,
+        templateRows,
+        numberRows,
+        callRows,
+        integrationRows,
+        transferRows,
+        knowledgeRows,
+      ] = await Promise.all([
+        safeGet<PlatformAgentRow>("/api/v1/agency/agents"),
+        safeGet<CustomerOption>("/api/v1/agency/customers"),
+        safeGet<AgencyTemplateOption>("/api/v1/agency/templates"),
+        safeGet<PhoneNumberRow>("/api/v1/agency/phone-numbers"),
+        safeGet<CallRow>("/api/v1/agency/calls"),
+        safeGet<IntegrationRow>("/api/v1/agency/integrations"),
+        safeGet<TransferDestination>("/api/v1/agency/transfers"),
+        safeGet<KnowledgeRecord>("/api/v1/agency/knowledge"),
+      ]);
       setAgents(agentRows);
       setCustomers(customerRows);
       setTemplates(templateRows);
       setNumbers(numberRows);
       setCalls(callRows);
       setIntegrations(integrationRows);
+      setTransfers(transferRows);
+      setKnowledgeSources(knowledgeRows);
       setError("");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load agents.");
+      setError(mapAgentError(cause, "Failed to load agents."));
     } finally {
       setLoading(false);
     }
@@ -100,17 +109,55 @@ export function useAgencyAgentsDirectory() {
     return map;
   }, [numbers]);
 
-  const loadAgentDetail = useCallback(async (agentId: string) => {
+  const loadAgentKnowledge = useCallback(async (agentId: string) => {
+    setKnowledgeLoading(true);
     try {
-      const detail = await apiGet<AgencyAgentDetail>(`/api/v1/agency/agents/${agentId}`);
-      setSelectedDetail(detail);
-      return detail;
+      const rows = await apiGet<unknown>(`/api/v1/agency/agents/${agentId}/knowledge`).then(
+        (data) => asList<AgentKnowledgeAttachment>(data),
+      );
+      setAttachedKnowledge(rows);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Failed to load agent detail.");
-      setSelectedDetail(null);
-      return null;
+      setAttachedKnowledge([]);
+      setMessage(mapAgentError(cause, "Failed to load agent knowledge."));
+    } finally {
+      setKnowledgeLoading(false);
     }
   }, []);
+
+  const fetchRouting = useCallback(async (agentId: string) => {
+    setRoutingLoading(true);
+    try {
+      const result = await apiGet<AgentRoutingResult>(
+        `/api/v1/agency/agents/${agentId}/routing`,
+      );
+      setRouting(result);
+      return result;
+    } catch (cause) {
+      setRouting(null);
+      setMessage(mapAgentError(cause, "Failed to check routing."));
+      return null;
+    } finally {
+      setRoutingLoading(false);
+    }
+  }, []);
+
+  const loadAgentDetail = useCallback(
+    async (agentId: string) => {
+      try {
+        const detail = await apiGet<AgencyAgentDetail>(`/api/v1/agency/agents/${agentId}`);
+        setSelectedDetail(detail);
+        setRouting(null);
+        void loadAgentKnowledge(agentId);
+        return detail;
+      } catch (cause) {
+        setMessage(mapAgentError(cause, "Failed to load agent detail."));
+        setSelectedDetail(null);
+        setAttachedKnowledge([]);
+        return null;
+      }
+    },
+    [loadAgentKnowledge],
+  );
 
   async function createAgent(input: {
     customer_id: string;
@@ -129,7 +176,7 @@ export function useAgencyAgentsDirectory() {
       setMessage(input.template_id ? "Agent created from template." : "Agent draft created.");
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Create failed.");
+      setMessage(mapAgentError(cause, "Create failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -149,7 +196,7 @@ export function useAgencyAgentsDirectory() {
       setMessage("Agent configuration saved.");
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Configure failed.");
+      setMessage(mapAgentError(cause, "Configure failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -164,8 +211,9 @@ export function useAgencyAgentsDirectory() {
       setMessage("Agent published.");
       await reload();
       await loadAgentDetail(agentId);
+      await fetchRouting(agentId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Publish failed.");
+      setMessage(mapAgentError(cause, "Publish failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -181,22 +229,28 @@ export function useAgencyAgentsDirectory() {
       await reload();
       await loadAgentDetail(agentId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Pause failed.");
+      setMessage(mapAgentError(cause, "Pause failed."));
       throw cause;
     } finally {
       setBusy(false);
     }
   }
 
-  async function cloneAgent(agentId: string) {
+  async function cloneAgent(agentId: string, input?: { customer_id?: string }) {
     setBusy(true);
     setMessage("");
     try {
-      await apiSend(`/api/v1/agency/agents/${agentId}/clone`, "POST", {});
-      setMessage("Agent cloned.");
+      const body: Record<string, string> = {};
+      if (input?.customer_id) body.customer_id = input.customer_id;
+      await apiSend(`/api/v1/agency/agents/${agentId}/clone`, "POST", body);
+      setMessage(
+        input?.customer_id
+          ? "Agent cloned onto the selected customer."
+          : "Agent cloned onto the same customer.",
+      );
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Clone failed.");
+      setMessage(mapAgentError(cause, "Clone failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -213,11 +267,43 @@ export function useAgencyAgentsDirectory() {
         { kind: "test", query },
       );
       setMessage(
-        `Test session started${result.id ? `: ${String(result.id).slice(0, 8)}` : "."}`,
+        `Test session started${result.id ? `: ${String(result.id).slice(0, 8)}` : "."} (text only — not SIP).`,
       );
       return result;
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Test session failed.");
+      setMessage(mapAgentError(cause, "Test session failed."));
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function attachKnowledge(agentId: string, sourceId: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await apiSend(`/api/v1/agency/agents/${agentId}/knowledge`, "POST", {
+        source_id: sourceId,
+      });
+      setMessage("Knowledge source attached.");
+      await loadAgentKnowledge(agentId);
+    } catch (cause) {
+      setMessage(mapAgentError(cause, "Attach failed."));
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function detachKnowledge(agentId: string, sourceId: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await apiSend(`/api/v1/agency/agents/${agentId}/knowledge/${sourceId}`, "DELETE", {});
+      setMessage("Knowledge source detached.");
+      await loadAgentKnowledge(agentId);
+    } catch (cause) {
+      setMessage(mapAgentError(cause, "Detach failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -230,6 +316,12 @@ export function useAgencyAgentsDirectory() {
     templates,
     calls,
     integrations,
+    transfers,
+    knowledgeSources,
+    attachedKnowledge,
+    knowledgeLoading,
+    routing,
+    routingLoading,
     selectedDetail,
     customerName,
     numberByAgent,
@@ -239,11 +331,15 @@ export function useAgencyAgentsDirectory() {
     busy,
     reload,
     loadAgentDetail,
+    loadAgentKnowledge,
+    fetchRouting,
     createAgent,
     configureAgent,
     publishAgent,
     pauseAgent,
     cloneAgent,
     startTestSession,
+    attachKnowledge,
+    detachKnowledge,
   };
 }

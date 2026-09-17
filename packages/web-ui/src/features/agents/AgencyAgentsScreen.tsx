@@ -6,7 +6,9 @@ import { FormSelect } from "@/components/forms/FormSelect";
 import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { ListRowsSkeleton } from "@/components/ui/ListRowSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
-import { VoicePickerFields } from "@/features/agents/components/VoicePickerFields";
+import { AgentConfigureForm } from "@/features/agents/components/AgentConfigureForm";
+import { AgentKnowledgePanel } from "@/features/agents/components/AgentKnowledgePanel";
+import { AgentPublishPanel } from "@/features/agents/components/AgentPublishPanel";
 import { useAgencyAgentsDirectory } from "./hooks/useAgencyAgentsDirectory";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 
@@ -26,6 +28,12 @@ export function AgencyAgentsScreen() {
     customers,
     templates,
     calls,
+    transfers,
+    knowledgeSources,
+    attachedKnowledge,
+    knowledgeLoading,
+    routing,
+    routingLoading,
     selectedDetail,
     customerName,
     numberByAgent,
@@ -34,12 +42,16 @@ export function AgencyAgentsScreen() {
     loading,
     busy,
     loadAgentDetail,
+    loadAgentKnowledge,
+    fetchRouting,
     createAgent,
     configureAgent,
     publishAgent,
     pauseAgent,
     cloneAgent,
     startTestSession,
+    attachKnowledge,
+    detachKnowledge,
   } = useAgencyAgentsDirectory();
 
   const [query, setQuery] = useState("");
@@ -49,19 +61,13 @@ export function AgencyAgentsScreen() {
   const [tab, setTab] = useState<Tab>("configure");
   const [showCreate, setShowCreate] = useState(false);
   const [createMode, setCreateMode] = useState<"scratch" | "template">("scratch");
-  const [voiceId, setVoiceId] = useState("");
-  const [language, setLanguage] = useState("");
+  const [cloneCustomerId, setCloneCustomerId] = useState("");
 
   useEffect(() => {
     if (!selectedId) return;
     void loadAgentDetail(selectedId);
+    setCloneCustomerId("");
   }, [selectedId, loadAgentDetail]);
-
-  useEffect(() => {
-    if (!selectedDetail) return;
-    setVoiceId(selectedDetail.voice_id || "");
-    setLanguage(selectedDetail.language || "");
-  }, [selectedDetail?.id, selectedDetail?.voice_id, selectedDetail?.language]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -94,6 +100,9 @@ export function AgencyAgentsScreen() {
     return calls.filter((row) => row.agent_id === selectedId).slice(0, 8);
   }, [calls, selectedId]);
 
+  const detail = selectedDetail;
+  const agencyLocked = Boolean(detail?.status_locked);
+
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -111,28 +120,6 @@ export function AgencyAgentsScreen() {
     }
   }
 
-  async function onConfigure(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedId) return;
-    const form = new FormData(event.currentTarget);
-    try {
-      await configureAgent(selectedId, {
-        display_name: String(form.get("display_name") || ""),
-        language,
-        voice_id: voiceId,
-        timezone: String(form.get("timezone") || ""),
-        greeting: String(form.get("greeting") || ""),
-        instructions: String(form.get("instructions") || ""),
-        fallback_behavior: String(form.get("fallback_behavior") || "message"),
-        inbound_enabled: form.get("inbound_enabled") === "on",
-        outbound_enabled: form.get("outbound_enabled") === "on",
-        recording_disclosure: form.get("recording_disclosure") === "on",
-      });
-    } catch {
-      /* hook message */
-    }
-  }
-
   async function onTest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedId) return;
@@ -145,8 +132,6 @@ export function AgencyAgentsScreen() {
     }
   }
 
-  const detail = selectedDetail;
-
   return (
     <section className="mx-auto max-w-[1200px]">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -155,10 +140,10 @@ export function AgencyAgentsScreen() {
             Agents
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            Create, configure, test, publish · AG3
+            Create, configure, test, publish · AG3-001–005
           </p>
         </div>
-        <ActionButton variant="outline" onClick={() => setShowCreate((v) => !v)}>
+        <ActionButton variant="outline" onClick={() => setShowCreate((value) => !value)}>
           {showCreate ? "Close form" : "Create agent"}
         </ActionButton>
       </div>
@@ -365,95 +350,38 @@ export function AgencyAgentsScreen() {
               </div>
 
               {tab === "configure" ? (
-                <form className="grid min-w-0 gap-3" onSubmit={(event) => void onConfigure(event)}>
-                  <FormField
-                    label="Display name"
-                    name="display_name"
-                    defaultValue={detail.display_name || ""}
-                  />
-                  <FormField
-                    label="Timezone"
-                    name="timezone"
-                    defaultValue={detail.timezone || ""}
-                  />
-                  <VoicePickerFields
+                <div className="grid gap-4">
+                  <AgentConfigureForm
                     portal="agency"
-                    voiceId={voiceId}
-                    language={language}
-                    onVoiceIdChange={setVoiceId}
-                    onLanguageChange={setLanguage}
-                    disabled={busy}
+                    detail={detail}
+                    busy={busy}
+                    disabled={agencyLocked}
+                    transfers={transfers}
+                    onSubmit={async (patch) => {
+                      await configureAgent(selectedId, patch);
+                    }}
                   />
-                  <FormField
-                    label="Greeting"
-                    name="greeting"
-                    defaultValue={detail.greeting || ""}
+                  <AgentKnowledgePanel
+                    agentId={selectedId}
+                    customerId={detail.customer_id}
+                    busy={busy}
+                    disabled={agencyLocked}
+                    attached={attachedKnowledge}
+                    available={knowledgeSources}
+                    loading={knowledgeLoading}
+                    onReload={() => void loadAgentKnowledge(selectedId)}
+                    onAttach={async (sourceId) => {
+                      await attachKnowledge(selectedId, sourceId);
+                    }}
+                    onDetach={async (sourceId) => {
+                      await detachKnowledge(selectedId, sourceId);
+                    }}
                   />
-                  <label className="m-0 grid gap-1.5 font-normal">
-                    <span className="text-body-sm text-text-muted">Instructions</span>
-                    <textarea
-                      name="instructions"
-                      rows={4}
-                      defaultValue={detail.instructions || ""}
-                      className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-                    />
-                  </label>
-                  <label className="m-0 grid gap-1.5 font-normal">
-                    <span className="text-body-sm text-text-muted">Fallback behavior</span>
-                    <select
-                      name="fallback_behavior"
-                      key={`fallback-${detail.id}-${detail.fallback_behavior || "message"}`}
-                      defaultValue={
-                        detail.fallback_behavior === "message" ||
-                        detail.fallback_behavior === "transfer" ||
-                        detail.fallback_behavior === "hangup"
-                          ? detail.fallback_behavior
-                          : "message"
-                      }
-                      className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-                      required
-                    >
-                      <option value="message">message — play a message / stay on line</option>
-                      <option value="transfer">transfer — hand off if transfer rules exist</option>
-                      <option value="hangup">hangup — end the call</option>
-                    </select>
-                  </label>
-                  <div className="flex flex-wrap gap-4">
-                    <label className="m-0 flex items-center gap-2 font-normal text-body">
-                      <input
-                        type="checkbox"
-                        name="inbound_enabled"
-                        defaultChecked={Boolean(detail.inbound_enabled)}
-                      />
-                      Inbound enabled
-                    </label>
-                    <label className="m-0 flex items-center gap-2 font-normal text-body">
-                      <input
-                        type="checkbox"
-                        name="outbound_enabled"
-                        defaultChecked={Boolean(detail.outbound_enabled)}
-                      />
-                      Outbound enabled
-                    </label>
-                    <label className="m-0 flex items-center gap-2 font-normal text-body">
-                      <input
-                        type="checkbox"
-                        name="recording_disclosure"
-                        defaultChecked={Boolean(detail.recording_disclosure)}
-                      />
-                      Recording disclosure
-                    </label>
-                  </div>
-                  <ActionButton type="submit" disabled={busy}>
-                    Save configuration
-                  </ActionButton>
                   <ApiNote>
-                    Knowledge attach, transfer destination, and number assignment live on their
-                    own modules (/knowledge, /transfers, /numbers). This form covers voice,
-                    language, instructions, hours-related flags, and behavior fields exposed by
-                    PATCH /agency/agents/{"{id}"}.
+                    Number assignment lives on Numbers. Transfer destinations are created under
+                    Transfers, then linked here as default transfer.
                   </ApiNote>
-                </form>
+                </div>
               ) : null}
 
               {tab === "test" ? (
@@ -469,6 +397,10 @@ export function AgencyAgentsScreen() {
                       Start test session
                     </ActionButton>
                   </form>
+                  <ApiNote>
+                    Test sessions are text-only. They do not place a SIP call and report
+                    production_routable=false by design.
+                  </ApiNote>
                   <div>
                     <h3 className="m-0 mb-2 text-body font-semibold text-text-primary">
                       Recent calls for agent
@@ -497,35 +429,24 @@ export function AgencyAgentsScreen() {
               ) : null}
 
               {tab === "lifecycle" ? (
-                <div className="grid gap-3">
-                  <p className="m-0 text-body text-text-secondary">
-                    Publish/pause are subject to customer plan, balance, and status on the server
-                    (AG3-004).
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <ActionButton disabled={busy} onClick={() => void publishAgent(selectedId)}>
-                      Publish / activate
-                    </ActionButton>
-                    <ActionButton
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => void pauseAgent(selectedId)}
-                    >
-                      Pause / deactivate
-                    </ActionButton>
-                    <ActionButton
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => void cloneAgent(selectedId)}
-                    >
-                      Clone
-                    </ActionButton>
-                  </div>
-                  <ApiNote>
-                    Clone stays within the same agency/customer boundary enforced by the API
-                    (AG3-005 Should).
-                  </ApiNote>
-                </div>
+                <AgentPublishPanel
+                  detail={detail}
+                  busy={busy}
+                  routing={routing}
+                  routingLoading={routingLoading}
+                  customers={customers}
+                  cloneCustomerId={cloneCustomerId}
+                  onCloneCustomerChange={setCloneCustomerId}
+                  onRefreshRouting={() => void fetchRouting(selectedId)}
+                  onPublish={() => void publishAgent(selectedId)}
+                  onPause={() => void pauseAgent(selectedId)}
+                  onClone={() =>
+                    void cloneAgent(
+                      selectedId,
+                      cloneCustomerId ? { customer_id: cloneCustomerId } : undefined,
+                    )
+                  }
+                />
               ) : null}
             </div>
           )}

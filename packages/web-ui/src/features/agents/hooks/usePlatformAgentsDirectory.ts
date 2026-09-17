@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "@/api";
+import { apiGet, apiSend } from "@/api";
+import { mapAgentError } from "@/features/agents/lib/mapAgentError";
 import { safeGetList } from "@/features/platform/lib/list";
 import type {
   AgencyOption,
@@ -10,12 +11,14 @@ import type {
   PlatformAgentDiagnostics,
   PlatformAgentRow,
 } from "@/features/agents/types";
+import type { TransferDestination } from "@/features/transfers/types";
 
 export function usePlatformAgentsDirectory() {
   const [agents, setAgents] = useState<PlatformAgentRow[]>([]);
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [numbers, setNumbers] = useState<PhoneNumberRow[]>([]);
+  const [transfers, setTransfers] = useState<TransferDestination[]>([]);
   const [selectedDetail, setSelectedDetail] = useState<PlatformAgentDetail | null>(null);
   const [diagnostics, setDiagnostics] = useState<PlatformAgentDiagnostics | null>(null);
   const [error, setError] = useState("");
@@ -28,7 +31,7 @@ export function usePlatformAgentsDirectory() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [agentRows, agencyRows, customerRows, numberRows] = await Promise.all([
+      const [agentRows, agencyRows, customerRows, numberRows, transferRows] = await Promise.all([
         safeGetList<PlatformAgentRow>("/api/v1/platform/agents", apiGet, [
           "results",
           "items",
@@ -37,14 +40,16 @@ export function usePlatformAgentsDirectory() {
         safeGetList<AgencyOption>("/api/v1/platform/agencies", apiGet),
         safeGetList<CustomerOption>("/api/v1/platform/customers", apiGet),
         safeGetList<PhoneNumberRow>("/api/v1/platform/phone-numbers", apiGet),
+        safeGetList<TransferDestination>("/api/v1/platform/transfers", apiGet),
       ]);
       setAgents(agentRows);
       setAgencies(agencyRows);
       setCustomers(customerRows);
       setNumbers(numberRows);
+      setTransfers(transferRows);
       setError("");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load agents.");
+      setError(mapAgentError(cause, "Failed to load agents."));
     } finally {
       setLoading(false);
     }
@@ -92,7 +97,7 @@ export function usePlatformAgentsDirectory() {
       setSelectedDetail(detail);
       return detail;
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Failed to load agent detail.");
+      setMessage(mapAgentError(cause, "Failed to load agent detail."));
       setSelectedDetail(null);
       return null;
     } finally {
@@ -110,7 +115,7 @@ export function usePlatformAgentsDirectory() {
       return data;
     } catch (cause) {
       setDiagnostics(null);
-      setMessage(isApiError(cause) ? cause.message : "Failed to load diagnostics.");
+      setMessage(mapAgentError(cause, "Failed to load diagnostics."));
       return null;
     } finally {
       setDiagnosticsLoading(false);
@@ -130,7 +135,7 @@ export function usePlatformAgentsDirectory() {
       setMessage("Agent draft created.");
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Create failed.");
+      setMessage(mapAgentError(cause, "Create failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -150,7 +155,7 @@ export function usePlatformAgentsDirectory() {
       setMessage("Agent configuration saved.");
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Configure failed.");
+      setMessage(mapAgentError(cause, "Configure failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -166,7 +171,7 @@ export function usePlatformAgentsDirectory() {
       await reload();
       await loadAgentDetail(agentId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Publish failed.");
+      setMessage(mapAgentError(cause, "Publish failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -182,7 +187,7 @@ export function usePlatformAgentsDirectory() {
       await reload();
       await loadAgentDetail(agentId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Pause failed.");
+      setMessage(mapAgentError(cause, "Pause failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -198,7 +203,7 @@ export function usePlatformAgentsDirectory() {
       await reload();
       await loadAgentDetail(agentId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Archive failed.");
+      setMessage(mapAgentError(cause, "Archive failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -214,7 +219,7 @@ export function usePlatformAgentsDirectory() {
       await reload();
       await loadAgentDetail(agentId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Disable failed.");
+      setMessage(mapAgentError(cause, "Disable failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -230,7 +235,7 @@ export function usePlatformAgentsDirectory() {
       await reload();
       await loadAgentDetail(agentId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Restore failed.");
+      setMessage(mapAgentError(cause, "Restore failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -250,7 +255,7 @@ export function usePlatformAgentsDirectory() {
       setMessage("Agent cloned as a new draft.");
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Clone failed.");
+      setMessage(mapAgentError(cause, "Clone failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -261,6 +266,7 @@ export function usePlatformAgentsDirectory() {
     agents,
     agencies,
     customers,
+    transfers,
     selectedDetail,
     diagnostics,
     agencyName,

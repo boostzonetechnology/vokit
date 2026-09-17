@@ -1,13 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { FormField } from "@/components/forms/FormField";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
-import { VoicePickerFields } from "@/features/agents/components/VoicePickerFields";
+import { AgentConfigureForm } from "@/features/agents/components/AgentConfigureForm";
 import { usePlatformAgentsDirectory } from "./hooks/usePlatformAgentsDirectory";
 import type { PlatformAgentDetail, PlatformAgentDiagnostics } from "./types";
+import type { TransferDestination } from "@/features/transfers/types";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 
 function statusTone(status?: string): BadgeTone {
@@ -24,6 +24,7 @@ export function PlatformAgentsScreen() {
   const {
     agents,
     customers,
+    transfers,
     selectedDetail,
     diagnostics,
     agencyName,
@@ -54,8 +55,6 @@ export function PlatformAgentsScreen() {
   const [selectedId, setSelectedId] = useState("");
   const [tab, setTab] = useState<Tab>("manage");
   const [showCreate, setShowCreate] = useState(false);
-  const [voiceId, setVoiceId] = useState("");
-  const [language, setLanguage] = useState("");
   const [actionReason, setActionReason] = useState("");
   const [cloneCustomerId, setCloneCustomerId] = useState("");
   const [cloneName, setCloneName] = useState("");
@@ -112,12 +111,10 @@ export function PlatformAgentsScreen() {
 
   useEffect(() => {
     if (!detail) return;
-    setVoiceId(detail.voice_id || "");
-    setLanguage(detail.language || "");
     setCloneCustomerId(detail.customer_id || "");
     setCloneName(`${detail.display_name || "Agent"} (clone)`);
     setActionReason("");
-  }, [detail?.id, detail?.voice_id, detail?.language, detail?.customer_id, detail?.display_name]);
+  }, [detail?.id, detail?.customer_id, detail?.display_name]);
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -129,28 +126,6 @@ export function PlatformAgentsScreen() {
       });
       setShowCreate(false);
       event.currentTarget.reset();
-    } catch {
-      /* message set in hook */
-    }
-  }
-
-  async function onConfigure(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedId || !detail) return;
-    const form = new FormData(event.currentTarget);
-    try {
-      await configureAgent(selectedId, {
-        display_name: String(form.get("display_name") || ""),
-        timezone: String(form.get("timezone") || ""),
-        voice_id: voiceId,
-        language,
-        greeting: String(form.get("greeting") || ""),
-        instructions: String(form.get("instructions") || ""),
-        fallback_behavior: String(form.get("fallback_behavior") || "message"),
-        inbound_enabled: form.get("inbound_enabled") === "on",
-        outbound_enabled: form.get("outbound_enabled") === "on",
-        recording_disclosure: form.get("recording_disclosure") === "on",
-      });
     } catch {
       /* message set in hook */
     }
@@ -405,19 +380,18 @@ export function PlatformAgentsScreen() {
             <ManageTab
               detail={detail}
               busy={busy}
-              voiceId={voiceId}
-              language={language}
+              transfers={transfers}
               actionReason={actionReason}
               cloneCustomerId={cloneCustomerId}
               cloneName={cloneName}
               customers={customers}
               agencyName={agencyName}
-              onVoiceIdChange={setVoiceId}
-              onLanguageChange={setLanguage}
               onActionReasonChange={setActionReason}
               onCloneCustomerChange={setCloneCustomerId}
               onCloneNameChange={setCloneName}
-              onConfigure={(event) => void onConfigure(event)}
+              onConfigure={async (patch) => {
+                await configureAgent(selectedId, patch);
+              }}
               onPublish={() => void publishAgent(selectedId)}
               onPause={() => {
                 const reason = requireReason();
@@ -470,15 +444,12 @@ export function PlatformAgentsScreen() {
 function ManageTab({
   detail,
   busy,
-  voiceId,
-  language,
+  transfers,
   actionReason,
   cloneCustomerId,
   cloneName,
   customers,
   agencyName,
-  onVoiceIdChange,
-  onLanguageChange,
   onActionReasonChange,
   onCloneCustomerChange,
   onCloneNameChange,
@@ -491,19 +462,16 @@ function ManageTab({
 }: {
   detail: PlatformAgentDetail;
   busy: boolean;
-  voiceId: string;
-  language: string;
+  transfers: TransferDestination[];
   actionReason: string;
   cloneCustomerId: string;
   cloneName: string;
   customers: Array<{ id: string; display_name?: string; agency_id?: string }>;
   agencyName: (id?: string) => string;
-  onVoiceIdChange: (value: string) => void;
-  onLanguageChange: (value: string) => void;
   onActionReasonChange: (value: string) => void;
   onCloneCustomerChange: (value: string) => void;
   onCloneNameChange: (value: string) => void;
-  onConfigure: (event: FormEvent<HTMLFormElement>) => void;
+  onConfigure: (patch: Record<string, unknown>) => Promise<void>;
   onPublish: () => void;
   onPause: () => void;
   onArchive: () => void;
@@ -530,101 +498,22 @@ function ManageTab({
         <InfoTile label="Assigned number" value={detail.assigned_e164 || "—"} />
       </div>
 
-      <form className="grid min-w-0 gap-3" onSubmit={onConfigure}>
+      <div className="grid min-w-0 gap-3">
         <h3 className="m-0 text-section text-text-primary">Configure</h3>
-        <FormField
-          label="Display name"
-          name="display_name"
-          defaultValue={detail.display_name || ""}
-          key={`name-${detail.id}-${detail.display_name || ""}`}
-        />
-        <FormField
-          label="Timezone"
-          name="timezone"
-          defaultValue={detail.timezone || ""}
-          key={`tz-${detail.id}-${detail.timezone || ""}`}
-        />
-        <VoicePickerFields
+        <AgentConfigureForm
           portal="platform"
-          voiceId={voiceId}
-          language={language}
-          onVoiceIdChange={onVoiceIdChange}
-          onLanguageChange={onLanguageChange}
-          disabled={busy || archived}
+          detail={detail}
+          busy={busy}
+          disabled={archived}
+          transfers={transfers}
+          onSubmit={onConfigure}
         />
-        <FormField
-          label="Greeting"
-          name="greeting"
-          defaultValue={detail.greeting || ""}
-          key={`greeting-${detail.id}-${detail.greeting || ""}`}
-        />
-        <label className="m-0 grid gap-1.5 font-normal">
-          <span className="text-body-sm text-text-muted">Instructions</span>
-          <textarea
-            name="instructions"
-            rows={4}
-            defaultValue={detail.instructions || ""}
-            key={`instructions-${detail.id}`}
-            className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-          />
-        </label>
-        <label className="m-0 grid gap-1.5 font-normal">
-          <span className="text-body-sm text-text-muted">Fallback behavior</span>
-          <select
-            name="fallback_behavior"
-            key={`fallback-${detail.id}-${detail.fallback_behavior || "message"}`}
-            defaultValue={
-              detail.fallback_behavior === "message" ||
-              detail.fallback_behavior === "transfer" ||
-              detail.fallback_behavior === "hangup"
-                ? detail.fallback_behavior
-                : "message"
-            }
-            className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-            required
-          >
-            <option value="message">message — play a message / stay on line</option>
-            <option value="transfer">transfer — hand off if transfer rules exist</option>
-            <option value="hangup">hangup — end the call</option>
-          </select>
-        </label>
-        <div className="flex flex-wrap gap-4">
-          <label className="m-0 flex items-center gap-2 font-normal text-body">
-            <input
-              type="checkbox"
-              name="inbound_enabled"
-              defaultChecked={Boolean(detail.inbound_enabled)}
-              key={`in-${detail.id}-${detail.inbound_enabled}`}
-            />
-            Inbound enabled
-          </label>
-          <label className="m-0 flex items-center gap-2 font-normal text-body">
-            <input
-              type="checkbox"
-              name="outbound_enabled"
-              defaultChecked={Boolean(detail.outbound_enabled)}
-              key={`out-${detail.id}-${detail.outbound_enabled}`}
-            />
-            Outbound enabled
-          </label>
-          <label className="m-0 flex items-center gap-2 font-normal text-body">
-            <input
-              type="checkbox"
-              name="recording_disclosure"
-              defaultChecked={Boolean(detail.recording_disclosure)}
-              key={`rec-${detail.id}-${detail.recording_disclosure}`}
-            />
-            Recording disclosure
-          </label>
-        </div>
-        <ActionButton type="submit" disabled={busy || archived}>
-          Save configuration
-        </ActionButton>
         <ApiNote>
-          Knowledge attach and number assignment stay on their modules. Platform configure uses
-          PATCH /platform/agents/{"{id}"}. Archived agents must be restored before editing.
+          Platform configure uses the same builder fields as Agency (including business hours).
+          Knowledge attach stays on the Knowledge module for agencies. Archived agents must be
+          restored before editing.
         </ApiNote>
-      </form>
+      </div>
 
       <div className="grid gap-3">
         <h3 className="m-0 text-section text-text-primary">Lifecycle</h3>
