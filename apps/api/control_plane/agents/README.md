@@ -12,4 +12,10 @@ Prompts that look like credentials return `422 secret_in_prompt`.
 
 Knowledge is ingested by Django. Sources start `queued`, move to `processing`, and become `ready` only after the vector upsert (Qdrant when `QDRANT_URL` is set, otherwise the in-process store). Failed upserts leave the source `failed`, never `ready`. File uploads (`md`, `txt`, `pdf`, `docx`, `html`, `csv`, `json`) are extracted server-side. URL ingest still requires extracted text; Django does not fetch remote URLs (SSRF). Payload `group_id` is sealed as `global`, `agency:{tenant_id}`, `customer:{customer_id}`, or `agent:{agent_id}`. Detach removes an agent link only. Deleting a source requires `confirm=true` when agents are attached (KB-004). Super Admin directory uses the control-plane `AgentIndex` and does not traverse tenant databases.
 
+Customer agent monitoring (CU2-001..003) is backend-only: `GET /customer/agents` and
+`GET /customer/agents/{id}` return session-customer agents with status, assigned E.164, and
+high-level config. Writes (`PATCH` greeting/instructions, `POST .../pause`, `POST .../resume`)
+require per-agent `customer_can_edit` (default false). Pause/resume do not change agency or
+platform lifecycle. Customer portal screens are out of scope.
+
 Call Handling interruption/barge-in is implemented in Pipecat, not as an agent-builder field.

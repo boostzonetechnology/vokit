@@ -346,7 +346,12 @@ class PauseAgent:
         self._clock = clock
 
     def execute(
-        self, *, agent_id: uuid.UUID, actor_tenant_id: uuid.UUID | None, privileged: bool
+        self,
+        *,
+        agent_id: uuid.UUID,
+        actor_tenant_id: uuid.UUID | None,
+        privileged: bool,
+        status_actor: str | None = None,
     ) -> TenantAgent:
         agent = _load_agent(self._agents, agent_id, actor_tenant_id, privileged)
         if not privileged:
@@ -369,13 +374,14 @@ class PauseAgent:
                 "Archived agents cannot be paused.",
                 http_status=409,
             )
+        actor = status_actor or ("platform" if privileged else "agency")
         stored = self._agents.put_agent(
             agent.tenant_id,
             replace(
                 agent,
                 status=AgentStatus.PAUSED,
                 status_locked=False if not privileged else True,
-                status_actor="platform" if privileged else "agency",
+                status_actor=actor,
                 updated_at=self._clock.now(),
             ),
         )
@@ -392,6 +398,75 @@ class PauseAgent:
             outcome="success",
             tenant_id=str(agent.tenant_id),
             agent_id=str(agent.agent_id),
+        )
+        return stored
+
+
+class ResumeAgent:
+    def __init__(
+        self, agents: TenantAgentService, index: AgentIndexRepository, clock: Clock
+    ) -> None:
+        self._agents = agents
+        self._index = index
+        self._clock = clock
+
+    def execute(
+        self,
+        *,
+        agent_id: uuid.UUID,
+        actor_tenant_id: uuid.UUID | None,
+        privileged: bool,
+        status_actor: str | None = None,
+    ) -> TenantAgent:
+        agent = _load_agent(self._agents, agent_id, actor_tenant_id, privileged)
+        if not privileged:
+            assert_status_unlocked(agent)
+        if agent.status is AgentStatus.SUSPENDED:
+            raise DomainError(
+                "agent_suspended",
+                "Suspended agents cannot be resumed.",
+                http_status=409,
+            )
+        if agent.status is AgentStatus.ARCHIVED:
+            raise DomainError(
+                "agent_archived",
+                "Archived agents cannot be resumed.",
+                http_status=409,
+            )
+        if agent.status is not AgentStatus.PAUSED:
+            raise DomainError(
+                "invalid_transition",
+                "Agent cannot be resumed from the current status.",
+                http_status=409,
+            )
+        target = (
+            AgentStatus.ACTIVE if agent.published_version is not None else AgentStatus.TESTING
+        )
+        actor = status_actor or ("platform" if privileged else "agency")
+        stored = self._agents.put_agent(
+            agent.tenant_id,
+            replace(
+                agent,
+                status=target,
+                status_locked=False,
+                status_actor=actor,
+                updated_at=self._clock.now(),
+            ),
+        )
+        sync_agent_index(self._index, stored)
+        _record_agent_audit(
+            action="agent.resumed",
+            agent=stored,
+            before=agent.status.value,
+            after=stored.status.value,
+        )
+        log_event(
+            logger,
+            "agent.resumed",
+            outcome="success",
+            tenant_id=str(agent.tenant_id),
+            agent_id=str(agent.agent_id),
+            status=target.value,
         )
         return stored
 

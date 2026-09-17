@@ -234,20 +234,3 @@ class CustomerVerificationView(CsrfAPIView):
             },
             status=201,
         )
-
-
-class CustomerAgentCollectionView(CsrfAPIView):
-    def get(self, request: Request) -> Response:
-        context = require_customer_perm(request, "agent.view")
-        membership = context.membership
-        assert membership.tenant_id is not None and membership.customer_id is not None
-        limit, offset = parse_page(
-            request.query_params.get("limit"),
-            request.query_params.get("offset"),
-        )
-        rows, page = page_slice(
-            tenant_agents().list_agents(membership.tenant_id, membership.customer_id),
-            offset,
-            limit,
-        )
-        return success([_agent_payload(row) for row in rows], page=page)

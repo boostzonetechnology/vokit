@@ -136,9 +136,12 @@ Call Handling (VKT-068 / §12.2) inbound/outbound, business hours, voicemail/fal
 | Method | Resource | SRS |
 |---|---|---|
 | GET | `/customer/dashboard` | CU1-* — session customer only |
-| GET | `/customer/agents` | CU2-* — session customer only |
+| GET | `/customer/agents` | CU2-* — session customer; status, `assigned_e164`, high-level config |
+| GET | `/customer/agents/{id}` | CU2-* — same payload; 404 if not this customer |
 | GET | `/customer/tts/voices` | SA19-003 — active platform TTS voices |
-| PATCH | `/customer/agents/{id}` | Only if agency granted |
+| PATCH | `/customer/agents/{id}` | greeting/instructions only if `customer_can_edit` |
+| POST | `/customer/agents/{id}/pause` | CU2-003 — if `customer_can_edit`; unlocked active/testing |
+| POST | `/customer/agents/{id}/resume` | CU2-003 — if `customer_can_edit`; paused → active or testing |
 | GET | `/customer/calls` | CU3-* |
 | POST | `/customer/calls/{id}/artifacts/{artifact_id}/access` | CALL-003, ADR-002 |
 | GET | `/customer/usage` | CU4-* |
@@ -149,6 +152,16 @@ Call Handling (VKT-068 / §12.2) inbound/outbound, business hours, voicemail/fal
 | GET/POST | `/customer/team` | CU8-* |
 | GET | `/customer/notifications` | CU1-002 / NOT-001 |
 | GET/PUT | `/customer/notification-preferences` | CU8-002 — mandatory events locked |
+
+Customer → Agents is **API only** in VKT-104 (no portal change). Frontend / Customer portal screens are out of scope (VKT-102 / VKT-136).
+
+```text
+GET  /customer/agents              session customer; status, assigned_e164, high-level config
+GET  /customer/agents/{id}         same payload; 404 if not this customer
+PATCH /customer/agents/{id}        greeting/instructions only if customer_can_edit
+POST  /customer/agents/{id}/pause  if customer_can_edit; unlocked active/testing only
+POST  /customer/agents/{id}/resume if customer_can_edit; paused -> active or testing
+```
 
 ## 4. Internal telephony contract (frozen unless ADR)
 

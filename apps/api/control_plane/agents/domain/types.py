@@ -49,7 +49,7 @@ ROLE_FIELD_MAX = 128
 SPEAKING_STYLE_MAX = 64
 PRODUCTION_STATUSES = frozenset({AgentStatus.ACTIVE})
 TEST_STATUSES = frozenset({AgentStatus.DRAFT, AgentStatus.TESTING, AgentStatus.ACTIVE})
-STATUS_ACTORS = frozenset({"agency", "platform", "system"})
+STATUS_ACTORS = frozenset({"agency", "platform", "system", "customer"})
 RESTRICTIVE_STATUSES = frozenset(
     {AgentStatus.PAUSED, AgentStatus.SUSPENDED, AgentStatus.ARCHIVED, AgentStatus.ERROR}
 )

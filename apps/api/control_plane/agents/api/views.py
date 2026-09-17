@@ -14,7 +14,7 @@ from control_plane.agents.application.diagnostics import agent_diagnostics, assi
 from control_plane.agents.application.knowledge import IngestKnowledgeCommand, source_impact
 from control_plane.agents.application.resolve import resolve_for_agent
 from control_plane.agents.application.templates import CreateTemplateCommand
-from control_plane.agents.domain.policies import parse_agent_status
+from control_plane.agents.domain.policies import assert_customer_agent_granted, parse_agent_status
 from control_plane.agents.domain.types import TemplateStatus, TemplateVisibility
 from control_plane.agents.infrastructure.container import (
     agent_index,
@@ -30,6 +30,7 @@ from control_plane.agents.infrastructure.container import (
     install_template,
     pause_agent,
     publish_agent,
+    resume_agent,
     save_instruction,
     set_agent_status,
     start_test_session,
@@ -99,6 +100,12 @@ def _agent_payload(row: TenantAgent) -> dict[str, object]:
             row.status.value == "active" and row.published_version is not None
         ),
     }
+
+
+def _customer_agent_payload(row: TenantAgent, *, assigned_e164: str | None = None) -> dict:
+    payload = _agent_payload(row)
+    payload["assigned_e164"] = assigned_e164
+    return payload
 
 
 def _index_payload(row, *, assigned_e164: str | None = None) -> dict[str, object]:
@@ -821,29 +828,41 @@ class AgencyKnowledgeDetachView(CsrfAPIView):
         return success({"detached": True})
 
 
+class CustomerAgentCollectionView(CsrfAPIView):
+    def get(self, request: Request) -> Response:
+        context = require_customer_perm(request, "agent.view")
+        membership = context.membership
+        assert membership.tenant_id is not None and membership.customer_id is not None
+        limit, offset = parse_page(
+            request.query_params.get("limit"),
+            request.query_params.get("offset"),
+        )
+        rows, page = page_slice(
+            tenant_agents().list_agents(membership.tenant_id, membership.customer_id),
+            offset,
+            limit,
+        )
+        assigned = assigned_e164_map([row.agent_id for row in rows])
+        return success(
+            [
+                _customer_agent_payload(row, assigned_e164=assigned.get(row.agent_id))
+                for row in rows
+            ],
+            page=page,
+        )
+
+
 class CustomerAgentDetailView(CsrfAPIView):
     def get(self, request: Request, agent_id: str) -> Response:
         context = require_customer_perm(request, "agent.view")
-        membership = context.membership
-        assert membership.tenant_id is not None and membership.customer_id is not None
-        agent = tenant_agents().get_agent(
-            membership.tenant_id, parse_uuid(agent_id, field="agent_id")
-        )
-        if agent is None or agent.customer_id != membership.customer_id:
-            raise DomainError("not_found", "Resource not found.", http_status=404)
-        return success(_agent_payload(agent))
+        agent = _customer_scoped_agent(context, agent_id)
+        assigned = assigned_e164_map([agent.agent_id])
+        return success(_customer_agent_payload(agent, assigned_e164=assigned.get(agent.agent_id)))
 
     def patch(self, request: Request, agent_id: str) -> Response:
         context = require_customer_perm(request, "agent.view")
-        membership = context.membership
-        assert membership.tenant_id is not None and membership.customer_id is not None
-        current = tenant_agents().get_agent(
-            membership.tenant_id, parse_uuid(agent_id, field="agent_id")
-        )
-        if current is None or current.customer_id != membership.customer_id:
-            raise DomainError("not_found", "Resource not found.", http_status=404)
-        if not current.customer_can_edit:
-            raise DomainError("forbidden", "Not permitted.", http_status=403)
+        current = _customer_scoped_agent(context, agent_id)
+        assert_customer_agent_granted(current, context.membership.customer_id)
         allowed = {
             key: request.data[key]
             for key in ("greeting", "instructions")
@@ -853,11 +872,53 @@ class CustomerAgentDetailView(CsrfAPIView):
             _configure_command(
                 current.agent_id,
                 allowed,
-                tenant_id=membership.tenant_id,
-                privileged=True,
+                tenant_id=context.membership.tenant_id,
+                privileged=False,
             )
         )
-        return success(_agent_payload(agent))
+        assigned = assigned_e164_map([agent.agent_id])
+        return success(_customer_agent_payload(agent, assigned_e164=assigned.get(agent.agent_id)))
+
+
+class CustomerAgentPauseView(CsrfAPIView):
+    def post(self, request: Request, agent_id: str) -> Response:
+        context = require_customer_perm(request, "agent.view")
+        current = _customer_scoped_agent(context, agent_id)
+        assert_customer_agent_granted(current, context.membership.customer_id)
+        agent = pause_agent().execute(
+            agent_id=current.agent_id,
+            actor_tenant_id=context.membership.tenant_id,
+            privileged=False,
+            status_actor="customer",
+        )
+        assigned = assigned_e164_map([agent.agent_id])
+        return success(_customer_agent_payload(agent, assigned_e164=assigned.get(agent.agent_id)))
+
+
+class CustomerAgentResumeView(CsrfAPIView):
+    def post(self, request: Request, agent_id: str) -> Response:
+        context = require_customer_perm(request, "agent.view")
+        current = _customer_scoped_agent(context, agent_id)
+        assert_customer_agent_granted(current, context.membership.customer_id)
+        agent = resume_agent().execute(
+            agent_id=current.agent_id,
+            actor_tenant_id=context.membership.tenant_id,
+            privileged=False,
+            status_actor="customer",
+        )
+        assigned = assigned_e164_map([agent.agent_id])
+        return success(_customer_agent_payload(agent, assigned_e164=assigned.get(agent.agent_id)))
+
+
+def _customer_scoped_agent(context, agent_id: str):
+    membership = context.membership
+    assert membership.tenant_id is not None and membership.customer_id is not None
+    agent = tenant_agents().get_agent(
+        membership.tenant_id, parse_uuid(agent_id, field="agent_id")
+    )
+    if agent is None or agent.customer_id != membership.customer_id:
+        raise DomainError("not_found", "Resource not found.", http_status=404)
+    return agent
 
 
 class CustomerKnowledgeView(CsrfAPIView):
