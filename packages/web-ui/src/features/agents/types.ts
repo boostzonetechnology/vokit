@@ -53,6 +53,16 @@ export type PlatformAgentDetail = PlatformAgentRow & {
 
 export type AgencyAgentDetail = PlatformAgentDetail;
 
+/** Customer list/detail use the same monitor payload (`assigned_e164` included). */
+export type CustomerAgentRow = PlatformAgentRow & {
+  language?: string;
+  inbound_enabled?: boolean;
+  outbound_enabled?: boolean;
+  customer_can_edit?: boolean;
+};
+
+export type CustomerAgentDetail = PlatformAgentDetail;
+
 export type AgentRoutingResult = {
   routable?: boolean;
   reason?: string | null;
