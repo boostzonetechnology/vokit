@@ -12,7 +12,14 @@ export type PlatformAgentRow = {
   assigned_e164?: string | null;
 };
 
-/** Full agent payload from GET/PATCH /platform/agents/{id}. */
+/** One business-hours window as returned/accepted by agent PATCH. weekday: Mon=0 … Sun=6. */
+export type BusinessHoursWindow = {
+  weekday: number;
+  start: string;
+  end: string;
+};
+
+/** Full agent payload from GET/PATCH /platform|agency/agents/{id}. */
 export type PlatformAgentDetail = PlatformAgentRow & {
   timezone?: string;
   voice_provider?: string;
@@ -29,6 +36,34 @@ export type PlatformAgentDetail = PlatformAgentRow & {
   draft_version?: number | null;
   template_id?: string | null;
   customer_can_edit?: boolean;
+  business_hours?: BusinessHoursWindow[];
+  voicemail_greeting?: string;
+  outbound_voicemail_message?: string;
+  default_transfer_id?: string | null;
+  speaking_style?: string;
+  speaking_speed?: number | null;
+  role?: string;
+  goals?: string;
+  constraints?: string;
+  silence_timeout_seconds?: number | null;
+  max_call_duration_seconds?: number | null;
+  tool_schema_overrides?: Record<string, unknown>;
+  tool_schemas?: Record<string, unknown>;
+};
+
+export type AgencyAgentDetail = PlatformAgentDetail;
+
+export type AgentRoutingResult = {
+  routable?: boolean;
+  reason?: string | null;
+};
+
+export type AgentKnowledgeAttachment = {
+  source_id: string;
+  scope?: string;
+  group_id?: string;
+  title?: string;
+  status?: string;
 };
 
 export type PlatformAgentDiagnostics = {
@@ -86,3 +121,34 @@ export type IntegrationRow = {
   customer_id?: string;
   agency_id?: string;
 };
+
+/** Mirror of BE ALLOWED_TOOLS — AgentAction allowlist. */
+export const ALLOWED_AGENT_TOOLS = [
+  "create_lead",
+  "create_contact",
+  "update_contact",
+  "book_appointment",
+  "lookup_customer",
+  "create_ticket",
+  "send_notification",
+  "check_order",
+  "create_invoice_context",
+  "transfer_call",
+  "invoke_webhook",
+] as const;
+
+export const WEEKDAY_LABELS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
+export const FALLBACK_BEHAVIORS = ["message", "transfer", "hangup"] as const;
+
+export const SILENCE_TIMEOUT_RANGE = { min: 5, max: 120, default: 20 } as const;
+export const MAX_CALL_DURATION_RANGE = { min: 60, max: 7200, default: 1800 } as const;
+export const SPEAKING_SPEED_RANGE = { min: 0.5, max: 2, default: 1 } as const;
