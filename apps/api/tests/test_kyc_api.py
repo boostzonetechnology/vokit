@@ -86,7 +86,7 @@ def _create_agency(client: Client, name: str, db_name: str, owner: str):
     return _post(
         client,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
 
 

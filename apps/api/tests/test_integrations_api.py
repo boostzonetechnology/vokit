@@ -98,7 +98,7 @@ def _ready_pair() -> dict:
     activated = _post(
         platform,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     customer_a = _post(
@@ -241,7 +241,7 @@ def test_tool_gateway_and_webhooks_stay_customer_scoped() -> None:
     activated = _post(
         ctx["platform"],
         f"/api/v1/platform/customers/{ctx['customer_a_id']}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     created = _post(

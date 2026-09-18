@@ -43,6 +43,7 @@ def _tenant(row: Tenant) -> TenantRecord:
         legal_name=row.legal_name,
         currency=row.currency,
         commission_rate_bps=row.commission_rate_bps,
+        previous_commission_rate_bps=row.previous_commission_rate_bps,
         rate_effective_at=row.rate_effective_at,
         capabilities=_capabilities(row),
     )
@@ -90,6 +91,7 @@ class DjangoTenantRepository:
             legal_name=tenant.legal_name,
             currency=tenant.currency,
             commission_rate_bps=tenant.commission_rate_bps,
+            previous_commission_rate_bps=tenant.previous_commission_rate_bps,
             rate_effective_at=tenant.rate_effective_at,
             can_create_customers=tenant.capabilities.create_customers,
             can_create_agents=tenant.capabilities.create_agents,

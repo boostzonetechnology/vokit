@@ -84,7 +84,7 @@ def _create_agency(client: Client, name: str, db_name: str, owner: str):
     return _post(
         client,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
 
 
@@ -104,7 +104,7 @@ def _ready_agency(platform: Client, suffix: str):
     activated = _post(
         platform,
         f"/api/v1/platform/customers/{customer_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     plan = _post(

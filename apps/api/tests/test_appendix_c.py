@@ -37,9 +37,18 @@ class FakeClock:
 
 
 class FakeTenants:
-    def __init__(self, tenant_id: uuid.UUID, rate_bps: int) -> None:
+    def __init__(
+        self,
+        tenant_id: uuid.UUID,
+        rate_bps: int,
+        *,
+        previous_bps: int | None = None,
+        rate_effective_at: datetime | None = None,
+    ) -> None:
         self.tenant_id = tenant_id
         self.rate_bps = rate_bps
+        self.previous_bps = rate_bps if previous_bps is None else previous_bps
+        self.rate_effective_at = rate_effective_at
 
     def get(self, tenant_id: uuid.UUID) -> TenantRecord:
         return TenantRecord(
@@ -48,6 +57,8 @@ class FakeTenants:
             status=TenantStatus.READY,
             agency_status=AgencyStatus.ACTIVE,
             commission_rate_bps=self.rate_bps,
+            previous_commission_rate_bps=self.previous_bps,
+            rate_effective_at=self.rate_effective_at,
             capabilities=AgencyCapabilities(),
         )
 
@@ -313,3 +324,34 @@ def test_appendix_c_example_5_rate_change_snapshot() -> None:
     assert second.rate_bps_snapshot == 3000
     assert second.amount_minor == 3000
     assert first.rate_bps_snapshot != second.rate_bps_snapshot
+
+
+def test_future_effective_rate_uses_previous_until_date() -> None:
+    tenant_id = new_uuid7()
+    customer_id = new_uuid7()
+    tenants = FakeTenants(
+        tenant_id, 3000, previous_bps=2000, rate_effective_at=SEP10
+    )
+    ledger = MemoryLedger()
+    accrue = AccrueCommission(ledger, tenants)
+    first_invoice = _invoice(tenant_id, customer_id, 10000)
+    before = accrue.execute(
+        AccrueCommand(
+            payment=_payment(first_invoice, 10000),
+            invoice=first_invoice,
+            settled_at=SEP9,
+        )
+    )
+    second_invoice = _invoice(tenant_id, customer_id, 10000)
+    after = accrue.execute(
+        AccrueCommand(
+            payment=_payment(second_invoice, 10000),
+            invoice=second_invoice,
+            settled_at=SEP10,
+        )
+    )
+    assert before is not None and after is not None
+    assert before.rate_bps_snapshot == 2000
+    assert before.amount_minor == 2000
+    assert after.rate_bps_snapshot == 3000
+    assert after.amount_minor == 3000

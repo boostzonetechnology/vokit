@@ -122,7 +122,7 @@ def test_agency_finance_cannot_start_kyc_but_owner_can() -> None:
     activated = _post(
         platform,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
 

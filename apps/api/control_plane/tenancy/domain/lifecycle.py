@@ -105,6 +105,25 @@ def apply_agency_status_action(
     return _ACTION_STATUS[normalized]
 
 
+_STATUS_REASON_ACTIONS = frozenset({"suspend", "restrict", "review", "close"})
+
+
+def assert_agency_action_confirmed(confirm: bool) -> None:
+    if confirm is not True:
+        raise DomainError(
+            "confirmation_required",
+            "This action requires explicit confirmation.",
+        )
+
+
+def assert_agency_status_reason(action: str, reason: str) -> None:
+    normalized = (action or "").strip().lower()
+    if normalized == "reactivate":
+        normalized = "activate"
+    if normalized in _STATUS_REASON_ACTIONS and not reason.strip():
+        raise DomainError("validation_error", "reason is required.")
+
+
 def default_capabilities_for_status(
     status: AgencyStatus,
 ) -> AgencyCapabilities | None:
@@ -114,7 +133,12 @@ def default_capabilities_for_status(
     if status is AgencyStatus.UNDER_REVIEW:
         return AgencyCapabilities(request_payouts=False)
     if status is AgencyStatus.SUSPENDED:
-        return AgencyCapabilities(create_customers=False)
+        return AgencyCapabilities(
+            create_customers=False,
+            create_agents=False,
+            purchase_numbers=False,
+            request_payouts=False,
+        )
     return None
 
 

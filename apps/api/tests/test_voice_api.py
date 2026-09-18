@@ -93,7 +93,7 @@ def _ready_voice(*, overage: bool = False, grace: int = 30, publish: bool = True
     activated = _post(
         platform,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     customer = _post(
@@ -106,7 +106,7 @@ def _ready_voice(*, overage: bool = False, grace: int = 30, publish: bool = True
     customer_activated = _post(
         platform,
         f"/api/v1/platform/customers/{customer_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert customer_activated.status_code == 200
     plan = _post(

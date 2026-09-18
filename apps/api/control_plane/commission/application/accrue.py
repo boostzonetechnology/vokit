@@ -12,6 +12,7 @@ from control_plane.commission.domain.policies import (
 )
 from control_plane.commission.domain.types import LedgerKind
 from control_plane.tenancy.application.ports import TenantRepository
+from control_plane.tenancy.domain.commission import effective_commission_rate_bps
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
@@ -61,7 +62,13 @@ class AccrueCommission:
             for line in command.invoice.lines
         )
         base = eligible_base_from_lines(lines)
-        amount = commission_amount(base, tenant.commission_rate_bps)
+        rate_bps = effective_commission_rate_bps(
+            rate_bps=tenant.commission_rate_bps,
+            previous_rate_bps=tenant.previous_commission_rate_bps,
+            rate_effective_at=tenant.rate_effective_at,
+            at=command.settled_at,
+        )
+        amount = commission_amount(base, rate_bps)
         if amount.minor_units < 1:
             return None
         entry_id = new_uuid7()
@@ -77,7 +84,7 @@ class AccrueCommission:
             commission_id=entry_id,
             payout_id=None,
             eligible_base_minor=base.minor_units,
-            rate_bps_snapshot=tenant.commission_rate_bps,
+            rate_bps_snapshot=rate_bps,
             earned_at=command.settled_at,
             available_at=hold_available_at(command.settled_at, self._hold_days),
             reason="captured_payment",

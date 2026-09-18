@@ -13,6 +13,7 @@ class Tenant(models.Model):
     legal_name = models.CharField(max_length=255, blank=True, default="")
     currency = models.CharField(max_length=3, default="USD")
     commission_rate_bps = models.PositiveIntegerField(default=0)
+    previous_commission_rate_bps = models.PositiveIntegerField(default=0)
     rate_effective_at = models.DateTimeField(null=True, blank=True)
     can_create_customers = models.BooleanField(default=True)
     can_create_agents = models.BooleanField(default=True)

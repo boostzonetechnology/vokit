@@ -76,7 +76,7 @@ def _create_agency(client: Client, name: str, owner: str):
     activated = _post(
         client,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     return activated.json()["data"]
@@ -187,7 +187,7 @@ def test_suspend_requires_reason_and_records_audit() -> None:
     _post(
         platform,
         f"/api/v1/platform/customers/{customer_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     missing = _post(
         platform,

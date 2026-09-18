@@ -24,6 +24,7 @@ class TenantRecord:
     legal_name: str = ""
     currency: str = "USD"
     commission_rate_bps: int = 0
+    previous_commission_rate_bps: int = 0
     rate_effective_at: datetime | None = None
     capabilities: AgencyCapabilities = AgencyCapabilities()
 
@@ -35,6 +36,7 @@ class TenantRecord:
         legal_name: str | None = None,
         currency: str | None = None,
         commission_rate_bps: int | None = None,
+        previous_commission_rate_bps: int | None = None,
         rate_effective_at: datetime | None = None,
         capabilities: AgencyCapabilities | None = None,
     ) -> TenantRecord:
@@ -52,6 +54,11 @@ class TenantRecord:
                 self.commission_rate_bps
                 if commission_rate_bps is None
                 else commission_rate_bps
+            ),
+            previous_commission_rate_bps=(
+                self.previous_commission_rate_bps
+                if previous_commission_rate_bps is None
+                else previous_commission_rate_bps
             ),
             rate_effective_at=(
                 self.rate_effective_at

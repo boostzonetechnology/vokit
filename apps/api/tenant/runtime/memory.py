@@ -339,6 +339,18 @@ class MemoryRuntime:
                 return row
         return None
 
+    def list_active_subscriptions(
+        self, connection: TenantConnection
+    ) -> list[SubscriptionRecord]:
+        memory = self._as_memory(connection)
+        rows: list[SubscriptionRecord] = []
+        for row in memory.backend.subscriptions.values():
+            if row.tenant_id != memory.tenant_id:
+                raise isolation_violation()
+            if row.status is SubscriptionStatus.ACTIVE:
+                rows.append(row)
+        return rows
+
     def put_invoice(self, connection: TenantConnection, invoice: InvoiceRecord) -> None:
         memory = self._as_memory(connection)
         if invoice.tenant_id != memory.tenant_id:

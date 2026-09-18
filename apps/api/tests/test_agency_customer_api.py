@@ -84,7 +84,7 @@ def _create_agency(client: Client, name: str, db_name: str, owner: str):
     activated = _post(
         client,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     return activated
 
@@ -180,7 +180,7 @@ def test_suspended_agency_cannot_create_customer() -> None:
     status = _post(
         platform,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "suspend"},
+        {"action": "suspend", "confirm": True, "reason": "risk hold"},
     )
     assert status.status_code == 200
     assert status.json()["data"]["status"] == "suspended"
@@ -215,7 +215,7 @@ def test_capability_override_blocks_agency_create() -> None:
     _post(
         platform,
         f"/api/v1/platform/agencies/{agency_id}/capabilities",
-        {"capabilities": {"create_customers": False}},
+        {"capabilities": {"create_customers": False}, "confirm": True, "reason": "gate customers"},
     )
     _user("agency-c@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
     agency_client = _client()

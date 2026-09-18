@@ -13,5 +13,6 @@ Canonical location for Vokit ADRs.
 | [ADR-007](ADR-007-dynamic-rbac-roles-permissions.md) | Dynamic DB-backed RBAC: roles, permissions, super_admin bypass | Accepted |
 | [ADR-008](ADR-008-secret-management-kms-path.md) | Secret refs + application vaults; future KMS path | Accepted |
 | [ADR-009](ADR-009-agency-cross-customer-agent-clone.md) | Agency clone onto another owned customer (AG3-005) | Accepted |
+| [ADR-010](ADR-010-commission-rate-effective-dating.md) | Commission rate effective dating (SA2-003) | Accepted |
 
 This directory is the only ADR location.
