@@ -5,6 +5,7 @@ from django.conf import settings
 from control_plane.billing.infrastructure.container import (
     idempotency,
     invoice_index,
+    plan_versions,
     tenant_billing,
 )
 from control_plane.identity.infrastructure.clock import SystemClock
@@ -114,6 +115,7 @@ def assign_number() -> AssignNumber:
         idempotency(),
         risk_gate(),
         SystemClock(),
+        plan_versions(),
     )
 
 

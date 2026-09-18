@@ -29,6 +29,12 @@ from control_plane.agents.domain.policies import (
 from control_plane.agents.domain.types import AGENCY_PAUSE_STATUSES
 from control_plane.audit.application.record import RecordAuditCommand
 from control_plane.audit.infrastructure.container import record_audit
+from control_plane.billing.application.entitlements import (
+    assert_can_activate_agent,
+    assert_can_create_agent,
+    assert_can_record,
+)
+from control_plane.billing.application.ports import PlanVersionRepository
 from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.customers.domain.policies import customer_not_found
 from control_plane.integrations.domain.policies import assert_tool_schema_overrides
@@ -89,11 +95,15 @@ class ConfigureAgent:
         agents: TenantAgentService,
         index: AgentIndexRepository,
         clock: Clock,
+        billing: TenantBillingService,
+        versions: PlanVersionRepository,
     ) -> None:
         self._customers = customers
         self._agents = agents
         self._index = index
         self._clock = clock
+        self._billing = billing
+        self._versions = versions
 
     def execute(self, command: ConfigureAgentCommand) -> TenantAgent:
         agent = _load_agent(
@@ -188,6 +198,19 @@ class ConfigureAgent:
         overrides = agent.tool_schema_overrides or {}
         if command.tool_schema_overrides is not UNSET:
             overrides = assert_tool_schema_overrides(command.tool_schema_overrides)
+        disclosure = (
+            agent.recording_disclosure
+            if command.recording_disclosure is None
+            else command.recording_disclosure
+        )
+        if disclosure:
+            assert_can_record(
+                self._billing,
+                self._versions,
+                agent.tenant_id,
+                agent.customer_id,
+                self._clock.now(),
+            )
         updated = replace(
             agent,
             display_name=name[:128],
@@ -206,9 +229,7 @@ class ConfigureAgent:
             outbound_enabled=agent.outbound_enabled
             if command.outbound_enabled is None
             else command.outbound_enabled,
-            recording_disclosure=agent.recording_disclosure
-            if command.recording_disclosure is None
-            else command.recording_disclosure,
+            recording_disclosure=disclosure,
             instructions=instructions,
             tools=tools,
             customer_can_edit=agent.customer_can_edit
@@ -258,6 +279,7 @@ class PublishAgent:
         gate: CustomerRiskGate,
         index: AgentIndexRepository,
         clock: Clock,
+        versions: PlanVersionRepository,
     ) -> None:
         self._customers = customers
         self._lifecycle = lifecycle
@@ -267,6 +289,7 @@ class PublishAgent:
         self._gate = gate
         self._index = index
         self._clock = clock
+        self._versions = versions
 
     def execute(
         self, *, agent_id: uuid.UUID, actor_tenant_id: uuid.UUID | None, privileged: bool
@@ -295,6 +318,14 @@ class PublishAgent:
                 http_status=409,
                 details={"failures": failures},
             )
+        assert_can_activate_agent(
+            self._billing,
+            self._versions,
+            self._agents,
+            agent.tenant_id,
+            agent.customer_id,
+            self._clock.now(),
+        )
         now = self._clock.now()
         version = agent.draft_version
         published = replace(
@@ -404,11 +435,18 @@ class PauseAgent:
 
 class ResumeAgent:
     def __init__(
-        self, agents: TenantAgentService, index: AgentIndexRepository, clock: Clock
+        self,
+        agents: TenantAgentService,
+        index: AgentIndexRepository,
+        clock: Clock,
+        billing: TenantBillingService,
+        versions: PlanVersionRepository,
     ) -> None:
         self._agents = agents
         self._index = index
         self._clock = clock
+        self._billing = billing
+        self._versions = versions
 
     def execute(
         self,
@@ -442,6 +480,15 @@ class ResumeAgent:
         target = (
             AgentStatus.ACTIVE if agent.published_version is not None else AgentStatus.TESTING
         )
+        if target is AgentStatus.ACTIVE:
+            assert_can_activate_agent(
+                self._billing,
+                self._versions,
+                self._agents,
+                agent.tenant_id,
+                agent.customer_id,
+                self._clock.now(),
+            )
         actor = status_actor or ("platform" if privileged else "agency")
         stored = self._agents.put_agent(
             agent.tenant_id,
@@ -479,12 +526,16 @@ class CloneAgent:
         gate: CustomerRiskGate,
         index: AgentIndexRepository,
         clock: Clock,
+        billing: TenantBillingService,
+        versions: PlanVersionRepository,
     ) -> None:
         self._customers = customers
         self._agents = agents
         self._gate = gate
         self._index = index
         self._clock = clock
+        self._billing = billing
+        self._versions = versions
 
     def execute(
         self,
@@ -516,6 +567,14 @@ class CloneAgent:
                 raise DomainError("not_found", "Resource not found.", http_status=404)
             target_customer_id = customer.id
         self._gate.assert_open(target_customer_id)
+        assert_can_create_agent(
+            self._billing,
+            self._versions,
+            self._agents,
+            target_tenant_id,
+            target_customer_id,
+            self._clock.now(),
+        )
         now = self._clock.now()
         name = (display_name or "").strip() if privileged else ""
         clone_greeting = source.greeting
@@ -565,11 +624,18 @@ class CloneAgent:
 
 class SetAgentStatus:
     def __init__(
-        self, agents: TenantAgentService, index: AgentIndexRepository, clock: Clock
+        self,
+        agents: TenantAgentService,
+        index: AgentIndexRepository,
+        clock: Clock,
+        billing: TenantBillingService,
+        versions: PlanVersionRepository,
     ) -> None:
         self._agents = agents
         self._index = index
         self._clock = clock
+        self._billing = billing
+        self._versions = versions
 
     def execute(
         self,
@@ -582,6 +648,15 @@ class SetAgentStatus:
     ) -> TenantAgent:
         target = parse_agent_status(status)
         agent = _load_agent(self._agents, agent_id, None, True)
+        if target is AgentStatus.ACTIVE:
+            assert_can_activate_agent(
+                self._billing,
+                self._versions,
+                self._agents,
+                agent.tenant_id,
+                agent.customer_id,
+                self._clock.now(),
+            )
         if target in {AgentStatus.PAUSED, AgentStatus.SUSPENDED, AgentStatus.ARCHIVED}:
             if not str(reason or "").strip():
                 raise DomainError("validation_error", "reason is required.")

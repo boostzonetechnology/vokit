@@ -29,6 +29,11 @@ class PlanVersion(models.Model):
     overage_enabled = models.BooleanField(default=False)
     overage_price_per_minute_minor = models.BigIntegerField(default=0)
     grace_seconds = models.PositiveIntegerField(default=0)
+    max_agents = models.PositiveIntegerField(default=0)
+    max_phone_numbers = models.PositiveIntegerField(default=0)
+    max_concurrency = models.PositiveIntegerField(default=0)
+    recording_allowed = models.BooleanField(default=True)
+    allowed_integrations = models.JSONField(default=list)
     used_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

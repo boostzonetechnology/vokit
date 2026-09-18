@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from control_plane.billing.application.ports import (
     CommissionAccrual,
     InvoiceIndexRecord,
     InvoiceIndexRepository,
     NormalizedPaymentEvent,
+    PlanVersionRepository,
     ProcessorEventRecord,
     ProcessorEventRepository,
 )
+from control_plane.billing.domain.entitlements import PENDING_UPGRADE
 from control_plane.billing.domain.policies import invoice_not_found, payment_amount_mismatch
 from control_plane.billing.domain.types import (
     InvoiceStatus,
@@ -37,6 +39,26 @@ _LINE_TO_LOT = {
 }
 
 
+def grant_invoice_lots(billing: TenantBillingService, invoice: InvoiceRecord, now) -> None:
+    for line in invoice.lines:
+        kind = _LINE_TO_LOT.get(line.kind)
+        if kind is None or line.minutes < 1:
+            continue
+        billing.put_lot(
+            invoice.tenant_id,
+            MinuteLotRecord(
+                lot_id=new_uuid7(),
+                tenant_id=invoice.tenant_id,
+                customer_id=invoice.customer_id,
+                invoice_id=invoice.invoice_id,
+                kind=kind,
+                granted_minutes=line.minutes,
+                remaining_minutes=line.minutes,
+                created_at=now,
+            ),
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class SettlementResult:
     duplicate: bool
@@ -52,12 +74,14 @@ class SettlePayment:
         billing: TenantBillingService,
         clock: Clock,
         accrual: CommissionAccrual | None = None,
+        versions: PlanVersionRepository | None = None,
     ) -> None:
         self._events = events
         self._invoices = invoices
         self._billing = billing
         self._clock = clock
         self._accrual = accrual
+        self._versions = versions
 
     def execute(self, event: NormalizedPaymentEvent) -> SettlementResult:
         if not event.event_id.strip():
@@ -109,6 +133,12 @@ class SettlePayment:
                 ProcessorEventStatus.DUPLICATE.value,
                 str(invoice.invoice_id),
             )
+        if invoice.status is not InvoiceStatus.OPEN:
+            raise DomainError(
+                "invoice_not_payable",
+                "Only open invoices can be settled.",
+                http_status=409,
+            )
         if (
             event.amount.minor_units != invoice.total_minor
             or event.amount.currency != invoice.currency
@@ -127,22 +157,16 @@ class SettlePayment:
             status=PaymentStatus.CAPTURED,
             created_at=now,
         )
-        paid = InvoiceRecord(
-            invoice_id=invoice.invoice_id,
-            tenant_id=invoice.tenant_id,
-            customer_id=invoice.customer_id,
-            subscription_id=invoice.subscription_id,
+        paid = replace(
+            invoice,
             status=InvoiceStatus.PAID,
-            currency=invoice.currency,
-            total_minor=invoice.total_minor,
-            lines=invoice.lines,
-            created_at=invoice.created_at,
             updated_at=now,
             paid_at=now,
         )
         self._billing.put_payment(invoice.tenant_id, payment)
         self._billing.put_invoice(invoice.tenant_id, paid)
-        self._grant_lots(paid, now)
+        grant_invoice_lots(self._billing, paid, now)
+        self._apply_upgrade(paid, now)
         self._invoices.update(
             InvoiceIndexRecord(
                 invoice_id=paid.invoice_id,
@@ -177,21 +201,33 @@ class SettlePayment:
         )
         return SettlementResult(False, ProcessorEventStatus.PROCESSED.value, str(paid.invoice_id))
 
-    def _grant_lots(self, invoice: InvoiceRecord, now) -> None:
-        for line in invoice.lines:
-            kind = _LINE_TO_LOT.get(line.kind)
-            if kind is None or line.minutes < 1:
-                continue
-            self._billing.put_lot(
-                invoice.tenant_id,
-                MinuteLotRecord(
-                    lot_id=new_uuid7(),
-                    tenant_id=invoice.tenant_id,
-                    customer_id=invoice.customer_id,
-                    invoice_id=invoice.invoice_id,
-                    kind=kind,
-                    granted_minutes=line.minutes,
-                    remaining_minutes=line.minutes,
-                    created_at=now,
-                ),
-            )
+    def _apply_upgrade(self, invoice: InvoiceRecord, now) -> None:
+        if invoice.subscription_id is None or self._versions is None:
+            return
+        subscription = self._billing.get_subscription(
+            invoice.tenant_id, invoice.subscription_id
+        )
+        if (
+            subscription is None
+            or subscription.pending_kind != PENDING_UPGRADE
+            or subscription.pending_invoice_id != invoice.invoice_id
+            or subscription.pending_plan_version_id is None
+        ):
+            return
+        target = self._versions.get(subscription.pending_plan_version_id)
+        if target is None:
+            return
+        switched = replace(
+            subscription,
+            plan_id=target.plan_id,
+            plan_version_id=target.id,
+            period_started_at=now,
+            pending_plan_version_id=None,
+            pending_kind=None,
+            pending_invoice_id=None,
+            pending_effective_at=None,
+            updated_at=now,
+        )
+        self._billing.put_subscription(invoice.tenant_id, switched)
+        if target.used_at is None:
+            self._versions.update(replace(target, used_at=now))

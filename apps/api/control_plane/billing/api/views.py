@@ -9,6 +9,7 @@ from control_plane.billing.application.add_plan_version import (
     UpdatePlanVersionCommand,
 )
 from control_plane.billing.application.assign_subscription import AssignSubscriptionCommand
+from control_plane.billing.application.change_subscription import ChangeSubscriptionCommand
 from control_plane.billing.application.create_plan import CreatePlanCommand
 from control_plane.billing.application.create_topup import CreateTopUpCommand
 from control_plane.billing.application.pay_invoice import PayInvoiceCommand
@@ -19,6 +20,7 @@ from control_plane.billing.infrastructure.container import (
     archive_plan,
     assign_subscription,
     billing_settings,
+    change_subscription,
     create_plan,
     create_topup,
     get_customer_subscription,
@@ -39,6 +41,7 @@ from control_plane.identity.api.auth import (
     require_platform_perm,
 )
 from control_plane.identity.api.views import CsrfAPIView
+from control_plane.integrations.domain.types import ProviderKind
 from providers.billing.sandbox import sandbox_checkout_url
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
@@ -65,6 +68,31 @@ def _bool_field(data: dict, name: str, default: bool = False) -> bool:
     return raw
 
 
+def _integrations_field(data: dict) -> tuple[str, ...]:
+    raw = data.get("allowed_integrations", [])
+    if raw is None:
+        return ()
+    if type(raw) is not list:
+        raise DomainError("validation_error", "allowed_integrations must be a list.")
+    slugs: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        if type(item) is not str:
+            raise DomainError("validation_error", "allowed_integrations must be strings.")
+        slug = item.strip()
+        if not slug or slug in seen:
+            continue
+        try:
+            ProviderKind(slug)
+        except ValueError as exc:
+            raise DomainError(
+                "validation_error", "allowed_integrations contains an unknown provider."
+            ) from exc
+        seen.add(slug)
+        slugs.append(slug)
+    return tuple(slugs)
+
+
 def _plan_terms(data: dict) -> dict:
     return {
         "price_minor": _int_field(data, "price_minor"),
@@ -77,6 +105,11 @@ def _plan_terms(data: dict) -> dict:
             data, "overage_price_per_minute_minor", 0
         ),
         "grace_seconds": _int_field(data, "grace_seconds", 0),
+        "max_agents": _int_field(data, "max_agents", 0),
+        "max_phone_numbers": _int_field(data, "max_phone_numbers", 0),
+        "max_concurrency": _int_field(data, "max_concurrency", 0),
+        "recording_allowed": _bool_field(data, "recording_allowed", True),
+        "allowed_integrations": _integrations_field(data),
     }
 
 
@@ -94,6 +127,11 @@ def _version_payload(row) -> dict[str, object]:
         "overage_enabled": row.overage_enabled,
         "overage_price_per_minute_minor": row.overage_price_per_minute.minor_units,
         "grace_seconds": row.grace_seconds,
+        "max_agents": row.max_agents,
+        "max_phone_numbers": row.max_phone_numbers,
+        "max_concurrency": row.max_concurrency,
+        "recording_allowed": row.recording_allowed,
+        "allowed_integrations": list(row.allowed_integrations),
         "used": row.used_at is not None,
     }
 
@@ -105,6 +143,7 @@ def _plan_payload(row) -> dict[str, object]:
         "name": row.name,
         "status": row.status.value,
         "versions": versions,
+        "available_integrations": [kind.value for kind in ProviderKind],
     }
 
 
@@ -130,7 +169,53 @@ def _invoice_payload(row: InvoiceRecord) -> dict[str, object]:
             for line in row.lines
         ],
         "paid_at": row.paid_at.isoformat() if row.paid_at else None,
+        "due_at": row.due_at.isoformat() if getattr(row, "due_at", None) else None,
     }
+
+
+def _subscription_payload(view) -> dict[str, object]:
+    sub = view.subscription
+    version = view.version
+    return {
+        "id": str(sub.subscription_id),
+        "customer_id": str(sub.customer_id),
+        "agency_id": str(sub.tenant_id),
+        "plan_id": str(sub.plan_id),
+        "plan_version_id": str(sub.plan_version_id),
+        "plan_name": view.plan_name,
+        "plan_version": view.plan_version,
+        "status": sub.status.value,
+        "cycle": sub.cycle,
+        "included_minutes": view.included_minutes,
+        "max_agents": version.max_agents,
+        "max_phone_numbers": version.max_phone_numbers,
+        "max_concurrency": version.max_concurrency,
+        "recording_allowed": version.recording_allowed,
+        "allowed_integrations": list(version.allowed_integrations),
+        "period_started_at": sub.period_started_at.isoformat()
+        if sub.period_started_at
+        else (sub.created_at.isoformat() if sub.created_at else None),
+        "period_end": view.period_end.isoformat() if view.period_end else None,
+        "pending_kind": sub.pending_kind,
+        "pending_plan_version_id": str(sub.pending_plan_version_id)
+        if sub.pending_plan_version_id
+        else None,
+        "pending_invoice_id": str(sub.pending_invoice_id) if sub.pending_invoice_id else None,
+        "pending_effective_at": sub.pending_effective_at.isoformat()
+        if sub.pending_effective_at
+        else None,
+    }
+
+
+def _change_response(command: ChangeSubscriptionCommand) -> Response:
+    result = change_subscription().execute(command)
+    payload: dict[str, object] = {"kind": result.kind}
+    if result.invoice is not None:
+        payload["invoice"] = _invoice_payload(result.invoice)
+        return success(payload, status=201)
+    view = get_customer_subscription().execute(result.subscription.customer_id)
+    payload["subscription"] = _subscription_payload(view) if view else None
+    return success(payload)
 
 
 def _index_payload(row) -> dict[str, object]:
@@ -202,20 +287,7 @@ class PlatformCustomerSubscriptionView(CsrfAPIView):
         )
         if view is None:
             return success(None)
-        return success(
-            {
-                "id": str(view.subscription.subscription_id),
-                "customer_id": str(view.subscription.customer_id),
-                "agency_id": str(view.subscription.tenant_id),
-                "plan_id": str(view.subscription.plan_id),
-                "plan_version_id": str(view.subscription.plan_version_id),
-                "plan_name": view.plan_name,
-                "plan_version": view.plan_version,
-                "status": view.subscription.status.value,
-                "cycle": view.subscription.cycle,
-                "included_minutes": view.included_minutes,
-            }
-        )
+        return success(_subscription_payload(view))
 
     def post(self, request: Request, customer_id: str) -> Response:
         require_platform_perm(request, "customer.create")
@@ -230,6 +302,21 @@ class PlatformCustomerSubscriptionView(CsrfAPIView):
             )
         )
         return success(_invoice_payload(invoice), status=201)
+
+
+class PlatformCustomerSubscriptionChangeView(CsrfAPIView):
+    def post(self, request: Request, customer_id: str) -> Response:
+        require_platform_perm(request, "customer.create")
+        return _change_response(
+            ChangeSubscriptionCommand(
+                customer_id=parse_uuid(customer_id, field="customer_id"),
+                plan_version_id=parse_uuid(
+                    request.data.get("plan_version_id"), field="plan_version_id"
+                ),
+                actor_tenant_id=None,
+                privileged=True,
+            )
+        )
 
 
 class PlatformInvoiceCollectionView(CsrfAPIView):
@@ -335,6 +422,21 @@ class AgencyCustomerSubscriptionView(CsrfAPIView):
             )
         )
         return success(_invoice_payload(invoice), status=201)
+
+
+class AgencyCustomerSubscriptionChangeView(CsrfAPIView):
+    def post(self, request: Request, customer_id: str) -> Response:
+        context = require_agency_perm(request, "customer.update")
+        return _change_response(
+            ChangeSubscriptionCommand(
+                customer_id=parse_uuid(customer_id, field="customer_id"),
+                plan_version_id=parse_uuid(
+                    request.data.get("plan_version_id"), field="plan_version_id"
+                ),
+                actor_tenant_id=context.membership.tenant_id,
+                privileged=False,
+            )
+        )
 
 
 class AgencyCustomerInvoiceCollectionView(CsrfAPIView):

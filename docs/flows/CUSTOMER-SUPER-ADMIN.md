@@ -13,7 +13,7 @@
 | SA3-002 | `owner_email` required; create → **invited**; invite delivered (no token in HTTP); accept invite → **active**; `owner_conflict` on membership clash; profile fields `legal_name`, `phone`, `country`, `timezone` |
 | SA3-005 | Suspend/close require `reason`; `customer.status.changed` audit |
 | SA3-003 | `GET .../usage`; `POST .../minutes-adjustment` (ledger lots, `LotKind.adjustment`) |
-| SA3-004 (partial) | `GET .../subscription` (current only); first assign unchanged |
+| SA3-004 | `GET .../subscription`; first assign; mid-cycle change — [`plans/PLAN-CREATE-ASSIGN-CAPS.md`](plans/PLAN-CREATE-ASSIGN-CAPS.md) |
 | SA3-001 (partial) | List filters agency/status/`q`; detail includes profile + remaining minutes + subscription summary |
 
 ### Create sequence
@@ -53,8 +53,6 @@ Credit creates an `adjustment` lot; debit drains existing lots in drain order.
 
 | Item | Notes |
 |---|---|
-| Plan change / version switch | SA3-004 mid-cycle undefined |
-| PLAN-007 proration | Conditional Should |
 | Commercial overrides | Undefined |
 | Payment Due / Restricted automation | §24.2 beyond suspend |
 | SA3-006 impersonation | Should; stub only |

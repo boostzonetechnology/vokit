@@ -6,6 +6,7 @@ from control_plane.billing.application.add_plan_version import (
     UpdatePlanVersion,
 )
 from control_plane.billing.application.assign_subscription import AssignSubscription
+from control_plane.billing.application.change_subscription import ChangeSubscription
 from control_plane.billing.application.create_plan import CreatePlan
 from control_plane.billing.application.create_topup import CreateTopUp
 from control_plane.billing.application.pay_invoice import PayInvoice
@@ -108,7 +109,7 @@ def create_topup() -> CreateTopUp:
 def pay_invoice() -> PayInvoice:
     from control_plane.risk.infrastructure.container import risk_gate
 
-    return PayInvoice(idempotency(), tenant_billing(), risk_gate())
+    return PayInvoice(idempotency(), tenant_billing(), risk_gate(), invoice_index(), SystemClock())
 
 
 def settle_payment() -> SettlePayment:
@@ -123,6 +124,25 @@ def settle_payment() -> SettlePayment:
         tenant_billing(),
         SystemClock(),
         AccrueCommission(DjangoLedgerRepository(), tenant_repo()),
+        plan_versions(),
+    )
+
+
+def change_subscription() -> ChangeSubscription:
+    from control_plane.risk.infrastructure.container import risk_gate, tenant_agents
+    from tenant.numbers.service import TenantNumberService
+
+    return ChangeSubscription(
+        customer_index(),
+        plans(),
+        plan_versions(),
+        invoice_index(),
+        tenant_billing(),
+        lifecycle(),
+        tenant_agents(),
+        TenantNumberService(router(), runtime()),
+        SystemClock(),
+        risk_gate(),
     )
 
 
@@ -134,6 +154,7 @@ def get_customer_subscription():
         tenant_billing(),
         plans(),
         plan_versions(),
+        SystemClock(),
     )
 
 

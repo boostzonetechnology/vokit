@@ -36,6 +36,11 @@ class PlanVersionRecord:
     grace_seconds: int
     used_at: datetime | None = None
     created_at: datetime | None = None
+    max_agents: int = 0
+    max_phone_numbers: int = 0
+    max_concurrency: int = 0
+    recording_allowed: bool = True
+    allowed_integrations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

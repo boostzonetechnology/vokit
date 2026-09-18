@@ -78,9 +78,10 @@ Agency KYC (external provider; no document vault):
 Billing (customer subscriptions only; Q-004):
 
 - `GET/POST /api/v1/platform/plans` + `POST .../versions` + `PATCH /platform/plan-versions/{id}`
-- `POST /api/v1/platform/customers/{id}/subscription`
+- `GET/POST /api/v1/platform/customers/{id}/subscription` + `POST .../subscription/change`
 - `GET /api/v1/platform/invoices` `/payments` `/disputes`
 - `GET /api/v1/agency/plans` + `GET /agency/customer-invoices`
+- `POST /api/v1/agency/customers/{id}/subscription` + `POST .../subscription/change`
 - `GET /api/v1/customer/invoices` + `POST .../{id}/pay`
 - `GET /api/v1/customer/usage` + `POST /customer/usage/top-ups`
 - `POST /webhooks/stripe/v1/` and `/webhooks/braintree/v1/` — signature + event-id dedup

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-CURRENT_VERSION = "0013_knowledge_longtext"
+CURRENT_VERSION = "0014_subscription_change"
 
 SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
     "0001_isolation": (
@@ -412,6 +412,25 @@ SCHEMA_STATEMENTS: dict[str, tuple[str, ...]] = {
             MODIFY body LONGTEXT NOT NULL
         """,
     ),
+    "0014_subscription_change": (
+        """
+        ALTER TABLE subscriptions
+            ADD COLUMN period_started_at DATETIME(6) NULL,
+            ADD COLUMN pending_plan_version_id CHAR(36) NULL,
+            ADD COLUMN pending_kind VARCHAR(16) NULL,
+            ADD COLUMN pending_invoice_id CHAR(36) NULL,
+            ADD COLUMN pending_effective_at DATETIME(6) NULL
+        """,
+        """
+        UPDATE subscriptions
+        SET period_started_at = created_at
+        WHERE period_started_at IS NULL
+        """,
+        """
+        ALTER TABLE invoices
+            ADD COLUMN due_at DATETIME(6) NULL
+        """,
+    ),
 }
 
 VERSION_ORDER = (
@@ -428,4 +447,5 @@ VERSION_ORDER = (
     "0011_customer_profile",
     "0012_agent_status_lock",
     "0013_knowledge_longtext",
+    "0014_subscription_change",
 )

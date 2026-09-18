@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 
+from control_plane.billing.infrastructure.container import plan_versions, tenant_billing
 from control_plane.customers.infrastructure.container import customer_index
 from control_plane.identity.infrastructure.clock import SystemClock
 from control_plane.integrations.application.service import IntegrationControl
@@ -69,6 +70,8 @@ def integration_control() -> IntegrationControl:
         integration_adapter(),
         webhook_transport(),
         SystemClock(),
+        tenant_billing(),
+        plan_versions(),
         allow_http=bool(getattr(settings, "INTEGRATION_ALLOW_HTTP", False)),
     )
 

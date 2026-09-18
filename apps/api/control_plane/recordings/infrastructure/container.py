@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.conf import settings
 
+from control_plane.billing.infrastructure.container import plan_versions, tenant_billing
 from control_plane.identity.infrastructure.clock import SystemClock
 from control_plane.recordings.application.service import RecordingControl
 from control_plane.recordings.infrastructure.repositories import (
@@ -46,6 +47,8 @@ def recording_control() -> RecordingControl:
         DjangoAccessGrantRepository(),
         recording_store(),
         SystemClock(),
+        tenant_billing(),
+        plan_versions(),
         retention_days=int(getattr(settings, "RECORDING_DEFAULT_RETENTION_DAYS", 30)),
         access_ttl_seconds=int(getattr(settings, "RECORDING_ACCESS_TTL_SECONDS", 60)),
         public_base_url=str(

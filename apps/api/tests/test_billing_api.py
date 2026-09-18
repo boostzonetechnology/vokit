@@ -434,3 +434,277 @@ def test_sandbox_amount_mismatch_is_rejected() -> None:
     assert mismatch.json()["error"]["code"] == "payment_amount_mismatch"
     invoices = ctx["customer_client"].get("/api/v1/customer/invoices")
     assert invoices.json()["data"][0]["status"] == "open"
+
+
+def _subscription(client: Client, customer_id) -> dict:
+    response = client.get(f"/api/v1/platform/customers/{customer_id}/subscription")
+    assert response.status_code == 200
+    return response.json()["data"]
+
+
+def _add_version(client: Client, plan_id: str, **overrides) -> dict:
+    body = _plan_body()
+    body.update(overrides)
+    response = _post(client, f"/api/v1/platform/plans/{plan_id}/versions", body)
+    assert response.status_code == 201
+    return response.json()["data"]
+
+
+@pytest.mark.django_db
+def test_upgrade_applies_only_after_payment_and_keeps_old_invoice() -> None:
+    ctx = _bootstrap_paid_ready()
+    first_invoice = ctx["invoice_id"]
+    current = _subscription(ctx["platform"], ctx["customer_id"])
+    assert current["plan_version_id"] == ctx["version_id"]
+    assert current["max_agents"] == 0
+    assert current["pending_kind"] is None
+    assert current["period_started_at"]
+    v2 = _add_version(ctx["platform"], ctx["plan_id"], price_minor=20000)
+    change = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/subscription/change",
+        {"plan_version_id": v2["id"]},
+    )
+    assert change.status_code == 201
+    invoice = change.json()["data"]["invoice"]
+    assert invoice["status"] == "open"
+    assert invoice["due_at"] is not None
+    kinds = {line["kind"] for line in invoice["lines"]}
+    assert "subscription" in kinds
+    assert "promo" in kinds
+    assert invoice["total_minor"] < 20000
+    assert invoice["total_minor"] == sum(line["amount_minor"] for line in invoice["lines"])
+    pending = _subscription(ctx["platform"], ctx["customer_id"])
+    assert pending["plan_version_id"] == ctx["version_id"]
+    assert pending["pending_kind"] == "upgrade"
+    assert pending["pending_plan_version_id"] == v2["id"]
+    duplicate = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/subscription",
+        {"plan_version_id": v2["id"]},
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error"]["code"] == "subscription_exists"
+    customer_change = _post(
+        ctx["customer_client"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/subscription/change",
+        {"plan_version_id": v2["id"]},
+    )
+    assert customer_change.status_code == 403
+    paid = _webhook(
+        "stripe",
+        {
+            "event_id": "evt_upgrade_1",
+            "invoice_id": invoice["id"],
+            "amount_minor": invoice["total_minor"],
+            "currency": "USD",
+            "status": "captured",
+        },
+        secret_ref=STRIPE_REF,
+    )
+    assert paid.status_code == 200
+    switched = _subscription(ctx["platform"], ctx["customer_id"])
+    assert switched["plan_version_id"] == v2["id"]
+    assert switched["pending_kind"] is None
+    invoices = ctx["customer_client"].get("/api/v1/customer/invoices")
+    rows = {row["id"]: row for row in invoices.json()["data"]}
+    assert rows[first_invoice]["status"] == "open"
+    assert rows[first_invoice]["total_minor"] == 10000
+    assert rows[invoice["id"]]["status"] == "paid"
+    assert rows[invoice["id"]]["total_minor"] == invoice["total_minor"]
+
+
+@pytest.mark.django_db
+def test_expired_upgrade_invoice_stays_on_old_version() -> None:
+    from dataclasses import replace
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from control_plane.billing.infrastructure.container import tenant_billing
+
+    ctx = _bootstrap_paid_ready()
+    v2 = _add_version(ctx["platform"], ctx["plan_id"], price_minor=25000)
+    change = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/subscription/change",
+        {"plan_version_id": v2["id"]},
+    )
+    invoice_id = change.json()["data"]["invoice"]["id"]
+    billing = tenant_billing()
+    invoice = billing.get_invoice(ctx["agency_id"], uuid.UUID(invoice_id))
+    assert invoice is not None
+    billing.put_invoice(
+        ctx["agency_id"],
+        replace(invoice, due_at=timezone.now() - timedelta(seconds=1)),
+    )
+    expired = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/invoices/{invoice_id}/pay",
+        {"processor": "stripe"},
+        HTTP_IDEMPOTENCY_KEY="pay-expired-upgrade",
+    )
+    assert expired.status_code == 409
+    assert expired.json()["error"]["code"] == "invoice_expired"
+    current = _subscription(ctx["platform"], ctx["customer_id"])
+    assert current["plan_version_id"] == ctx["version_id"]
+    assert current["pending_kind"] is None
+    retry = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/subscription/change",
+        {"plan_version_id": v2["id"]},
+    )
+    assert retry.status_code == 201
+    assert retry.json()["data"]["invoice"]["id"] != invoice_id
+    invoices = {
+        row["id"]: row
+        for row in ctx["customer_client"].get("/api/v1/customer/invoices").json()["data"]
+    }
+    assert invoices[invoice_id]["status"] == "void"
+
+
+@pytest.mark.django_db
+def test_cross_tenant_subscription_change_is_hidden() -> None:
+    ctx = _bootstrap_paid_ready()
+    other = _create_agency(ctx["platform"], "Bill D", "bill_d", "oa-bill-d@vokit.test")
+    other_id = uuid.UUID(other.json()["data"]["id"])
+    _user(
+        "agency-d-bill@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        tenant_id=other_id,
+    )
+    agency_d = _client()
+    _login(agency_d, "agency-d-bill@vokit.test")
+    v2 = _add_version(ctx["platform"], ctx["plan_id"], price_minor=18000)
+    denied = _post(
+        agency_d,
+        f"/api/v1/agency/customers/{ctx['customer_id']}/subscription/change",
+        {"plan_version_id": v2["id"]},
+    )
+    assert denied.status_code == 404
+
+
+@pytest.mark.django_db
+def test_create_agent_without_subscription_is_allowed() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "No Sub", "no_sub", "oa-nosub@vokit.test")
+    assert agency.status_code == 200
+    customer = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(uuid.UUID(agency.json()["data"]["id"]), "No Sub Cust"),
+    )
+    assert customer.status_code == 201
+    created = _post(
+        platform,
+        "/api/v1/platform/agents",
+        {"customer_id": customer.json()["data"]["id"], "display_name": "Draft"},
+    )
+    assert created.status_code == 201
+
+
+@pytest.mark.django_db
+def test_active_agent_cap_and_scheduled_downgrade() -> None:
+    from dataclasses import replace
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from control_plane.billing.infrastructure.container import tenant_billing
+
+    ctx = _bootstrap_paid_ready()
+    body = _plan_body()
+    body["name"] = "Capped"
+    body["max_agents"] = 2
+    capped = _post(ctx["platform"], "/api/v1/platform/plans", body)
+    assert capped.status_code == 201
+    customer = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(ctx["agency_id"], "Cap Cust"),
+    )
+    customer_id = customer.json()["data"]["id"]
+    assigned = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{customer_id}/subscription",
+        {"plan_version_id": capped.json()["data"]["versions"][0]["id"]},
+    )
+    assert assigned.status_code == 201
+    first = _post(
+        ctx["platform"],
+        "/api/v1/platform/agents",
+        {"customer_id": customer_id, "display_name": "One"},
+    )
+    second = _post(
+        ctx["platform"],
+        "/api/v1/platform/agents",
+        {"customer_id": customer_id, "display_name": "Two"},
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{first.json()['data']['id']}/status",
+        {"status": "active"},
+    ).status_code == 200
+    assert _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{second.json()['data']['id']}/status",
+        {"status": "active"},
+    ).status_code == 200
+    blocked = _post(
+        ctx["platform"],
+        "/api/v1/platform/agents",
+        {"customer_id": customer_id, "display_name": "Three"},
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "plan_limit_agents"
+    cheaper = _add_version(
+        ctx["platform"],
+        capped.json()["data"]["id"],
+        price_minor=4000,
+        max_agents=1,
+    )
+    extras = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{customer_id}/subscription/change",
+        {"plan_version_id": cheaper["id"]},
+    )
+    assert extras.status_code == 409
+    assert extras.json()["error"]["code"] == "extras_exceed_plan"
+    paused = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{second.json()['data']['id']}/pause",
+        {"reason": "fit downgrade"},
+    )
+    assert paused.status_code == 200
+    scheduled = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{customer_id}/subscription/change",
+        {"plan_version_id": cheaper["id"]},
+    )
+    assert scheduled.status_code == 200
+    assert scheduled.json()["data"]["kind"] == "downgrade"
+    pending = _subscription(ctx["platform"], customer_id)
+    assert pending["pending_kind"] == "downgrade"
+    assert pending["plan_version_id"] == capped.json()["data"]["versions"][0]["id"]
+    billing = tenant_billing()
+    row = billing.get_active_subscription(ctx["agency_id"], uuid.UUID(customer_id))
+    assert row is not None
+    billing.put_subscription(
+        ctx["agency_id"],
+        replace(row, pending_effective_at=timezone.now() - timedelta(seconds=1)),
+    )
+    applied = _subscription(ctx["platform"], customer_id)
+    assert applied["plan_version_id"] == cheaper["id"]
+    assert applied["pending_kind"] is None
+    resume = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agents/{second.json()['data']['id']}/status",
+        {"status": "active"},
+    )
+    assert resume.status_code == 409
+    assert resume.json()["error"]["code"] == "plan_limit_agents"

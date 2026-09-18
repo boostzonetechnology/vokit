@@ -31,6 +31,11 @@ class CreatePlanCommand:
     overage_enabled: bool
     overage_price_per_minute_minor: int
     grace_seconds: int
+    max_agents: int = 0
+    max_phone_numbers: int = 0
+    max_concurrency: int = 0
+    recording_allowed: bool = True
+    allowed_integrations: tuple[str, ...] = ()
 
 
 class CreatePlan:
@@ -56,6 +61,9 @@ class CreatePlan:
         assert_grace_seconds(command.grace_seconds)
         if command.allow_topups and command.topup_minutes < 1:
             raise DomainError("validation_error", "topup_minutes must be positive.")
+        assert_positive_minutes(command.max_agents, field="max_agents")
+        assert_positive_minutes(command.max_phone_numbers, field="max_phone_numbers")
+        assert_positive_minutes(command.max_concurrency, field="max_concurrency")
         now = self._clock.now()
         plan = PlanRecord(id=new_uuid7(), name=name, status=PlanStatus.ACTIVE, created_at=now)
         version = PlanVersionRecord(
@@ -70,6 +78,11 @@ class CreatePlan:
             overage_enabled=command.overage_enabled,
             overage_price_per_minute=overage,
             grace_seconds=command.grace_seconds,
+            max_agents=command.max_agents,
+            max_phone_numbers=command.max_phone_numbers,
+            max_concurrency=command.max_concurrency,
+            recording_allowed=command.recording_allowed,
+            allowed_integrations=command.allowed_integrations,
             used_at=None,
             created_at=now,
         )

@@ -24,6 +24,11 @@ class SubscriptionRecord:
     cycle: str
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    period_started_at: datetime | None = None
+    pending_plan_version_id: uuid.UUID | None = None
+    pending_kind: str | None = None
+    pending_invoice_id: uuid.UUID | None = None
+    pending_effective_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +55,7 @@ class InvoiceRecord:
     created_at: datetime | None = None
     updated_at: datetime | None = None
     paid_at: datetime | None = None
+    due_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

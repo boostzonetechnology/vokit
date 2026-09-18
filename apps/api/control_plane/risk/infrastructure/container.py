@@ -89,6 +89,7 @@ def override_risk() -> OverrideRisk:
 
 def create_agent() -> CreateAgent:
     from control_plane.agents.infrastructure.repositories import DjangoAgentIndexRepository
+    from control_plane.billing.infrastructure.container import plan_versions
     from control_plane.tenancy.infrastructure.container import tenant_repo
 
     return CreateAgent(
@@ -99,4 +100,6 @@ def create_agent() -> CreateAgent:
         SystemClock(),
         DjangoAgentIndexRepository(),
         tenant_repo(),
+        tenant_billing(),
+        plan_versions(),
     )

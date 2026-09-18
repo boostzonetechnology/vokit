@@ -2,10 +2,20 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
-from control_plane.billing.application.ports import PlanRepository, PlanVersionRepository
+from control_plane.billing.application.entitlements import (
+    apply_due_plan_change,
+    subscription_period_end,
+)
+from control_plane.billing.application.ports import (
+    PlanRepository,
+    PlanVersionRecord,
+    PlanVersionRepository,
+)
 from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.customers.domain.policies import customer_not_found
+from control_plane.tenancy.application.ports import Clock
 from shared_kernel.errors import DomainError
 from tenant.billing.domain import SubscriptionRecord
 from tenant.billing.service import TenantBillingService
@@ -17,6 +27,8 @@ class CustomerSubscriptionView:
     plan_name: str
     plan_version: int
     included_minutes: int
+    version: PlanVersionRecord
+    period_end: datetime | None
 
 
 class GetCustomerSubscription:
@@ -26,11 +38,13 @@ class GetCustomerSubscription:
         billing: TenantBillingService,
         plans: PlanRepository,
         versions: PlanVersionRepository,
+        clock: Clock,
     ) -> None:
         self._customers = customers
         self._billing = billing
         self._plans = plans
         self._versions = versions
+        self._clock = clock
 
     def execute(self, customer_id: uuid.UUID) -> CustomerSubscriptionView | None:
         indexed = self._customers.get(customer_id)
@@ -41,6 +55,9 @@ class GetCustomerSubscription:
         )
         if subscription is None:
             return None
+        subscription = apply_due_plan_change(
+            self._billing, self._versions, subscription, self._clock.now()
+        )
         version = self._versions.get(subscription.plan_version_id)
         if version is None:
             raise DomainError("not_found", "Resource not found.", http_status=404)
@@ -50,4 +67,6 @@ class GetCustomerSubscription:
             plan_name=plan.name if plan else "",
             plan_version=version.version,
             included_minutes=version.included_minutes,
+            version=version,
+            period_end=subscription_period_end(subscription),
         )

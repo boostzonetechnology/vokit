@@ -32,6 +32,7 @@ from control_plane.agents.infrastructure.vectors import (
     MemoryVectorStore,
     QdrantHttpStore,
 )
+from control_plane.billing.infrastructure.container import plan_versions
 from control_plane.customers.infrastructure.container import customer_index
 from control_plane.identity.infrastructure.clock import SystemClock
 from control_plane.risk.infrastructure.container import risk_gate, tenant_agents
@@ -86,7 +87,14 @@ def tenant_billing() -> TenantBillingService:
 
 
 def configure_agent() -> ConfigureAgent:
-    return ConfigureAgent(customer_index(), tenant_agents(), agent_index(), SystemClock())
+    return ConfigureAgent(
+        customer_index(),
+        tenant_agents(),
+        agent_index(),
+        SystemClock(),
+        tenant_billing(),
+        plan_versions(),
+    )
 
 
 def publish_agent() -> PublishAgent:
@@ -99,6 +107,7 @@ def publish_agent() -> PublishAgent:
         risk_gate(),
         agent_index(),
         SystemClock(),
+        plan_versions(),
     )
 
 
@@ -107,16 +116,34 @@ def pause_agent() -> PauseAgent:
 
 
 def resume_agent() -> ResumeAgent:
-    return ResumeAgent(tenant_agents(), agent_index(), SystemClock())
+    return ResumeAgent(
+        tenant_agents(),
+        agent_index(),
+        SystemClock(),
+        tenant_billing(),
+        plan_versions(),
+    )
 
 
 def set_agent_status() -> SetAgentStatus:
-    return SetAgentStatus(tenant_agents(), agent_index(), SystemClock())
+    return SetAgentStatus(
+        tenant_agents(),
+        agent_index(),
+        SystemClock(),
+        tenant_billing(),
+        plan_versions(),
+    )
 
 
 def clone_agent() -> CloneAgent:
     return CloneAgent(
-        customer_index(), tenant_agents(), risk_gate(), agent_index(), SystemClock()
+        customer_index(),
+        tenant_agents(),
+        risk_gate(),
+        agent_index(),
+        SystemClock(),
+        tenant_billing(),
+        plan_versions(),
     )
 
 
@@ -134,6 +161,8 @@ def install_template() -> InstallTemplate:
         risk_gate(),
         agent_index(),
         SystemClock(),
+        tenant_billing(),
+        plan_versions(),
     )
 
 

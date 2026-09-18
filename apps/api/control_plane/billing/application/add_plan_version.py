@@ -31,6 +31,11 @@ class AddPlanVersionCommand:
     overage_enabled: bool
     overage_price_per_minute_minor: int
     grace_seconds: int
+    max_agents: int = 0
+    max_phone_numbers: int = 0
+    max_concurrency: int = 0
+    recording_allowed: bool = True
+    allowed_integrations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +49,11 @@ class UpdatePlanVersionCommand:
     overage_enabled: bool
     overage_price_per_minute_minor: int
     grace_seconds: int
+    max_agents: int = 0
+    max_phone_numbers: int = 0
+    max_concurrency: int = 0
+    recording_allowed: bool = True
+    allowed_integrations: tuple[str, ...] = ()
 
 
 def version_terms(command) -> dict:
@@ -52,6 +62,9 @@ def version_terms(command) -> dict:
     assert_grace_seconds(command.grace_seconds)
     if command.allow_topups and command.topup_minutes < 1:
         raise DomainError("validation_error", "topup_minutes must be positive.")
+    assert_positive_minutes(command.max_agents, field="max_agents")
+    assert_positive_minutes(command.max_phone_numbers, field="max_phone_numbers")
+    assert_positive_minutes(command.max_concurrency, field="max_concurrency")
     return {
         "price": Money(command.price_minor),
         "included_minutes": command.included_minutes,
@@ -61,6 +74,11 @@ def version_terms(command) -> dict:
         "overage_enabled": command.overage_enabled,
         "overage_price_per_minute": Money(command.overage_price_per_minute_minor),
         "grace_seconds": command.grace_seconds,
+        "max_agents": command.max_agents,
+        "max_phone_numbers": command.max_phone_numbers,
+        "max_concurrency": command.max_concurrency,
+        "recording_allowed": command.recording_allowed,
+        "allowed_integrations": command.allowed_integrations,
     }
 
 
