@@ -7,6 +7,7 @@ These describe **what runs today**, not backlog wishes. SRS and ADRs remain auth
 | Doc | Flow |
 |---|---|
 | [Agency create + MySQL provisioning](AGENCY-CREATE-MYSQL.md) | Super Admin creates an agency, provisions a dedicated MySQL DB/user, invites the owner |
+| [Super Admin Agencies (VKT-018–023)](agencies/SUPER-ADMIN-AGENCIES.md) | Directory, profile, resources, finance MRR, commission effective date, status/capabilities confirm, platform notes |
 | [Super Admin Customers](CUSTOMER-SUPER-ADMIN.md) | SA3 create/invite/status/usage/minutes + open deferrals |
 | [Roles & permissions (RBAC)](RBAC-ROLES-PERMISSIONS.md) | Dynamic DB roles/permissions, sync, invite-by-slug, super_admin bypass (ADR-007) |
 | [Ledger & AgentAction SoT](LEDGER-AND-AGENT-ACTION-SOT.md) | LedgerEntry = CommissionEntry; AgentAction = tool allowlist; TEN-006 hard-delete |

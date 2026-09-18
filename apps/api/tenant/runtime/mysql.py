@@ -618,6 +618,24 @@ class MysqlRuntime:
             row = cursor.fetchone()
         return self._subscription(row, mysql.tenant_id) if row else None
 
+    def list_active_subscriptions(
+        self, connection: TenantConnection
+    ) -> list[SubscriptionRecord]:
+        mysql = self._as_mysql(connection)
+        with mysql.raw.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT subscription_id, tenant_id, customer_id, plan_id, plan_version_id,
+                       status, cycle, created_at, updated_at
+                FROM subscriptions
+                WHERE tenant_id = %s AND status = %s
+                ORDER BY created_at
+                """,
+                (str(mysql.tenant_id), SubscriptionStatus.ACTIVE.value),
+            )
+            rows = cursor.fetchall()
+        return [self._subscription(row, mysql.tenant_id) for row in rows]
+
     def put_invoice(self, connection: TenantConnection, invoice: InvoiceRecord) -> None:
         mysql = self._as_mysql(connection)
         if invoice.tenant_id != mysql.tenant_id:

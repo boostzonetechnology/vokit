@@ -38,6 +38,12 @@ class TenantBillingService:
         with self._router.connection_for_tenant(tenant_id) as connection:
             return self._store.get_active_subscription(connection, customer_id)
 
+    def list_active_subscriptions(
+        self, tenant_id: uuid.UUID
+    ) -> list[SubscriptionRecord]:
+        with self._router.connection_for_tenant(tenant_id) as connection:
+            return self._store.list_active_subscriptions(connection)
+
     def put_invoice(self, tenant_id: uuid.UUID, invoice: InvoiceRecord) -> InvoiceRecord:
         with self._router.connection_for_tenant(tenant_id) as connection:
             self._store.put_invoice(connection, invoice)

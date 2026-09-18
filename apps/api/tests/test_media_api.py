@@ -94,7 +94,7 @@ def _ready_media(*, outbound: bool = False, hours: list | None = None):
     activated = _post(
         platform,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     customer = _post(
@@ -107,7 +107,7 @@ def _ready_media(*, outbound: bool = False, hours: list | None = None):
     customer_activated = _post(
         platform,
         f"/api/v1/platform/customers/{customer_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert customer_activated.status_code == 200
     plan = _post(
