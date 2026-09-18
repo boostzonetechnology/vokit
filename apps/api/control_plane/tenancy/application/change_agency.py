@@ -112,6 +112,8 @@ class ChangeAgencyStatus:
         )
         if nxt is AgencyStatus.SUSPENDED:
             kyc_notify(tenant_id=tenant_id, status="suspended")
+        elif nxt is AgencyStatus.RESTRICTED:
+            kyc_notify(tenant_id=tenant_id, status="restricted")
         log_event(
             logger,
             "agency.status.changed",

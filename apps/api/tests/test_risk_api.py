@@ -349,3 +349,47 @@ def test_forged_chargeback_signature_is_rejected() -> None:
     assert forged.json()["error"]["code"] == "payment_signature_invalid"
     assert RiskCase.objects.count() == 0
     assert LedgerEntry.objects.filter(kind=LedgerKind.COMMISSION_REVERSAL.value).count() == 0
+
+
+@pytest.mark.django_db
+def test_restricted_customer_blocks_new_agent_not_pay_invoice() -> None:
+    ctx = _bootstrap()
+    accepted = _post(
+        ctx["customer_client"],
+        "/api/v1/customer/verification",
+        {
+            "id_object_ref": "obj_id_1",
+            "id_content_type": "image/jpeg",
+            "id_checksum": "abc123",
+            "card_object_ref": "obj_card_1",
+            "card_checksum": "def456",
+            "card_last4": "4242",
+            "visible_digit_count": 4,
+            "cvv_visible": False,
+            "full_pan_present": False,
+        },
+    )
+    assert accepted.status_code == 201
+    cases = ctx["platform"].get("/api/v1/platform/risk/cases")
+    assert cases.status_code == 200
+    case_id = cases.json()["data"][0]["id"]
+    overridden = _post(
+        ctx["platform"],
+        f"/api/v1/platform/risk/cases/{case_id}/override",
+        {"status": "restricted", "note": "new commercial hold"},
+    )
+    assert overridden.status_code == 200
+    blocked_agent = _post(
+        ctx["agency_client"],
+        f"/api/v1/agency/customers/{ctx['customer_id']}/agents",
+        {"display_name": "Restricted bot"},
+    )
+    assert blocked_agent.status_code == 409
+    assert blocked_agent.json()["error"]["code"] == "customer_risk_blocked"
+    pay = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/invoices/{ctx['invoice_id']}/pay",
+        {"processor": "stripe"},
+        HTTP_IDEMPOTENCY_KEY="pay-restricted",
+    )
+    assert pay.status_code != 409

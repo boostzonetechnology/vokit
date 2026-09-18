@@ -1,8 +1,8 @@
-# Flow: Super Admin Agencies (VKT-018–023)
+# Flow: Super Admin Agencies (VKT-018–023, VKT-033–034)
 
 **Status:** Backend complete (2026-09-18)  
 **Surface:** Django API `/api/v1/platform/agencies*` (Super Admin session only)  
-**Related:** SRS §7.2 SA2-001..008, BR-001 / BR-012–016 / BR-018, AUD-004, §24.1, ADR-010  
+**Related:** SRS §7.2 SA2-001..008, BR-001 / BR-011–016 / BR-018, AUD-004, §19 NOT-001–005, §24.1, ADR-010  
 **Create + MySQL:** [Agency create + MySQL provisioning](../AGENCY-CREATE-MYSQL.md) (VKT-019 unchanged)
 
 This is the contract the Super Admin Agencies UI should consume **now**. Agency Portal and Customer Portal must not call these routes (they get **403**).
@@ -211,6 +211,8 @@ Closed agency → **409**. Illegal transition → **409**.
 
 Restricted default: customers + payouts off. Under review default: payouts off.
 
+**Restrict notice:** `restrict` delivers mandatory `agency.suspended` (same template as suspend — “suspension or restriction”). Recipients are agency memberships. `review` does **not** send this notice.
+
 ### Capabilities
 
 `POST /api/v1/platform/agencies/{id}/capabilities`
@@ -224,6 +226,25 @@ Restricted default: customers + payouts off. Under review default: payouts off.
 ```
 
 Omitted flags stay as they are (partial update). Always send `confirm: true` and `reason`. Audits `agency.capabilities.changed`. Closed agency → **409**.
+
+Turning `existing_customer_services` **off** stops **new** production admission (`resolve_did` + `bootstrap` → `customer_services_disabled`). In-progress calls are not hung up. Test/training sessions are not gated by this flag.
+
+---
+
+## VKT-033 / VKT-034 — Status gates the UI cannot bypass
+
+These are server-side. Do not rely on hiding buttons.
+
+| Action | Invited / Pending / Restricted / Under review **agency actor** | Super Admin (flag on) | Suspended / Closed |
+|---|---|---|---|
+| Create customer | 409 | allowed if `create_customers` | 409 everyone |
+| Create agent | 409 `agency_cannot_create_agent` | allowed if `create_agents` | 409 everyone |
+| Purchase/assign numbers | 409 | allowed if `purchase_numbers` | 409 everyone |
+| Request payout | Invited/Pending 409 `payout_agency_blocked` even after KYC Verified. Restricted/Under review follow `request_payouts` (defaults off). Also needs KYC Verified + unfrozen (BR-011). | same payout helper | 409 |
+
+**Customer Restricted** is **risk status**, not `CustomerStatus`. It blocks **new** commercial work (agents, numbers, minute top-up, plan assign) with `customer_risk_blocked`. Existing production calls stay up unless Super Admin suspends the customer or risk is chargeback frozen / banned / suspended. **Payment Due** is still the invoice/dashboard alert — not an account status.
+
+KYC in-app events: `kyc.submitted` / `kyc.approved` / `kyc.rejected` / `kyc.more_info` fire when the case status becomes that value (webhook or Super Admin override). Starting a KYC session (`incomplete`) does **not** send `kyc.submitted`.
 
 ---
 
@@ -271,5 +292,9 @@ The Super Admin Agencies screens exist but still send older bodies. After this b
 | 403 | (platform perm) | Agency/customer session on these routes |
 | 404 | `not_found` | Unknown agency (including notes) |
 | 409 | `agency_closed` / `invalid_agency_status` | Closed or illegal transition |
+| 409 | `agency_cannot_create_agent` | Agency actor not Active, or `create_agents` off, or Suspended/Closed |
+| 409 | `payout_agency_blocked` | Invited/Pending/Suspended/Closed, or `request_payouts` off |
+| 409 | `customer_services_disabled` | `existing_customer_services` off (new production calls) |
+| 409 | `customer_risk_blocked` | Customer risk Restricted (new commercial) or frozen/banned/suspended |
 
 Do not invent extra directory columns, note edit/delete, multi-step rate queues, or a second approver. Those are out of SRS/DoD for this slice.

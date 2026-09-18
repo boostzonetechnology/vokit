@@ -154,7 +154,7 @@ class AssignNumber:
                 "Customer is not active.",
                 http_status=409,
             )
-        self._gate.assert_open(agent.customer_id)
+        self._gate.assert_new_commercial(agent.customer_id)
         subscription = self._billing.get_active_subscription(
             command.tenant_id, agent.customer_id
         )

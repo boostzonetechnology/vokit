@@ -287,7 +287,8 @@ def test_create_agents_capability_blocks_agency_actor() -> None:
         "/api/v1/platform/agents",
         {"display_name": "Allowed", "customer_id": customer_id},
     )
-    assert privileged.status_code == 201
+    assert privileged.status_code == 409
+    assert privileged.json()["error"]["code"] == "agency_cannot_create_agent"
 
 
 @pytest.mark.django_db
@@ -694,3 +695,109 @@ def test_notes_are_platform_only() -> None:
         customer_client.get(f"/api/v1/platform/agencies/{agency_id}/notes").status_code
         == 403
     )
+
+
+@pytest.mark.django_db
+def test_restricted_agency_actor_cannot_create_agent() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    created = _post(
+        platform,
+        "/api/v1/platform/agencies",
+        {
+            "display_name": "Restrict Agents",
+            "legal_name": "Restrict Agents",
+            "owner_email": "restrict-agents@vokit.test",
+            "database": tenant_db_payload("restrict-agents@vokit.test"),
+        },
+    )
+    agency_id = created.json()["data"]["id"]
+    _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate", "confirm": True},
+    )
+    customer = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(agency_id, "Restrict Cust"),
+    )
+    customer_id = customer.json()["data"]["id"]
+    restricted = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "restrict", "confirm": True, "reason": "manual restriction"},
+    )
+    assert restricted.status_code == 200
+    _user(
+        "agency-restrict-agents@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        uuid.UUID(agency_id),
+    )
+    agency = _client()
+    _login(agency, "agency-restrict-agents@vokit.test")
+    denied = _post(
+        agency,
+        "/api/v1/agency/agents",
+        {"display_name": "Blocked", "customer_id": customer_id},
+    )
+    assert denied.status_code == 409
+    assert denied.json()["error"]["code"] == "agency_cannot_create_agent"
+    privileged = _post(
+        platform,
+        "/api/v1/platform/agents",
+        {"display_name": "Allowed", "customer_id": customer_id},
+    )
+    assert privileged.status_code == 201
+
+
+@pytest.mark.django_db
+def test_restrict_notifies_agency_review_does_not() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    created = _post(
+        platform,
+        "/api/v1/platform/agencies",
+        {
+            "display_name": "Notice Co",
+            "legal_name": "Notice Co",
+            "owner_email": "notice-owner@vokit.test",
+            "database": tenant_db_payload("notice-owner@vokit.test"),
+        },
+    )
+    agency_id = created.json()["data"]["id"]
+    _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "activate", "confirm": True},
+    )
+    _user(
+        "agency-notice@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        uuid.UUID(agency_id),
+    )
+    agency = _client()
+    _login(agency, "agency-notice@vokit.test")
+    restricted = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "restrict", "confirm": True, "reason": "restriction notice"},
+    )
+    assert restricted.status_code == 200
+    inbox = agency.get("/api/v1/agency/notifications")
+    assert inbox.status_code == 200
+    events = [item["event_type"] for item in inbox.json()["data"]]
+    assert events.count("agency.suspended") == 1
+    reviewed = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "review", "confirm": True, "reason": "under review"},
+    )
+    assert reviewed.status_code == 200
+    after = agency.get("/api/v1/agency/notifications")
+    later = [item["event_type"] for item in after.json()["data"]]
+    assert later.count("agency.suspended") == 1

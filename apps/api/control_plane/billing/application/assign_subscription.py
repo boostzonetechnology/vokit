@@ -72,7 +72,7 @@ class AssignSubscription:
         tenant_customer = self._lifecycle.get_customer(customer.tenant_id, customer.id)
         if tenant_customer is None:
             raise customer_not_found()
-        self._gate.assert_open(customer.id)
+        self._gate.assert_new_commercial(customer.id)
         version = self._require_version(command.plan_version_id)
         existing = self._billing.get_active_subscription(customer.tenant_id, customer.id)
         if existing is not None:

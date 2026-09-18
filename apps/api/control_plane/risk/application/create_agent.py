@@ -13,6 +13,7 @@ from control_plane.customers.domain.policies import customer_not_found
 from control_plane.risk.application.gate import CustomerRiskGate
 from control_plane.risk.domain.types import AgentStatus
 from control_plane.tenancy.application.ports import Clock, TenantRepository
+from control_plane.tenancy.domain.lifecycle import assert_agency_may_create_agent
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
@@ -65,13 +66,12 @@ class CreateAgent:
         tenant = self._tenants.get(customer.tenant_id)
         if tenant is None:
             raise customer_not_found()
-        if not command.privileged and not tenant.capabilities.create_agents:
-            raise DomainError(
-                "agency_cannot_create_agent",
-                "Agent creation is not available.",
-                http_status=409,
-            )
-        self._gate.assert_open(customer.id)
+        assert_agency_may_create_agent(
+            tenant.agency_status,
+            tenant.capabilities,
+            privileged=command.privileged,
+        )
+        self._gate.assert_new_commercial(customer.id)
         now = self._clock.now()
         agent = TenantAgent(
             agent_id=new_uuid7(),

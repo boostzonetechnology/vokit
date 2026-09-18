@@ -54,6 +54,18 @@ def assert_commercially_open(
         )
 
 
+def assert_new_commercial_open(
+    status: RiskStatus | None, *, permanently_banned: bool = False
+) -> None:
+    assert_commercially_open(status, permanently_banned=permanently_banned)
+    if status is RiskStatus.RESTRICTED:
+        raise DomainError(
+            "customer_risk_blocked",
+            "Customer commercial activity is not available.",
+            http_status=409,
+        )
+
+
 def assert_agency_cannot_override() -> None:
     raise DomainError("forbidden", "Not permitted.", http_status=403)
 

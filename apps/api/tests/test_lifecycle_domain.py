@@ -9,9 +9,11 @@ from control_plane.tenancy.domain.lifecycle import (
     AgencyStatus,
     apply_agency_status_action,
     assert_agency_action_confirmed,
+    assert_agency_may_create_agent,
     assert_agency_may_create_customer,
     assert_agency_may_purchase_numbers,
     assert_agency_status_reason,
+    assert_existing_customer_services,
 )
 from shared_kernel.errors import DomainError
 
@@ -75,6 +77,29 @@ def test_agency_purchase_numbers_requires_capability() -> None:
     assert_agency_may_purchase_numbers(
         AgencyStatus.ACTIVE, AgencyCapabilities(), privileged=False
     )
+
+
+def test_agency_create_agent_requires_active_for_agency_actor() -> None:
+    caps = AgencyCapabilities()
+    assert_agency_may_create_agent(AgencyStatus.ACTIVE, caps, privileged=False)
+    with pytest.raises(DomainError) as exc:
+        assert_agency_may_create_agent(AgencyStatus.RESTRICTED, caps, privileged=False)
+    assert exc.value.code == "agency_cannot_create_agent"
+    assert_agency_may_create_agent(AgencyStatus.RESTRICTED, caps, privileged=True)
+    with pytest.raises(DomainError) as invited:
+        assert_agency_may_create_agent(AgencyStatus.INVITED, caps, privileged=False)
+    assert invited.value.code == "agency_cannot_create_agent"
+    with pytest.raises(DomainError):
+        assert_agency_may_create_agent(AgencyStatus.SUSPENDED, caps, privileged=True)
+
+
+def test_existing_customer_services_gate() -> None:
+    assert_existing_customer_services(AgencyCapabilities())
+    with pytest.raises(DomainError) as exc:
+        assert_existing_customer_services(
+            AgencyCapabilities(existing_customer_services=False)
+        )
+    assert exc.value.code == "customer_services_disabled"
 
 
 def test_customer_status_agency_cannot_close() -> None:

@@ -15,7 +15,8 @@ is detected by reconcile.
 Frozen `/internal/telephony/v1/` paths authenticate with `X-Vokit-Internal-Token`.
 DID resolve and bootstrap fail closed (`routable`/`admitted` false) when the agent is
 unpublished, the number is unassigned, inbound is disabled, the shop is outside hours
-with hangup fallback, risk is blocked, or minutes/overage/grace are exhausted.
+with hangup fallback, risk is blocked, `existing_customer_services` is off
+(`customer_services_disabled`), or minutes/overage/grace are exhausted.
 
 Transfer destinations (E.164, department, queue, SIP client) live in the Agency tenant
 DB. Django resolves them to Edge `POST /v1/calls/:id/transfer {to}` (ADR-006). Queues

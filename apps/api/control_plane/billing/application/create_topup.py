@@ -60,7 +60,7 @@ class CreateTopUp:
             if invoice is None:
                 raise DomainError("not_found", "Resource not found.", http_status=404)
             return invoice
-        self._gate.assert_open(command.customer_id)
+        self._gate.assert_new_commercial(command.customer_id)
         subscription = self._billing.get_active_subscription(
             command.tenant_id, command.customer_id
         )
