@@ -29,6 +29,8 @@ HIGH_RISK_ACTIONS = frozenset(
         "agent.status.changed",
         "agent.archived",
         "agent.disabled",
+        "agency.commission.changed",
+        "agency.capabilities.changed",
     }
 )
 
@@ -47,5 +49,7 @@ OVERRIDE_ACTIONS = frozenset(
         "mfa.reset",
         "agent.archived",
         "agent.disabled",
+        "agency.commission.changed",
+        "agency.capabilities.changed",
     }
 )

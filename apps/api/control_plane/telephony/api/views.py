@@ -4,6 +4,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from control_plane.identity.api.auth import (
+    parse_optional_uuid,
     parse_uuid,
     require_agency_perm,
     require_customer_perm,
@@ -117,6 +118,9 @@ class PlatformNumberCollectionView(CsrfAPIView):
             country=str(request.query_params.get("country") or ""),
             area=str(request.query_params.get("area") or ""),
             capability=str(request.query_params.get("capability") or ""),
+            tenant_id=parse_optional_uuid(
+                request.query_params.get("agency_id"), field="agency_id"
+            ),
         )
         limit, offset = parse_page(
             request.query_params.get("limit"), request.query_params.get("offset")

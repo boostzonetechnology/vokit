@@ -25,6 +25,10 @@ class TenantBillingStore(Protocol):
         self, connection: TenantConnection, customer_id: uuid.UUID
     ) -> SubscriptionRecord | None: ...
 
+    def list_active_subscriptions(
+        self, connection: TenantConnection
+    ) -> list[SubscriptionRecord]: ...
+
     def put_invoice(self, connection: TenantConnection, invoice: InvoiceRecord) -> None: ...
 
     def get_invoice(

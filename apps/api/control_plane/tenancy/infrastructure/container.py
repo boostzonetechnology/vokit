@@ -196,7 +196,9 @@ def change_agency_status() -> ChangeAgencyStatus:
 
 
 def change_agency_capabilities() -> ChangeAgencyCapabilities:
-    return ChangeAgencyCapabilities(tenant_repo(), lifecycle(), SystemClock())
+    return ChangeAgencyCapabilities(
+        tenant_repo(), lifecycle(), SystemClock(), record_audit()
+    )
 
 
 def update_agency_profile() -> UpdateAgencyProfile:

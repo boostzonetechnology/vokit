@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from control_plane.billing.domain.types import InvoiceStatus
-from control_plane.billing.infrastructure.container import invoice_index
+from control_plane.billing.infrastructure.container import (
+    invoice_index,
+    plan_versions,
+    tenant_billing,
+)
 from control_plane.commission.api.views import _payout_public, _wallet_payload
+from control_plane.commission.domain.policies import commission_amount
 from control_plane.commission.domain.types import LedgerKind
 from control_plane.commission.infrastructure.container import ledger, payouts
 from control_plane.identity.api.auth import parse_uuid, require_platform_perm
@@ -14,6 +21,7 @@ from control_plane.identity.infrastructure.clock import SystemClock
 from control_plane.tenancy.application.create_agency import CreateAgencyCommand
 from control_plane.tenancy.application.notes import CreateAgencyNoteCommand
 from control_plane.tenancy.application.ports import TenantRecord
+from control_plane.tenancy.domain.commission import effective_commission_rate_bps
 from control_plane.tenancy.domain.lifecycle import AgencyCapabilities, AgencyStatus
 from control_plane.tenancy.infrastructure.container import (
     change_agency_capabilities,
@@ -29,6 +37,7 @@ from control_plane.tenancy.infrastructure.container import (
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
+from shared_kernel.money import V1_CURRENCY, Money
 
 
 def _capabilities_from(
@@ -55,6 +64,18 @@ def _capabilities_from(
     )
 
 
+def _parse_rate_effective_at(raw: object) -> datetime | None:
+    if raw in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise DomainError("validation_error", "rate_effective_at is invalid.") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 def _agency_payload(tenant: TenantRecord) -> dict[str, object]:
     caps = tenant.capabilities
     payload: dict[str, object] = {
@@ -65,6 +86,7 @@ def _agency_payload(tenant: TenantRecord) -> dict[str, object]:
         "status": tenant.agency_status.value,
         "currency": tenant.currency,
         "commission_rate_bps": tenant.commission_rate_bps,
+        "previous_commission_rate_bps": tenant.previous_commission_rate_bps,
         "rate_effective_at": (
             tenant.rate_effective_at.isoformat() if tenant.rate_effective_at else None
         ),
@@ -173,6 +195,7 @@ class AgencyStatusView(CsrfAPIView):
         tenant = change_agency_status().execute(
             parse_uuid(agency_id, field="agency_id"),
             str(request.data.get("action") or ""),
+            confirm=bool(request.data.get("confirm") is True),
             reason=str(request.data.get("reason") or ""),
             actor_id=context.user.id,
             actor_role=context.membership.role,
@@ -182,7 +205,7 @@ class AgencyStatusView(CsrfAPIView):
 
 class AgencyCapabilitiesView(CsrfAPIView):
     def post(self, request: Request, agency_id: str) -> Response:
-        require_platform_perm(request, "agency.update")
+        context = require_platform_perm(request, "agency.update")
         tenant_id = parse_uuid(agency_id, field="agency_id")
         current = tenant_repo().get(tenant_id)
         if current is None:
@@ -190,6 +213,10 @@ class AgencyCapabilitiesView(CsrfAPIView):
         tenant = change_agency_capabilities().execute(
             tenant_id,
             _capabilities_from(request.data, current=current.capabilities),
+            confirm=bool(request.data.get("confirm") is True),
+            reason=str(request.data.get("reason") or ""),
+            actor_id=context.user.id,
+            actor_role=context.membership.role,
         )
         return success(_agency_payload(tenant))
 
@@ -200,6 +227,10 @@ class AgencyCommissionView(CsrfAPIView):
         tenant = set_commission_rate().execute(
             parse_uuid(agency_id, field="agency_id"),
             int(request.data.get("commission_rate_bps") or -1),
+            rate_effective_at=_parse_rate_effective_at(
+                request.data.get("rate_effective_at")
+            ),
+            reason=str(request.data.get("reason") or ""),
             actor_id=context.user.id,
             actor_role=context.membership.role,
         )
@@ -210,7 +241,8 @@ class AgencyFinanceView(CsrfAPIView):
     def get(self, request: Request, agency_id: str) -> Response:
         require_platform_perm(request, "billing.view")
         tenant_id = parse_uuid(agency_id, field="agency_id")
-        if tenant_repo().get(tenant_id) is None:
+        tenant = tenant_repo().get(tenant_id)
+        if tenant is None:
             raise DomainError("not_found", "Resource not found.", http_status=404)
         now = SystemClock().now()
         invoices = invoice_index().list(tenant_id=tenant_id)
@@ -225,12 +257,27 @@ class AgencyFinanceView(CsrfAPIView):
             if row.kind is LedgerKind.COMMISSION_EARNED
         )
         payout_rows = payouts().list(tenant_id=tenant_id)
+        mrr_minor = 0
+        for subscription in tenant_billing().list_active_subscriptions(tenant_id):
+            version = plan_versions().get(subscription.plan_version_id)
+            if version is None:
+                continue
+            mrr_minor += version.price.minor_units
+        rate_bps = effective_commission_rate_bps(
+            rate_bps=tenant.commission_rate_bps,
+            previous_rate_bps=tenant.previous_commission_rate_bps,
+            rate_effective_at=tenant.rate_effective_at,
+            at=now,
+        )
+        commission_mrr = commission_amount(Money(mrr_minor, V1_CURRENCY), rate_bps)
         return success(
             {
                 "agency_id": str(tenant_id),
                 "buckets": _wallet_payload(tenant_id, now),
                 "customer_revenue_minor": revenue_minor,
                 "commission_earned_minor": earned_minor,
+                "mrr_minor": mrr_minor,
+                "commission_mrr_minor": commission_mrr.minor_units,
                 "payouts": [_payout_public(row) for row in payout_rows],
             }
         )

@@ -59,10 +59,13 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | Method | Resource | SRS |
 |---|---|---|
 | GET | `/platform/dashboard` | SA1-*, RPT-* — period (`today`/`7d`/`30d`/`mtd`/`custom` + since/until), timezone, optional `agency_id`; money from ledger/invoices |
-| GET/POST | `/platform/agencies` | SA2-* |
-| POST | `/platform/agencies/{id}/status` | SA2-004 |
-| POST | `/platform/agencies/{id}/commission` | SA2-003, BR-001 |
-| POST | `/platform/agencies/{id}/capabilities` | SA2-005 |
+| GET/POST | `/platform/agencies` | SA2-001..008 — list filters `status` (agency status) and `name` (display/legal substring); pagination `limit`/`offset` |
+| GET/PATCH | `/platform/agencies/{id}` | SA2-002 display_name/legal_name; PATCH audits `agency.profile.changed` |
+| GET | `/platform/agencies/{id}/finance` | SA2-006 — `mrr_minor`, `commission_mrr_minor`, wallet buckets, payouts, paid customer revenue |
+| GET/POST | `/platform/agencies/{id}/notes` | SA2-008 platform-only; `risk_flag`; agency/customer sessions 403 |
+| POST | `/platform/agencies/{id}/status` | SA2-004 — `confirm: true`; `reason` required for restrict/review/suspend/close |
+| POST | `/platform/agencies/{id}/commission` | SA2-003, BR-001, AUD-004 — `reason` required; optional future `rate_effective_at`; agency users 403 |
+| POST | `/platform/agencies/{id}/capabilities` | SA2-005 — `confirm: true` and `reason`; audits `agency.capabilities.changed` |
 | POST | `/platform/agencies/{id}/reassign-customer` | **Not in initial V1** (Q-016) |
 | GET/POST | `/platform/customers` | SA3-* |
 | POST | `/platform/customers/{id}/minutes-adjustment` | SA3-003 |
@@ -80,7 +83,7 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET/POST | `/platform/instructions` | SA7-* |
 | GET/POST | `/platform/knowledge` | SA8-* — same ingest states as agency; file upload supported |
 | DELETE | `/platform/knowledge/{source_id}` | KB-004 — `confirm=true` required |
-| GET/POST | `/platform/phone-numbers` | SA9-*, Q-002 |
+| GET/POST | `/platform/phone-numbers` | SA9-*, Q-002 — list optional `agency_id` (assigned tenant) |
 | GET/POST | `/platform/plans` | SA11-*, PLAN-* |
 | GET | `/platform/payments` `/invoices` `/disputes` | SA12-* |
 | GET/POST | `/platform/payouts` | SA13-* |

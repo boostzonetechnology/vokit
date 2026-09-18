@@ -8,8 +8,10 @@ from control_plane.tenancy.domain.lifecycle import (
     AgencyCapabilities,
     AgencyStatus,
     apply_agency_status_action,
+    assert_agency_action_confirmed,
     assert_agency_may_create_customer,
     assert_agency_may_purchase_numbers,
+    assert_agency_status_reason,
 )
 from shared_kernel.errors import DomainError
 
@@ -41,6 +43,14 @@ def test_default_capability_gates() -> None:
     )
     assert review.request_payouts is False
     assert review.create_customers is True
+    suspended = merge_capability_gates(
+        current, default_capabilities_for_status(AgencyStatus.SUSPENDED)
+    )
+    assert suspended.create_customers is False
+    assert suspended.create_agents is False
+    assert suspended.purchase_numbers is False
+    assert suspended.request_payouts is False
+    assert suspended.existing_customer_services is True
 
 
 def test_agency_create_customer_requires_active_for_agency_actor() -> None:
@@ -95,3 +105,14 @@ def test_ban_key_hash_is_stable() -> None:
     second = hash_ban_key(BanKey(kind="email", value="a@b.test"))
     assert first == second
     assert len(first) == 64
+
+
+def test_agency_status_confirm_and_reason() -> None:
+    assert_agency_action_confirmed(True)
+    with pytest.raises(DomainError) as missing:
+        assert_agency_action_confirmed(False)
+    assert missing.value.code == "confirmation_required"
+    assert_agency_status_reason("activate", "")
+    with pytest.raises(DomainError):
+        assert_agency_status_reason("suspend", "")
+    assert_agency_status_reason("suspend", "risk hold")

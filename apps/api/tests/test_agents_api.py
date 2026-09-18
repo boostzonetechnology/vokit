@@ -96,7 +96,7 @@ def _create_agency(client: Client, name: str, db_name: str, owner: str):
     return _post(
         client,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
 
 
@@ -117,7 +117,7 @@ def _ready_agent():
     activated = _post(
         platform,
         f"/api/v1/platform/customers/{customer_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     plan = _post(
@@ -672,7 +672,7 @@ def test_agency_clone_to_own_customer_is_independent() -> None:
     activated = _post(
         ctx["platform"],
         f"/api/v1/platform/customers/{other_customer_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     cloned = _post(

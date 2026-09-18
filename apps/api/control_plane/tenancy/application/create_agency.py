@@ -108,6 +108,7 @@ class CreateAgency:
             legal_name=command.legal_name.strip() or command.display_name.strip(),
             currency=command.currency,
             commission_rate_bps=command.commission_rate_bps,
+            previous_commission_rate_bps=command.commission_rate_bps,
             rate_effective_at=now,
             capabilities=command.capabilities,
         )

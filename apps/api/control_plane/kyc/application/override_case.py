@@ -46,7 +46,10 @@ class OverrideKycCase:
         status = case.status
         if action == "freeze":
             frozen = True
-            self._freeze_payouts(case.tenant_id)
+            self._freeze_payouts(
+                case.tenant_id,
+                reason=command.internal_note.strip() or "kyc freeze",
+            )
         elif action == "unfreeze":
             frozen = False
         elif action == "set_status":
@@ -96,7 +99,7 @@ class OverrideKycCase:
         )
         return self._cases.get(case.id) or updated
 
-    def _freeze_payouts(self, tenant_id: uuid.UUID) -> None:
+    def _freeze_payouts(self, tenant_id: uuid.UUID, *, reason: str) -> None:
         tenant = self._tenants.get(tenant_id)
         if tenant is None:
             return
@@ -110,4 +113,6 @@ class OverrideKycCase:
                 request_payouts=False,
                 existing_customer_services=caps.existing_customer_services,
             ),
+            confirm=True,
+            reason=reason,
         )

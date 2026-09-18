@@ -110,7 +110,7 @@ def _ready_call(*, tag: str, e164: str, hours: list | None = None) -> dict:
     activated = _post(
         platform,
         f"/api/v1/platform/agencies/{agency_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert activated.status_code == 200
     customer = _post(
@@ -123,7 +123,7 @@ def _ready_call(*, tag: str, e164: str, hours: list | None = None) -> dict:
     customer_activated = _post(
         platform,
         f"/api/v1/platform/customers/{customer_id}/status",
-        {"action": "activate"},
+        {"action": "activate", "confirm": True},
     )
     assert customer_activated.status_code == 200
     plan = _post(
