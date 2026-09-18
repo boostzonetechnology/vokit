@@ -13,6 +13,7 @@ from control_plane.identity.domain.types import MembershipStatus, PrincipalType
 from control_plane.identity.infrastructure.repositories import DjangoMembershipRepository
 from control_plane.identity.models import User
 from control_plane.notifications.models import NotificationDelivery
+from control_plane.tenancy.models import Tenant, TenantDatabase
 from shared_kernel.ids import new_uuid7
 from tests.tenant_db_fixtures import platform_customer_body, tenant_db_payload
 
@@ -111,6 +112,9 @@ def test_agency_create_owner_conflict() -> None:
     _user("taken@vokit.test", PrincipalType.PLATFORM, "support_admin")
     client = _client()
     _login(client, "platform@vokit.test")
+    before_tenants = Tenant.objects.count()
+    before_dbs = TenantDatabase.objects.count()
+    payload = tenant_db_payload("taken@vokit.test")
     response = _post(
         client,
         "/api/v1/platform/agencies",
@@ -118,11 +122,17 @@ def test_agency_create_owner_conflict() -> None:
             "display_name": "Conflict Co",
             "legal_name": "Conflict Co",
             "owner_email": "taken@vokit.test",
-            "database": tenant_db_payload("taken@vokit.test"),
+            "database": payload,
         },
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "owner_conflict"
+    assert Tenant.objects.count() == before_tenants
+    assert TenantDatabase.objects.count() == before_dbs
+    assert not TenantDatabase.objects.filter(db_username=payload["username"]).exists()
+    listed = client.get("/api/v1/platform/agencies?name=Conflict Co")
+    assert listed.status_code == 200
+    assert listed.json()["data"] == []
 
 
 @pytest.mark.django_db

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from control_plane.identity.application.invite_user import InviteUser, InviteUserCommand
 from control_plane.identity.application.ports import MembershipRecord
@@ -73,6 +73,7 @@ class CreateAgency:
 
     def execute(self, command: CreateAgencyCommand) -> CreatedAgency:
         self._validate(command)
+        self._assert_owner_available(command)
         tenant_id = command.tenant_id or new_uuid7()
         allocated = allocate_tenant_database(
             tenant_id,
@@ -125,7 +126,11 @@ class CreateAgency:
                 updated_at=now,
             ),
         )
-        self._invite_owner(command, updated.id)
+        try:
+            self._invite_owner(command, updated.id)
+        except DomainError:
+            self._tenants.update(replace(updated, status=TenantStatus.FAILED))
+            raise
         log_event(
             logger,
             "agency.created",
@@ -134,6 +139,12 @@ class CreateAgency:
         )
         saved = self._tenants.get(updated.id) or updated
         return CreatedAgency(tenant=saved)
+
+    def _assert_owner_available(self, command: CreateAgencyCommand) -> None:
+        try:
+            self._invites.assert_email_available(command.owner_email)
+        except DomainError as exc:
+            raise _owner_conflict(exc) from exc
 
     def _invite_owner(self, command: CreateAgencyCommand, tenant_id: uuid.UUID) -> None:
         try:
@@ -151,13 +162,7 @@ class CreateAgency:
                 )
             )
         except DomainError as exc:
-            if exc.code == "membership_conflict":
-                raise DomainError(
-                    "owner_conflict",
-                    "Owner email already has a membership.",
-                    http_status=409,
-                ) from exc
-            raise
+            raise _owner_conflict(exc) from exc
         deliver_invitation(
             email=record.email,
             role=record.role,
@@ -188,3 +193,13 @@ class CreateAgency:
                 "Database username is already in use.",
                 http_status=409,
             )
+
+
+def _owner_conflict(exc: DomainError) -> DomainError:
+    if exc.code != "membership_conflict":
+        return exc
+    return DomainError(
+        "owner_conflict",
+        "Owner email already has a membership.",
+        http_status=409,
+    )
