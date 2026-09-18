@@ -38,7 +38,12 @@ def assert_payout_eligible(
             "Payout is not available.",
             http_status=409,
         )
-    if agency_status in {AgencyStatus.SUSPENDED, AgencyStatus.CLOSED}:
+    if agency_status in {
+        AgencyStatus.INVITED,
+        AgencyStatus.PENDING,
+        AgencyStatus.SUSPENDED,
+        AgencyStatus.CLOSED,
+    }:
         raise DomainError(
             "payout_agency_blocked",
             "Payout is not available.",

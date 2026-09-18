@@ -214,6 +214,43 @@ def assert_agency_may_purchase_numbers(
         )
 
 
+def assert_agency_may_create_agent(
+    status: AgencyStatus,
+    capabilities: AgencyCapabilities,
+    *,
+    privileged: bool,
+) -> None:
+    if status in {AgencyStatus.SUSPENDED, AgencyStatus.CLOSED}:
+        raise DomainError(
+            "agency_cannot_create_agent",
+            "Agent creation is not available.",
+            http_status=409,
+        )
+    if not capabilities.create_agents:
+        raise DomainError(
+            "agency_cannot_create_agent",
+            "Agent creation is not available.",
+            http_status=409,
+        )
+    if privileged:
+        return
+    if status is not AgencyStatus.ACTIVE:
+        raise DomainError(
+            "agency_cannot_create_agent",
+            "Agent creation is not available.",
+            http_status=409,
+        )
+
+
+def assert_existing_customer_services(capabilities: AgencyCapabilities) -> None:
+    if not capabilities.existing_customer_services:
+        raise DomainError(
+            "customer_services_disabled",
+            "Customer services are disabled.",
+            http_status=409,
+        )
+
+
 def assert_agency_may_mutate_customer(
     status: AgencyStatus,
     capabilities: AgencyCapabilities,

@@ -187,6 +187,8 @@ def _ready_voice(*, overage: bool = False, grace: int = 30, publish: bool = True
     )
     assert assigned_number.status_code == 201
     return {
+        "platform": platform,
+        "agency_id": agency_id,
         "agency_client": agency_client,
         "agent_id": agent_id,
         "did": "+14155550999",
@@ -323,3 +325,35 @@ def test_training_bootstrap_uses_session_token() -> None:
         {"session_token": token},
     )
     assert ended.json()["data"]["status"] == "ended"
+
+
+@pytest.mark.django_db
+def test_disabled_customer_services_are_not_admitted() -> None:
+    ctx = _ready_voice()
+    gated = _post(
+        ctx["platform"],
+        f"/api/v1/platform/agencies/{ctx['agency_id']}/capabilities",
+        {
+            "capabilities": {"existing_customer_services": False},
+            "confirm": True,
+            "reason": "stop production",
+        },
+    )
+    assert gated.status_code == 200
+    resolved = _internal("/internal/telephony/v1/did/resolve/", {"did": "14155550999"})
+    assert resolved.status_code == 200
+    assert resolved.json()["data"]["routable"] is False
+    assert resolved.json()["data"]["reason"] == "customer_services_disabled"
+    bootstrap = _internal(
+        "/internal/telephony/v1/voice-session/bootstrap/",
+        {
+            "did": ctx["did"],
+            "edge_call_id": "edge-services-off",
+            "from_number": "+15550001111",
+            "sip_call_id": "sip-services-off",
+            "direction": "inbound",
+        },
+    )
+    assert bootstrap.status_code == 200
+    assert bootstrap.json()["data"]["admitted"] is False
+    assert bootstrap.json()["data"]["reject_reason"] == "customer_services_disabled"

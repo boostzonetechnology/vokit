@@ -38,3 +38,19 @@ def test_payout_requires_verified_and_unfrozen() -> None:
             capabilities=caps,
         )
     assert exc.value.code == "payout_kyc_frozen"
+    with pytest.raises(DomainError) as invited:
+        assert_payout_eligible(
+            kyc_status=KycStatus.VERIFIED,
+            frozen=False,
+            agency_status=AgencyStatus.INVITED,
+            capabilities=caps,
+        )
+    assert invited.value.code == "payout_agency_blocked"
+    with pytest.raises(DomainError) as pending:
+        assert_payout_eligible(
+            kyc_status=KycStatus.VERIFIED,
+            frozen=False,
+            agency_status=AgencyStatus.PENDING,
+            capabilities=caps,
+        )
+    assert pending.value.code == "payout_agency_blocked"

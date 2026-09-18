@@ -68,6 +68,7 @@ def kyc_notify(*, tenant_id, status: str) -> None:
         "rejected": "kyc.rejected",
         "more_information_required": "kyc.more_info",
         "suspended": "agency.suspended",
+        "restricted": "agency.suspended",
     }
     event = mapping.get(status)
     if event is None:
@@ -75,11 +76,14 @@ def kyc_notify(*, tenant_id, status: str) -> None:
     recipients = recipients_for_scope(tenant_id=tenant_id)
     if not recipients:
         return
+    variables = {"agency_id": str(tenant_id)}
+    if event != "agency.suspended":
+        variables["status"] = status
     notifications().dispatch(
         DispatchCommand(
             event_type=event,
             recipients=tuple(recipients),
-            variables={"agency_id": str(tenant_id), "status": status},
+            variables=variables,
             tenant_id=tenant_id,
         )
     )

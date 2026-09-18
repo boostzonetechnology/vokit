@@ -57,6 +57,7 @@ from control_plane.telephony.domain.voicemail import (
     next_voicemail_status,
 )
 from control_plane.tenancy.application.ports import Clock
+from control_plane.tenancy.domain.lifecycle import assert_existing_customer_services
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
@@ -831,6 +832,13 @@ class VoiceControl:
         customer = self._lifecycle.get_customer(agent.tenant_id, agent.customer_id)
         if customer is None or customer.status is not CustomerStatus.ACTIVE:
             return {"reason": "customer_inactive", "number": number, "agent": agent}
+        agency = self._lifecycle.get_agency(agent.tenant_id)
+        if agency is None:
+            return {"reason": "customer_inactive", "number": number, "agent": agent}
+        try:
+            assert_existing_customer_services(agency.capabilities)
+        except DomainError:
+            return {"reason": "customer_services_disabled", "number": number, "agent": agent}
         try:
             self._gate.assert_open(agent.customer_id)
         except DomainError:
