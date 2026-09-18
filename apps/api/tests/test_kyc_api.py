@@ -321,3 +321,86 @@ def test_rejected_webhook_keeps_payout_blocked() -> None:
     denied = _post(agency_client, "/api/v1/agency/payouts", {})
     assert denied.status_code == 409
     assert denied.json()["error"]["code"] == "payout_kyc_unverified"
+
+
+@pytest.mark.django_db
+def test_invited_agency_payout_blocked_after_kyc() -> None:
+    from tests.tenant_db_fixtures import tenant_db_payload
+
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    created = _post(
+        platform,
+        "/api/v1/platform/agencies",
+        {
+            "display_name": "KYC Invited",
+            "legal_name": "KYC Invited",
+            "owner_email": "oi-kyc@vokit.test",
+            "database": tenant_db_payload("oi-kyc@vokit.test"),
+        },
+    )
+    assert created.status_code == 201
+    agency_id = created.json()["data"]["id"]
+    _user(
+        "agency-kyci@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        uuid.UUID(agency_id),
+    )
+    agency_client = _client()
+    _login(agency_client, "agency-kyci@vokit.test")
+    session = _post(agency_client, "/api/v1/agency/kyc/session", {})
+    assert session.status_code == 201
+    hook = _webhook(
+        {
+            "event_id": str(new_uuid7()),
+            "session_id": session.json()["data"]["session_id"],
+            "status": "verified",
+        }
+    )
+    assert hook.status_code == 200
+    denied = _post(agency_client, "/api/v1/agency/payouts", {})
+    assert denied.status_code == 409
+    assert denied.json()["error"]["code"] == "payout_agency_blocked"
+
+
+@pytest.mark.django_db
+def test_kyc_webhooks_notify_and_session_start_does_not() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "KYC N", "kyc_n", "on-kyc@vokit.test")
+    agency_id = agency.json()["data"]["id"]
+    _user(
+        "agency-kycn@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        uuid.UUID(agency_id),
+    )
+    agency_client = _client()
+    _login(agency_client, "agency-kycn@vokit.test")
+    session = _post(agency_client, "/api/v1/agency/kyc/session", {})
+    assert session.status_code == 201
+    started = agency_client.get("/api/v1/agency/notifications")
+    assert started.status_code == 200
+    assert not any(
+        item["event_type"] == "kyc.submitted" for item in started.json()["data"]
+    )
+    session_id = session.json()["data"]["session_id"]
+    expected = (
+        ("submitted", "kyc.submitted"),
+        ("rejected", "kyc.rejected"),
+        ("more_information_required", "kyc.more_info"),
+    )
+    for status, event_type in expected:
+        hook = _webhook(
+            {
+                "event_id": str(new_uuid7()),
+                "session_id": session_id,
+                "status": status,
+            }
+        )
+        assert hook.status_code == 200
+        inbox = agency_client.get("/api/v1/agency/notifications")
+        assert any(item["event_type"] == event_type for item in inbox.json()["data"])

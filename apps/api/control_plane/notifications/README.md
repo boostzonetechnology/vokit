@@ -5,6 +5,12 @@ Security, billing, KYC, and suspension notices cannot be disabled (NOT-003).
 Invitation tokens are emailed and must not appear in the in-app body or delivery
 log. Agency/customer preferences are scoped to the session tenant or customer.
 
+KYC status changes notify on `submitted` / `verified` / `rejected` /
+`more_information_required` (`kyc.submitted`, `kyc.approved`, `kyc.rejected`,
+`kyc.more_info`). Starting a hosted KYC session (`incomplete`) does not send
+`kyc.submitted`. Agency restrict uses the same mandatory `agency.suspended`
+template as suspend. Recipients are agency memberships (`recipients_for_scope`).
+
 ## Email delivery (SMTP + Celery)
 
 Outbound email is queued on Celery (broker = Redis via `REDIS_URL`):

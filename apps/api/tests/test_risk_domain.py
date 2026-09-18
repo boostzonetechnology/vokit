@@ -7,6 +7,7 @@ from control_plane.risk.domain.policies import (
     assert_agency_cannot_override,
     assert_card_mask,
     assert_commercially_open,
+    assert_new_commercial_open,
     assert_no_sensitive_card_payload,
 )
 from control_plane.risk.domain.types import RiskStatus
@@ -66,6 +67,11 @@ def test_frozen_and_banned_block_commercial_activity() -> None:
         assert_commercially_open(RiskStatus.VERIFIED, permanently_banned=True)
     assert_commercially_open(RiskStatus.NORMAL)
     assert_commercially_open(RiskStatus.VERIFIED)
+    assert_commercially_open(RiskStatus.RESTRICTED)
+    with pytest.raises(DomainError) as restricted:
+        assert_new_commercial_open(RiskStatus.RESTRICTED)
+    assert restricted.value.code == "customer_risk_blocked"
+    assert_new_commercial_open(RiskStatus.NORMAL)
 
 
 def test_agency_cannot_override_risk() -> None:
