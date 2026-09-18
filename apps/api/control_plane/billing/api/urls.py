@@ -4,6 +4,7 @@ from django.urls import path
 
 from control_plane.billing.api.views import (
     AgencyCustomerInvoiceCollectionView,
+    AgencyCustomerSubscriptionChangeView,
     AgencyCustomerSubscriptionView,
     AgencyPlanCollectionView,
     CustomerInvoiceCollectionView,
@@ -11,6 +12,7 @@ from control_plane.billing.api.views import (
     CustomerPaymentMethodCollectionView,
     CustomerTopUpView,
     CustomerUsageView,
+    PlatformCustomerSubscriptionChangeView,
     PlatformCustomerSubscriptionView,
     PlatformDisputeCollectionView,
     PlatformInvoiceCollectionView,
@@ -43,6 +45,11 @@ urlpatterns = [
         PlatformCustomerSubscriptionView.as_view(),
         name="platform-customer-subscription",
     ),
+    path(
+        "platform/customers/<str:customer_id>/subscription/change",
+        PlatformCustomerSubscriptionChangeView.as_view(),
+        name="platform-customer-subscription-change",
+    ),
     path("platform/invoices", PlatformInvoiceCollectionView.as_view(), name="platform-invoices"),
     path("platform/payments", PlatformPaymentCollectionView.as_view(), name="platform-payments"),
     path("platform/disputes", PlatformDisputeCollectionView.as_view(), name="platform-disputes"),
@@ -51,6 +58,11 @@ urlpatterns = [
         "agency/customers/<str:customer_id>/subscription",
         AgencyCustomerSubscriptionView.as_view(),
         name="agency-customer-subscription",
+    ),
+    path(
+        "agency/customers/<str:customer_id>/subscription/change",
+        AgencyCustomerSubscriptionChangeView.as_view(),
+        name="agency-customer-subscription-change",
     ),
     path(
         "agency/customer-invoices",

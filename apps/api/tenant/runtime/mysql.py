@@ -561,13 +561,20 @@ class MysqlRuntime:
                 """
                 INSERT INTO subscriptions (
                     subscription_id, tenant_id, customer_id, plan_id, plan_version_id,
-                    status, cycle, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    status, cycle, created_at, updated_at, period_started_at,
+                    pending_plan_version_id, pending_kind, pending_invoice_id,
+                    pending_effective_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     status = VALUES(status),
                     plan_id = VALUES(plan_id),
                     plan_version_id = VALUES(plan_version_id),
-                    updated_at = VALUES(updated_at)
+                    updated_at = VALUES(updated_at),
+                    period_started_at = VALUES(period_started_at),
+                    pending_plan_version_id = VALUES(pending_plan_version_id),
+                    pending_kind = VALUES(pending_kind),
+                    pending_invoice_id = VALUES(pending_invoice_id),
+                    pending_effective_at = VALUES(pending_effective_at)
                 """,
                 (
                     str(subscription.subscription_id),
@@ -579,6 +586,15 @@ class MysqlRuntime:
                     subscription.cycle,
                     created,
                     now,
+                    subscription.period_started_at or created,
+                    str(subscription.pending_plan_version_id)
+                    if subscription.pending_plan_version_id
+                    else None,
+                    subscription.pending_kind,
+                    str(subscription.pending_invoice_id)
+                    if subscription.pending_invoice_id
+                    else None,
+                    subscription.pending_effective_at,
                 ),
             )
 
@@ -590,7 +606,9 @@ class MysqlRuntime:
             cursor.execute(
                 """
                 SELECT subscription_id, tenant_id, customer_id, plan_id, plan_version_id,
-                       status, cycle, created_at, updated_at
+                       status, cycle, created_at, updated_at, period_started_at,
+                       pending_plan_version_id, pending_kind, pending_invoice_id,
+                       pending_effective_at
                 FROM subscriptions
                 WHERE subscription_id = %s AND tenant_id = %s
                 """,
@@ -607,7 +625,9 @@ class MysqlRuntime:
             cursor.execute(
                 """
                 SELECT subscription_id, tenant_id, customer_id, plan_id, plan_version_id,
-                       status, cycle, created_at, updated_at
+                       status, cycle, created_at, updated_at, period_started_at,
+                       pending_plan_version_id, pending_kind, pending_invoice_id,
+                       pending_effective_at
                 FROM subscriptions
                 WHERE tenant_id = %s AND customer_id = %s AND status = %s
                 ORDER BY created_at
@@ -626,7 +646,9 @@ class MysqlRuntime:
             cursor.execute(
                 """
                 SELECT subscription_id, tenant_id, customer_id, plan_id, plan_version_id,
-                       status, cycle, created_at, updated_at
+                       status, cycle, created_at, updated_at, period_started_at,
+                       pending_plan_version_id, pending_kind, pending_invoice_id,
+                       pending_effective_at
                 FROM subscriptions
                 WHERE tenant_id = %s AND status = %s
                 ORDER BY created_at
@@ -647,13 +669,14 @@ class MysqlRuntime:
                 """
                 INSERT INTO invoices (
                     invoice_id, tenant_id, customer_id, subscription_id, status,
-                    currency, total_minor, created_at, updated_at, paid_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    currency, total_minor, created_at, updated_at, paid_at, due_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     status = VALUES(status),
                     total_minor = VALUES(total_minor),
                     updated_at = VALUES(updated_at),
-                    paid_at = VALUES(paid_at)
+                    paid_at = VALUES(paid_at),
+                    due_at = VALUES(due_at)
                 """,
                 (
                     str(invoice.invoice_id),
@@ -666,6 +689,7 @@ class MysqlRuntime:
                     created,
                     now,
                     invoice.paid_at,
+                    invoice.due_at,
                 ),
             )
             cursor.execute(
@@ -701,7 +725,7 @@ class MysqlRuntime:
             cursor.execute(
                 """
                 SELECT invoice_id, tenant_id, customer_id, subscription_id, status,
-                       currency, total_minor, created_at, updated_at, paid_at
+                       currency, total_minor, created_at, updated_at, paid_at, due_at
                 FROM invoices
                 WHERE invoice_id = %s AND tenant_id = %s
                 """,
@@ -718,7 +742,7 @@ class MysqlRuntime:
         mysql = self._as_mysql(connection)
         sql = """
             SELECT invoice_id, tenant_id, customer_id, subscription_id, status,
-                   currency, total_minor, created_at, updated_at, paid_at
+                   currency, total_minor, created_at, updated_at, paid_at, due_at
             FROM invoices
             WHERE tenant_id = %s
         """
@@ -1417,6 +1441,7 @@ class MysqlRuntime:
             created_at=row[7],
             updated_at=row[8],
             paid_at=row[9],
+            due_at=row[10] if len(row) > 10 else None,
         )
 
     def _subscription(self, row, expected_tenant: uuid.UUID) -> SubscriptionRecord:
@@ -1433,6 +1458,11 @@ class MysqlRuntime:
             cycle=str(row[6]),
             created_at=row[7],
             updated_at=row[8],
+            period_started_at=row[9] if len(row) > 9 else row[7],
+            pending_plan_version_id=uuid.UUID(str(row[10])) if len(row) > 10 and row[10] else None,
+            pending_kind=str(row[11]) if len(row) > 11 and row[11] else None,
+            pending_invoice_id=uuid.UUID(str(row[12])) if len(row) > 12 and row[12] else None,
+            pending_effective_at=row[13] if len(row) > 13 else None,
         )
 
     def put_assignment(

@@ -19,6 +19,8 @@ from control_plane.agents.domain.policies import (
     assert_tools,
 )
 from control_plane.agents.domain.types import TemplateStatus, TemplateVisibility
+from control_plane.billing.application.entitlements import assert_can_create_agent
+from control_plane.billing.application.ports import PlanVersionRepository
 from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.customers.domain.policies import customer_not_found
 from control_plane.risk.application.gate import CustomerRiskGate
@@ -30,6 +32,7 @@ from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
 from tenant.agents.domain import TenantAgent
 from tenant.agents.service import TenantAgentService
+from tenant.billing.service import TenantBillingService
 from tenant.lifecycle.service import TenantLifecycleService
 
 logger = logging.getLogger("vokit.agents")
@@ -118,6 +121,8 @@ class InstallTemplate:
         gate: CustomerRiskGate,
         index: AgentIndexRepository,
         clock: Clock,
+        billing: TenantBillingService,
+        plan_versions: PlanVersionRepository,
     ) -> None:
         self._templates = templates
         self._versions = versions
@@ -127,6 +132,8 @@ class InstallTemplate:
         self._gate = gate
         self._index = index
         self._clock = clock
+        self._billing = billing
+        self._plan_versions = plan_versions
 
     def execute(
         self,
@@ -157,6 +164,14 @@ class InstallTemplate:
             profile.status, profile.capabilities, privileged=privileged
         )
         self._gate.assert_new_commercial(customer.id)
+        assert_can_create_agent(
+            self._billing,
+            self._plan_versions,
+            self._agents,
+            customer.tenant_id,
+            customer.id,
+            self._clock.now(),
+        )
         version = self._versions.latest(template.id)
         if version is None:
             raise DomainError("not_found", "Resource not found.", http_status=404)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from control_plane.billing.application.ports import (
     InvoiceIndexRecord,
@@ -92,6 +92,7 @@ class AssignSubscription:
             cycle="monthly",
             created_at=now,
             updated_at=now,
+            period_started_at=now,
         )
         invoice = self._open_invoice(subscription, version, now)
         self._billing.put_subscription(customer.tenant_id, subscription)
@@ -108,23 +109,7 @@ class AssignSubscription:
             )
         )
         if version.used_at is None:
-            self._versions.update(
-                PlanVersionRecord(
-                    id=version.id,
-                    plan_id=version.plan_id,
-                    version=version.version,
-                    price=version.price,
-                    included_minutes=version.included_minutes,
-                    allow_topups=version.allow_topups,
-                    topup_minutes=version.topup_minutes,
-                    topup_price=version.topup_price,
-                    overage_enabled=version.overage_enabled,
-                    overage_price_per_minute=version.overage_price_per_minute,
-                    grace_seconds=version.grace_seconds,
-                    used_at=now,
-                    created_at=version.created_at,
-                )
-            )
+            self._versions.update(replace(version, used_at=now))
         log_event(
             logger,
             "billing.subscription.assigned",

@@ -20,8 +20,8 @@ This document lists remaining gaps. Related IDs stay in their own modules unless
 
 | Item | Why |
 |---|---|
-| Plan change / replace / version switch (SA3-004) | SRS does not define mid-cycle upgrade/downgrade behavior |
-| Mid-cycle proration (PLAN-007) | Conditional Should; formulas undefined |
+| Plan change / replace / version switch (SA3-004) | Implemented — `docs/flows/plans/PLAN-CREATE-ASSIGN-CAPS.md` (ADR-011) |
+| Mid-cycle proration (PLAN-007) | Implemented for paid upgrades (calendar-month unused-time credit) |
 | Per-customer commercial overrides (SA3-004) | “Allowed overrides” undefined |
 | Auto transitions to Payment Due / Restricted (§24.2) | Needs dunning/risk policy detail beyond suspend |
 | SA3-006 Customer impersonation | Should; not scheduled |

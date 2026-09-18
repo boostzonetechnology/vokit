@@ -4,11 +4,13 @@ import logging
 import uuid
 from dataclasses import dataclass, replace
 
+from control_plane.billing.application.entitlements import assert_can_assign_number
 from control_plane.billing.application.ports import (
     BillingIdempotencyRepository,
     IdempotencyRecord,
     InvoiceIndexRecord,
     InvoiceIndexRepository,
+    PlanVersionRepository,
 )
 from control_plane.billing.domain.policies import assert_invoice_total, line_is_commissionable
 from control_plane.billing.domain.types import InvoiceStatus, LineKind
@@ -76,6 +78,7 @@ class AssignNumber:
         keys: BillingIdempotencyRepository,
         gate: CustomerRiskGate,
         clock: Clock,
+        versions: PlanVersionRepository,
     ) -> None:
         self._numbers = numbers
         self._reservations = reservations
@@ -88,6 +91,7 @@ class AssignNumber:
         self._keys = keys
         self._gate = gate
         self._clock = clock
+        self._versions = versions
 
     def execute(self, command: AssignNumberCommand) -> AssignNumberResult:
         key = command.idempotency_key.strip()
@@ -164,6 +168,14 @@ class AssignNumber:
                 "An active subscription is required before assigning a number.",
                 http_status=409,
             )
+        assert_can_assign_number(
+            self._billing,
+            self._versions,
+            self._assignments,
+            command.tenant_id,
+            agent.customer_id,
+            now,
+        )
         assert_one_routing_target(assigned_agent_id=current.assigned_agent_id)
         line = InvoiceLineRecord(
             line_id=new_uuid7(),

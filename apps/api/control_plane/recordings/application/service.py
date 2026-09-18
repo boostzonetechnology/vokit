@@ -6,6 +6,8 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import timedelta
 
+from control_plane.billing.application.entitlements import assert_can_record
+from control_plane.billing.application.ports import PlanVersionRepository
 from control_plane.ops.application.live_flags import assert_recordings_live
 from control_plane.recordings.application.ports import (
     AccessGrantRecord,
@@ -35,6 +37,7 @@ from providers.recordings.memory import RecordingStoreUnavailable
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
+from tenant.billing.service import TenantBillingService
 from tenant.media.service import TenantMediaService
 from tenant.recordings.domain import TenantArtifactRecord
 from tenant.recordings.service import TenantRecordingService
@@ -67,6 +70,8 @@ class RecordingControl:
         grants: AccessGrantRepository,
         store: RecordingObjectStore,
         clock: Clock,
+        billing: TenantBillingService,
+        versions: PlanVersionRepository,
         *,
         retention_days: int,
         access_ttl_seconds: int,
@@ -80,6 +85,8 @@ class RecordingControl:
         self._grants = grants
         self._store = store
         self._clock = clock
+        self._billing = billing
+        self._versions = versions
         self._retention_days = retention_days
         self._ttl = access_ttl_seconds
         self._public_base = public_base_url.rstrip("/")
@@ -98,6 +105,13 @@ class RecordingControl:
             return self._payload(indexed)
         assert_recordings_live()
         call = self._resolve_call(command)
+        assert_can_record(
+            self._billing,
+            self._versions,
+            call.tenant_id,
+            call.customer_id,
+            self._clock.now(),
+        )
         if command.tenant_id.strip():
             try:
                 claimed = uuid.UUID(command.tenant_id.strip())

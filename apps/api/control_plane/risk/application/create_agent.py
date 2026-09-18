@@ -8,6 +8,8 @@ from control_plane.agents.application.index import sync_agent_index
 from control_plane.agents.application.ports import AgentIndexRepository
 from control_plane.audit.application.record import RecordAuditCommand
 from control_plane.audit.infrastructure.container import record_audit
+from control_plane.billing.application.entitlements import assert_can_create_agent
+from control_plane.billing.application.ports import PlanVersionRepository
 from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.customers.domain.policies import customer_not_found
 from control_plane.risk.application.gate import CustomerRiskGate
@@ -19,6 +21,7 @@ from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
 from tenant.agents.domain import TenantAgent
 from tenant.agents.service import TenantAgentService
+from tenant.billing.service import TenantBillingService
 from tenant.lifecycle.service import TenantLifecycleService
 
 logger = logging.getLogger("vokit.risk")
@@ -42,6 +45,8 @@ class CreateAgent:
         clock: Clock,
         index: AgentIndexRepository,
         tenants: TenantRepository,
+        billing: TenantBillingService,
+        versions: PlanVersionRepository,
     ) -> None:
         self._customers = customers
         self._lifecycle = lifecycle
@@ -50,6 +55,8 @@ class CreateAgent:
         self._clock = clock
         self._index = index
         self._tenants = tenants
+        self._billing = billing
+        self._versions = versions
 
     def execute(self, command: CreateAgentCommand) -> TenantAgent:
         name = command.display_name.strip()
@@ -72,6 +79,14 @@ class CreateAgent:
             privileged=command.privileged,
         )
         self._gate.assert_new_commercial(customer.id)
+        assert_can_create_agent(
+            self._billing,
+            self._versions,
+            self._agents,
+            customer.tenant_id,
+            customer.id,
+            self._clock.now(),
+        )
         now = self._clock.now()
         agent = TenantAgent(
             agent_id=new_uuid7(),

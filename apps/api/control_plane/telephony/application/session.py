@@ -18,6 +18,7 @@ from control_plane.agents.domain.types import (
     DEFAULT_SILENCE_TIMEOUT_SECONDS,
     TestSessionStatus,
 )
+from control_plane.billing.application.entitlements import concurrency_denied
 from control_plane.billing.application.ports import (
     BillingIdempotencyRepository,
     IdempotencyRecord,
@@ -847,6 +848,16 @@ class VoiceControl:
         if subscription is None:
             return {"reason": "subscription_required", "number": number, "agent": agent}
         version = self._versions.get(subscription.plan_version_id)
+        denied_concurrency = concurrency_denied(
+            self._billing,
+            self._versions,
+            self._index,
+            agent.tenant_id,
+            agent.customer_id,
+            self._clock.now(),
+        )
+        if denied_concurrency:
+            return {"reason": denied_concurrency, "number": number, "agent": agent}
         remaining = self._remaining(agent.tenant_id, agent.customer_id)
         denied = admit_usage(
             remaining_minutes=remaining,

@@ -26,6 +26,14 @@ from shared_kernel.errors import DomainError
 from shared_kernel.money import Money
 
 
+def _integrations(raw) -> tuple[str, ...]:
+    if not raw:
+        return ()
+    if isinstance(raw, str):
+        return ()
+    return tuple(str(item) for item in raw if str(item).strip())
+
+
 def _plan(row: Plan) -> PlanRecord:
     return PlanRecord(
         id=row.id,
@@ -48,6 +56,11 @@ def _version(row: PlanVersion) -> PlanVersionRecord:
         overage_enabled=bool(row.overage_enabled),
         overage_price_per_minute=Money(int(row.overage_price_per_minute_minor), row.currency),
         grace_seconds=int(row.grace_seconds),
+        max_agents=int(row.max_agents),
+        max_phone_numbers=int(row.max_phone_numbers),
+        max_concurrency=int(row.max_concurrency),
+        recording_allowed=bool(row.recording_allowed),
+        allowed_integrations=_integrations(row.allowed_integrations),
         used_at=row.used_at,
         created_at=row.created_at,
     )
@@ -98,6 +111,11 @@ class DjangoPlanVersionRepository:
             overage_enabled=record.overage_enabled,
             overage_price_per_minute_minor=record.overage_price_per_minute.minor_units,
             grace_seconds=record.grace_seconds,
+            max_agents=record.max_agents,
+            max_phone_numbers=record.max_phone_numbers,
+            max_concurrency=record.max_concurrency,
+            recording_allowed=record.recording_allowed,
+            allowed_integrations=list(record.allowed_integrations),
             used_at=record.used_at,
         )
 
@@ -120,6 +138,11 @@ class DjangoPlanVersionRepository:
             overage_enabled=record.overage_enabled,
             overage_price_per_minute_minor=record.overage_price_per_minute.minor_units,
             grace_seconds=record.grace_seconds,
+            max_agents=record.max_agents,
+            max_phone_numbers=record.max_phone_numbers,
+            max_concurrency=record.max_concurrency,
+            recording_allowed=record.recording_allowed,
+            allowed_integrations=list(record.allowed_integrations),
             used_at=record.used_at,
         )
 

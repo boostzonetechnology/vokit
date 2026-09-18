@@ -85,6 +85,8 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | DELETE | `/platform/knowledge/{source_id}` | KB-004 — `confirm=true` required |
 | GET/POST | `/platform/phone-numbers` | SA9-*, Q-002 — list optional `agency_id` (assigned tenant) |
 | GET/POST | `/platform/plans` | SA11-*, PLAN-* |
+| GET/POST | `/platform/customers/{id}/subscription` | SA3-004, PLAN-* first assign; GET includes entitlements/period/pending |
+| POST | `/platform/customers/{id}/subscription/change` | PLAN-005/007, SA3-004 mid-cycle upgrade/downgrade |
 | GET | `/platform/payments` `/invoices` `/disputes` | SA12-* |
 | GET/POST | `/platform/payouts` | SA13-* |
 | POST | `/platform/payouts/{id}/proof` | SA13-004, BR-009 |
@@ -122,6 +124,8 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET/POST | `/agency/integrations` | AG8-* — **customer-owned connections only** |
 | GET/POST | `/agency/webhooks` | AG9-* |
 | GET | `/agency/plans` `/customer-invoices` | AG10-* |
+| POST | `/agency/customers/{id}/subscription` | AG10 / SA3-004 first assign |
+| POST | `/agency/customers/{id}/subscription/change` | PLAN-007 mid-cycle; agency `customer.update` |
 | GET/POST | `/agency/wallet` `/payouts` | AG11-*, WAL-* |
 | GET | `/agency/kyc` | AG12-002 status + payout gate |
 | POST | `/agency/kyc/session` | Start/resume external KYC (Q-015) |

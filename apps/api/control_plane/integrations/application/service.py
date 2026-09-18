@@ -7,6 +7,8 @@ import uuid
 from dataclasses import replace
 from datetime import timedelta
 
+from control_plane.billing.application.entitlements import assert_can_connect_integration
+from control_plane.billing.application.ports import PlanVersionRepository
 from control_plane.customers.application.ports import CustomerIndexRepository
 from control_plane.integrations.application.ports import (
     ConnectionIndexRecord,
@@ -43,6 +45,7 @@ from shared_kernel.hmac import sign_hmac_raw
 from shared_kernel.ids import new_uuid7
 from shared_kernel.logging import log_event
 from tenant.agents.service import TenantAgentService
+from tenant.billing.service import TenantBillingService
 from tenant.integrations.domain import (
     TenantConnectionRecord,
     TenantIntegrationSettings,
@@ -66,6 +69,8 @@ class IntegrationControl:
         adapter: IntegrationAdapter,
         transport: WebhookTransport,
         clock: Clock,
+        billing: TenantBillingService,
+        versions: PlanVersionRepository,
         *,
         allow_http: bool,
     ) -> None:
@@ -78,6 +83,8 @@ class IntegrationControl:
         self._adapter = adapter
         self._transport = transport
         self._clock = clock
+        self._billing = billing
+        self._versions = versions
         self._allow_http = allow_http
 
     def providers(self) -> list[dict[str, str]]:
@@ -111,6 +118,14 @@ class IntegrationControl:
             if settings is None or not settings.self_service:
                 raise DomainError("forbidden", "Not permitted.", http_status=403)
         kind = assert_provider(provider)
+        assert_can_connect_integration(
+            self._billing,
+            self._versions,
+            tenant_id,
+            customer_id,
+            kind.value,
+            self._clock.now(),
+        )
         secret = (credential or "").strip()
         if len(secret) < 8:
             raise DomainError("validation_error", "credential is required.")
