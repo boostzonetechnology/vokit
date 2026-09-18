@@ -1,34 +1,13 @@
 import { FormEvent, useState } from "react";
 
 import { isApiError, login, type SessionPayload } from "@/api";
+import { mapLoginError } from "@/features/auth/lib/mapLoginError";
+import { mapMfaError } from "@/features/auth/lib/mapMfaError";
 import { verifyMfaChallenge } from "@/features/auth/services/mfa.service";
 import type {
   LoginStep,
   MfaChallengePayload,
 } from "@/features/auth/types/auth.types";
-
-function mapLoginError(cause: unknown): { message: string; privilegedBlock: boolean } {
-  if (!isApiError(cause)) {
-    return { message: "Sign-in failed.", privilegedBlock: false };
-  }
-  if (cause.status === 403 && cause.code === "mfa_required") {
-    return {
-      message:
-        "This privileged role requires MFA enrollment before you can sign in. Ask a Super Admin to reset MFA or temporarily disable the privileged MFA requirement so you can enroll.",
-      privilegedBlock: true,
-    };
-  }
-  if (cause.code === "rate_limited") {
-    return {
-      message: cause.message || "Too many attempts. Wait a few minutes and try again.",
-      privilegedBlock: false,
-    };
-  }
-  return {
-    message: cause.message || "Sign-in failed.",
-    privilegedBlock: false,
-  };
-}
 
 export function useLoginFlow(options: {
   onSession: (session: SessionPayload) => Promise<void>;
@@ -93,23 +72,12 @@ export function useLoginFlow(options: {
       setStep("credentials");
       await options.onSession(session);
     } catch (cause) {
-      if (isApiError(cause)) {
-        if (cause.code === "mfa_challenge_locked") {
-          setError(
-            cause.message ||
-              "This challenge is locked after too many failed attempts. Sign in again.",
-          );
-          setChallenge(null);
-          setStep("credentials");
-        } else if (cause.code === "mfa_invalid_code") {
-          setError(cause.message || "Invalid verification code.");
-        } else if (cause.code === "rate_limited") {
-          setError(cause.message || "Too many attempts. Wait a few minutes and try again.");
-        } else {
-          setError(cause.message || "Verification failed.");
-        }
+      if (isApiError(cause) && cause.code === "mfa_challenge_locked") {
+        setError(mapMfaError(cause, "Verification failed."));
+        setChallenge(null);
+        setStep("credentials");
       } else {
-        setError("Verification failed.");
+        setError(mapMfaError(cause, "Verification failed."));
       }
     } finally {
       setSubmitting(false);

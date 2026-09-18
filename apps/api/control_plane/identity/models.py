@@ -24,6 +24,8 @@ class User(AbstractBaseUser):
     id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
     email = models.EmailField(unique=True)
     status = models.CharField(max_length=16, default="active")
+    platform_terms_accepted_at = models.DateTimeField(blank=True, null=True)
+    platform_terms_version = models.CharField(max_length=32, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

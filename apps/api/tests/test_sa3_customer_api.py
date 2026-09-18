@@ -162,7 +162,7 @@ def test_accept_invitation_activates_customer(monkeypatch) -> None:
     accepted = _post(
         guest,
         "/api/v1/auth/invitations/accept",
-        {"token": captured["token"], "password": PASSWORD},
+        {"token": captured["token"], "password": PASSWORD, "accept_platform_terms": True},
     )
     assert accepted.status_code == 201
     detail = platform.get(f"/api/v1/platform/customers/{created.json()['data']['id']}")

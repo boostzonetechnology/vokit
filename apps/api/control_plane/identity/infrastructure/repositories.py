@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from control_plane.identity.application.ports import (
     InvitationRecord,
@@ -36,6 +37,8 @@ def _user_record(row: User) -> UserRecord:
         email=row.email,
         password_hash=row.password,
         status=UserStatus(row.status),
+        platform_terms_accepted_at=row.platform_terms_accepted_at,
+        platform_terms_version=row.platform_terms_version or "",
     )
 
 
@@ -114,10 +117,24 @@ class DjangoUserRepository:
             email=user.email,
             password=user.password_hash,
             status=user.status.value,
+            platform_terms_accepted_at=user.platform_terms_accepted_at,
+            platform_terms_version=user.platform_terms_version or "",
         )
 
     def update_status(self, user_id: uuid.UUID, status: UserStatus) -> None:
         User.objects.filter(id=user_id).update(status=status.value)
+
+    def record_platform_terms(
+        self,
+        user_id: uuid.UUID,
+        *,
+        accepted_at: datetime,
+        version: str,
+    ) -> None:
+        User.objects.filter(id=user_id).update(
+            platform_terms_accepted_at=accepted_at,
+            platform_terms_version=version,
+        )
 
 
 # ---------------------------------------------------------------------------

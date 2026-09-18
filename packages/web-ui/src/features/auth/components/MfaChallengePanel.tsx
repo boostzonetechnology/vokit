@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useState } from "react";
-
-import { isApiError } from "@/api";
-import { sendMfaChallenge } from "@/features/auth/services/mfa.service";
+import { useMfaChallenge } from "@/features/auth/hooks/useMfaChallenge";
+import {
+  mfaChallengeMethodHint,
+  mfaChallengeMethodLabel,
+} from "@/features/auth/lib/mfaLabels";
 import type { MfaChallengePayload } from "@/features/auth/types/auth.types";
 
 export function MfaChallengePanel({
@@ -23,54 +24,22 @@ export function MfaChallengePanel({
   onBack: () => void;
   onError: (message: string) => void;
 }) {
-  const methods = challenge.methods;
-  const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
-  const [code, setCode] = useState("");
-  const [recoveryCode, setRecoveryCode] = useState("");
-  const [useRecovery, setUseRecovery] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const [sending, setSending] = useState(false);
-
-  const selected = methods.find((method) => method.id === methodId) ?? methods[0];
-
-  useEffect(() => {
-    setMethodId(challenge.methods[0]?.id ?? "");
-    setCode("");
-    setRecoveryCode("");
-    setUseRecovery(false);
-    setEmailSent(false);
-  }, [challenge.challenge_token]);
-
-  async function onSendEmail() {
-    if (!selected || selected.type !== "email") return;
-    setSending(true);
-    onError("");
-    try {
-      await sendMfaChallenge({
-        challenge_token: challenge.challenge_token,
-        method_id: selected.id,
-      });
-      setEmailSent(true);
-    } catch (cause) {
-      onError(
-        isApiError(cause)
-          ? cause.message || "Could not send email code."
-          : "Could not send email code.",
-      );
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (useRecovery) {
-      await onVerify({ recovery_code: recoveryCode.trim() });
-      return;
-    }
-    if (!selected) return;
-    await onVerify({ method_id: selected.id, code: code.trim() });
-  }
+  const {
+    methods,
+    selected,
+    methodId,
+    code,
+    recoveryCode,
+    useRecovery,
+    emailSent,
+    sending,
+    setCode,
+    setRecoveryCode,
+    selectMethod,
+    toggleRecovery,
+    onSendEmail,
+    onSubmit,
+  } = useMfaChallenge({ challenge, onVerify, onError });
 
   return (
     <form
@@ -96,27 +65,19 @@ export function MfaChallengePanel({
               Method
               <select
                 value={methodId}
-                onChange={(event) => {
-                  setMethodId(event.target.value);
-                  setCode("");
-                  setEmailSent(false);
-                }}
+                onChange={(event) => selectMethod(event.target.value)}
                 className="w-full rounded-xl border border-border-default bg-canvas px-4 py-3 text-[0.95rem] font-normal text-text-primary outline-none focus:border-brand focus:bg-surface"
               >
                 {methods.map((method) => (
                   <option key={method.id} value={method.id}>
-                    {method.type === "totp"
-                      ? "Authenticator app"
-                      : `Email${method.email_hint ? ` (${method.email_hint})` : ""}`}
+                    {mfaChallengeMethodLabel(method)}
                   </option>
                 ))}
               </select>
             </label>
           ) : (
             <p className="m-0 text-[0.95rem] text-text-muted">
-              {selected?.type === "totp"
-                ? "Use your authenticator app."
-                : `Email code${selected?.email_hint ? ` to ${selected.email_hint}` : ""}.`}
+              {mfaChallengeMethodHint(selected)}
             </p>
           )}
 
@@ -183,10 +144,7 @@ export function MfaChallengePanel({
         <button
           type="button"
           className="border-0 bg-transparent p-0 text-[0.9rem] font-medium text-brand underline-offset-2 hover:underline"
-          onClick={() => {
-            setUseRecovery((value) => !value);
-            onError("");
-          }}
+          onClick={toggleRecovery}
         >
           {useRecovery ? "Use authenticator or email code" : "Use a recovery code"}
         </button>

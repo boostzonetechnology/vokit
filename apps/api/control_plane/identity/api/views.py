@@ -140,11 +140,27 @@ class SessionView(CsrfAPIView):
         return success(session_payload(context.user, context.membership))
 
 
+def _accept_platform_terms(value: object) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, str) and value.strip().lower() in {"true", "1", "yes"}:
+        return True
+    return False
+
+
 class AcceptInvitationView(CsrfAPIView):
     def post(self, request: Request) -> Response:
         token = str(request.data.get("token") or "")
         password = str(request.data.get("password") or "")
-        user = accept_invitation().execute(AcceptInvitationCommand(token=token, password=password))
+        user = accept_invitation().execute(
+            AcceptInvitationCommand(
+                token=token,
+                password=password,
+                accept_platform_terms=_accept_platform_terms(
+                    request.data.get("accept_platform_terms")
+                ),
+            )
+        )
         return success({"user_id": str(user.id), "email": user.email}, status=201)
 
 

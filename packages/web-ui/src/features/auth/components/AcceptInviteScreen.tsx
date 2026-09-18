@@ -1,70 +1,27 @@
-import { FormEvent, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 
-import { apiSend, isApiError, type Portal } from "@/api";
+import type { Portal } from "@/api";
 import loginHeroImage from "@/assets/login-form.jpg";
-
-const PORTAL_COPY: Record<
-  Portal,
-  { eyebrow: string; heroTitle: string; subtitle: string }
-> = {
-  platform: {
-    eyebrow: "Platform invitation",
-    heroTitle: "Finish setup to access the Vokit control plane.",
-    subtitle: "Create your password to join the platform workspace.",
-  },
-  agency: {
-    eyebrow: "Agency invitation",
-    heroTitle: "Finish setup to access your agency workspace.",
-    subtitle: "Create your password to join this agency on Vokit.",
-  },
-  customer: {
-    eyebrow: "Customer invitation",
-    heroTitle: "Finish setup to access your customer workspace.",
-    subtitle: "Create your password to join this customer account.",
-  },
-};
+import { useAcceptInvite } from "@/features/auth/hooks/useAcceptInvite";
+import { ACCEPT_INVITE_COPY } from "@/features/auth/lib/acceptInviteCopy";
 
 export function AcceptInviteScreen({ portal }: { portal: Portal }) {
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const token = useMemo(() => (params.get("token") || "").trim(), [params]);
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  const copy = PORTAL_COPY[portal];
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setMessage("");
-    if (!token) {
-      setError("Invitation link is missing a token. Open the button from your email again.");
-      return;
-    }
-    if (password.length < 12) {
-      setError("Password must be at least 12 characters.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await apiSend("/api/v1/auth/invitations/accept", "POST", { token, password });
-      setMessage("Invitation accepted. Redirecting to sign in…");
-      window.setTimeout(() => navigate("/login", { replace: true }), 900);
-    } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Could not accept invitation.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const copy = ACCEPT_INVITE_COPY[portal];
+  const {
+    token,
+    password,
+    confirm,
+    acceptPlatformTerms,
+    showPassword,
+    error,
+    message,
+    busy,
+    setPassword,
+    setConfirm,
+    setAcceptPlatformTerms,
+    setShowPassword,
+    onSubmit,
+  } = useAcceptInvite();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-8 sm:px-6 lg:px-10">
@@ -165,6 +122,25 @@ export function AcceptInviteScreen({ portal }: { portal: Portal }) {
                   className="w-full rounded-xl border border-border-default bg-canvas px-4 py-3.5 text-[0.95rem] font-normal text-text-primary outline-none placeholder:text-text-muted focus:border-brand focus:bg-surface focus:outline-none"
                 />
               </label>
+
+              <label
+                htmlFor="invite-platform-terms"
+                className="m-0 flex items-start gap-3 text-[0.95rem] font-normal text-text-primary"
+              >
+                <input
+                  id="invite-platform-terms"
+                  name="accept_platform_terms"
+                  type="checkbox"
+                  checked={acceptPlatformTerms}
+                  onChange={(event) => setAcceptPlatformTerms(event.target.checked)}
+                  required
+                  className="mt-1 size-4 shrink-0 rounded border-border-default text-brand focus:ring-brand"
+                />
+                <span>
+                  I accept the Vokit platform terms and acknowledge the acceptable use and
+                  privacy policies that apply to this account.
+                </span>
+              </label>
             </div>
 
             {!token ? (
@@ -185,7 +161,7 @@ export function AcceptInviteScreen({ portal }: { portal: Portal }) {
 
             <button
               type="submit"
-              disabled={busy || !token}
+              disabled={busy || !token || !acceptPlatformTerms}
               className="mt-7 w-full rounded-xl bg-brand py-3.5 text-[1.05rem] font-semibold text-text-inverse shadow-medium transition-opacity disabled:opacity-60"
             >
               {busy ? "Accepting…" : "Accept invitation"}

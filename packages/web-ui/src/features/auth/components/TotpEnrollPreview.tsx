@@ -1,6 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { copyTextToClipboard } from "@/features/auth/lib/copyText";
 
 export function TotpEnrollPreview({
   otpauthUri,
@@ -9,14 +10,6 @@ export function TotpEnrollPreview({
   otpauthUri: string;
   secret: string;
 }) {
-  async function copySecret() {
-    try {
-      await navigator.clipboard.writeText(secret);
-    } catch {
-      // Clipboard may be unavailable.
-    }
-  }
-
   return (
     <div className="mb-4 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-start">
       <div className="inline-flex rounded-xl border border-border-default bg-surface p-3">
@@ -40,7 +33,11 @@ export function TotpEnrollPreview({
             <code className="min-w-0 flex-1 break-all rounded-xl border border-border-default bg-surface px-3 py-2.5 font-mono text-sm text-text-primary">
               {secret}
             </code>
-            <ActionButton type="button" variant="outline" onClick={() => void copySecret()}>
+            <ActionButton
+              type="button"
+              variant="outline"
+              onClick={() => void copyTextToClipboard(secret)}
+            >
               Copy
             </ActionButton>
           </div>

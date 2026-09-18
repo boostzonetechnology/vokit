@@ -112,10 +112,16 @@ Admin is used only for create/grant. Schema apply and later runtime use the per-
 
 ```text
 POST /api/v1/auth/invitations/accept
-{ "token": "<from email>", "password": "<new portal password>" }
+{
+  "token": "<from email>",
+  "password": "<new portal password>",
+  "accept_platform_terms": true
+}
 ```
 
-Creates the portal user. MySQL credentials are never sent to the owner in V1.
+Creates the portal user and records platform terms acceptance on `identity_users`
+(`platform_terms_accepted_at`, `platform_terms_version`). MySQL credentials are never
+sent to the owner in V1.
 
 ### 7. Later platform actions (same agency module)
 

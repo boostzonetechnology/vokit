@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+# Snapshot label written when an invitee accepts platform terms (VKT-024 / SRS §6.1).
+PLATFORM_TERMS_VERSION = "v1"
+
 
 class PrincipalType(StrEnum):
     PLATFORM = "platform"
