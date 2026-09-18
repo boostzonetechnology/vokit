@@ -24,6 +24,7 @@ export type AgencyRecord = {
   status?: string;
   currency?: string;
   commission_rate_bps?: number;
+  previous_commission_rate_bps?: number;
   rate_effective_at?: string | null;
   capabilities?: AgencyCapabilities;
   database?: AgencyDatabase;
@@ -63,11 +64,52 @@ export type WalletBuckets = {
   currency?: string;
 };
 
-export type AgencyDashboardSlice = {
+export type AgencyPayoutRow = {
+  id?: string;
+  status?: string;
+  amount_minor?: number;
   currency?: string;
-  kpis?: Array<{ key: string; value: string | number | boolean; label?: string }>;
-  financial?: Record<string, string | number>;
+  paid_at?: string | null;
+  method_label?: string;
 };
+
+export type AgencyFinance = {
+  agency_id: string;
+  mrr_minor: number;
+  commission_mrr_minor: number;
+  customer_revenue_minor: number;
+  commission_earned_minor: number;
+  buckets: WalletBuckets;
+  payouts: AgencyPayoutRow[];
+};
+
+export type SetCommissionInput = {
+  commission_rate_bps: number;
+  reason: string;
+  rate_effective_at?: string;
+};
+
+export type SetStatusInput = {
+  action: string;
+  confirm: true;
+  reason?: string;
+};
+
+export type SetCapabilitiesInput = {
+  confirm: true;
+  reason: string;
+  capabilities: AgencyCapabilities;
+};
+
+export type AgencyDetailTab =
+  | "overview"
+  | "profile"
+  | "commission"
+  | "status"
+  | "capabilities"
+  | "financial"
+  | "resources"
+  | "notes";
 
 export const CAPABILITY_FIELDS: Array<{ key: keyof AgencyCapabilities; label: string }> = [
   { key: "create_customers", label: "Customer creation" },
@@ -78,11 +120,21 @@ export const CAPABILITY_FIELDS: Array<{ key: keyof AgencyCapabilities; label: st
 ];
 
 export const STATUS_ACTIONS = [
-  { action: "activate", label: "Activate / reactivate" },
-  { action: "restrict", label: "Restrict" },
-  { action: "review", label: "Under review" },
-  { action: "suspend", label: "Suspend" },
-  { action: "close", label: "Close" },
+  { action: "activate", label: "Activate / reactivate", needsReason: false },
+  { action: "restrict", label: "Restrict", needsReason: true },
+  { action: "review", label: "Under review", needsReason: true },
+  { action: "suspend", label: "Suspend", needsReason: true },
+  { action: "close", label: "Close", needsReason: true },
+] as const;
+
+export const AGENCY_STATUS_FILTERS = [
+  "invited",
+  "pending",
+  "active",
+  "restricted",
+  "under_review",
+  "suspended",
+  "closed",
 ] as const;
 
 export function defaultCapabilities(): AgencyCapabilities {
@@ -93,4 +145,8 @@ export function defaultCapabilities(): AgencyCapabilities {
     request_payouts: true,
     existing_customer_services: true,
   };
+}
+
+export function statusActionNeedsReason(action: string): boolean {
+  return STATUS_ACTIONS.some((item) => item.action === action && item.needsReason);
 }

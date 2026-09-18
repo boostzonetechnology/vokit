@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { apiSend, isApiError } from "@/api";
+import { mapAgencyError } from "@/features/agencies/lib/mapAgencyError";
+import { createAgency as createAgencyRequest } from "@/features/agencies/services/agency.service";
 import type { AgencyRecord, CreateAgencyInput } from "@/features/agencies/types";
 
 export function useCreatePlatformAgency() {
@@ -11,27 +12,9 @@ export function useCreatePlatformAgency() {
     setBusy(true);
     setError("");
     try {
-      const database: Record<string, string | number> = {
-        username: input.database.username,
-        password: input.database.password,
-      };
-      if (input.database.host) database.host = input.database.host;
-      if (typeof input.database.port === "number" && !Number.isNaN(input.database.port)) {
-        database.port = input.database.port;
-      }
-
-      return await apiSend<AgencyRecord>("/api/v1/platform/agencies", "POST", {
-        display_name: input.display_name,
-        legal_name: input.legal_name,
-        owner_email: input.owner_email,
-        commission_rate_bps: input.commission_rate_bps,
-        currency: input.currency,
-        capabilities: input.capabilities,
-        database,
-      });
+      return await createAgencyRequest(input);
     } catch (cause) {
-      const message = isApiError(cause) ? cause.message : "Create failed.";
-      setError(message);
+      setError(mapAgencyError(cause, "Create failed."));
       throw cause;
     } finally {
       setBusy(false);
