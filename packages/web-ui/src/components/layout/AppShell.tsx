@@ -54,7 +54,7 @@ export function AppShell({
         )}
       >
         <div className="sticky top-0 z-30">
-          <TopBar session={session} onLogout={onLogout} />
+          <TopBar portal={portal} />
         </div>
         <main id="main" className="min-h-0 flex-1 p-6">
           {children}

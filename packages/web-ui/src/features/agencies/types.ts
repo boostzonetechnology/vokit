@@ -111,12 +111,36 @@ export type AgencyDetailTab =
   | "resources"
   | "notes";
 
-export const CAPABILITY_FIELDS: Array<{ key: keyof AgencyCapabilities; label: string }> = [
-  { key: "create_customers", label: "Customer creation" },
-  { key: "create_agents", label: "Agent creation" },
-  { key: "purchase_numbers", label: "Number purchase" },
-  { key: "request_payouts", label: "Payout requests" },
-  { key: "existing_customer_services", label: "Existing customer services" },
+export const CAPABILITY_FIELDS: Array<{
+  key: keyof AgencyCapabilities;
+  label: string;
+  hint: string;
+}> = [
+  {
+    key: "create_customers",
+    label: "Customer creation",
+    hint: "Agency can create new customers.",
+  },
+  {
+    key: "create_agents",
+    label: "Agent creation",
+    hint: "Agency can create agents for its customers.",
+  },
+  {
+    key: "purchase_numbers",
+    label: "Number purchase",
+    hint: "Agency can reserve and purchase phone numbers.",
+  },
+  {
+    key: "request_payouts",
+    label: "Payout requests",
+    hint: "Agency can request wallet payouts when KYC allows.",
+  },
+  {
+    key: "existing_customer_services",
+    label: "Existing customer services",
+    hint: "Off blocks new production calls only. In-progress calls are not hung up. Training sessions stay available.",
+  },
 ];
 
 export const STATUS_ACTIONS = [

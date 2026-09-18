@@ -5,6 +5,7 @@ import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformNotifications } from "./hooks/usePlatformNotifications";
+import { notificationEventKind, notificationCategoryTone } from "./lib/eventKind";
 import type { NotificationTab } from "./types";
 
 function statusTone(status?: string): BadgeTone {
@@ -267,6 +268,7 @@ export function PlatformNotificationsScreen({ route = "notifications" }: { route
               <table className="min-w-full">
                 <thead>
                   <tr className="text-label uppercase text-text-muted">
+                    <th className="border-0 px-2 py-2 text-left">Kind</th>
                     <th className="border-0 px-2 py-2 text-left">Event</th>
                     <th className="border-0 px-2 py-2 text-left">Channel</th>
                     <th className="border-0 px-2 py-2 text-left">Status</th>
@@ -275,8 +277,13 @@ export function PlatformNotificationsScreen({ route = "notifications" }: { route
                   </tr>
                 </thead>
                 <tbody>
-                  {deliveries.map((row) => (
+                  {deliveries.map((row) => {
+                    const kind = notificationEventKind(row.event_type);
+                    return (
                     <tr key={row.id}>
+                      <td className="px-2 py-3">
+                        <StatusBadge tone={kind.tone}>{kind.label}</StatusBadge>
+                      </td>
                       <td className="px-2 py-3 font-semibold text-text-primary">
                         {row.event_type}
                       </td>
@@ -291,7 +298,8 @@ export function PlatformNotificationsScreen({ route = "notifications" }: { route
                       </td>
                       <td className="px-2 py-3 text-text-secondary">{row.created_at || "—"}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -371,13 +379,23 @@ export function PlatformNotificationsScreen({ route = "notifications" }: { route
                   className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-default bg-canvas px-3 py-3"
                 >
                   <div>
-                    <p className="m-0 font-semibold text-text-primary">
-                      {item.title || item.id.slice(0, 8)}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="m-0 font-semibold text-text-primary">
+                        {item.title || item.id.slice(0, 8)}
+                      </p>
+                      {item.category ? (
+                        <StatusBadge tone={notificationCategoryTone(item.category)}>
+                          {item.category}
+                        </StatusBadge>
+                      ) : null}
+                    </div>
                     <p className="mt-1 mb-0 text-body-sm text-text-muted">
-                      {item.category || "—"} · {item.created_at || "—"}
+                      {item.created_at || "—"}
                       {item.read_at ? " · read" : " · unread"}
                     </p>
+                    {item.body ? (
+                      <p className="mt-1 mb-0 text-body-sm text-text-secondary">{item.body}</p>
+                    ) : null}
                   </div>
                   {!item.read_at ? (
                     <ActionButton variant="outline" onClick={() => void markRead(item.id)}>

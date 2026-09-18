@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { statusChangeSuccessMessage } from "@/features/agencies/lib/gates";
 import { mapAgencyError } from "@/features/agencies/lib/mapAgencyError";
 import {
   createAgencyNote,
@@ -45,6 +46,7 @@ export function usePlatformAgencyDetail(agencyId: string) {
   const [notes, setNotes] = useState<AgencyNote[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [actionError, setActionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -103,23 +105,27 @@ export function usePlatformAgencyDetail(agencyId: string) {
     void loadDetail(agencyId);
   }, [agencyId, loadDetail]);
 
-  async function saveProfile(input: { display_name: string; legal_name: string }) {
+  function beginAction() {
     setBusy(true);
     setMessage("");
+    setActionError("");
+  }
+
+  async function saveProfile(input: { display_name: string; legal_name: string }) {
+    beginAction();
     try {
       const updated = await patchAgencyProfile(agencyId, input);
       setDetail(updated);
       setMessage("Agency profile updated.");
     } catch (cause) {
-      setMessage(mapAgencyError(cause, "Profile update failed."));
+      setActionError(mapAgencyError(cause, "Profile update failed."));
     } finally {
       setBusy(false);
     }
   }
 
   async function setCommission(input: SetCommissionInput) {
-    setBusy(true);
-    setMessage("");
+    beginAction();
     try {
       const updated = await setAgencyCommission(agencyId, input);
       setDetail(updated);
@@ -127,15 +133,14 @@ export function usePlatformAgencyDetail(agencyId: string) {
       if (financeRes) setFinance(financeRes);
       setMessage("Commission rate updated. Historical ledger entries keep their snapshot.");
     } catch (cause) {
-      setMessage(mapAgencyError(cause, "Commission update failed."));
+      setActionError(mapAgencyError(cause, "Commission update failed."));
     } finally {
       setBusy(false);
     }
   }
 
   async function setStatus(input: Omit<SetStatusInput, "confirm"> & { confirm?: true }) {
-    setBusy(true);
-    setMessage("");
+    beginAction();
     try {
       const updated = await setAgencyStatus(agencyId, {
         action: input.action,
@@ -143,9 +148,9 @@ export function usePlatformAgencyDetail(agencyId: string) {
         reason: input.reason,
       });
       setDetail(updated);
-      setMessage(`Status updated: ${input.action.replaceAll("_", " ")}`);
+      setMessage(statusChangeSuccessMessage(input.action, updated.status));
     } catch (cause) {
-      setMessage(mapAgencyError(cause, "Status update failed."));
+      setActionError(mapAgencyError(cause, "Status update failed."));
     } finally {
       setBusy(false);
     }
@@ -155,8 +160,7 @@ export function usePlatformAgencyDetail(agencyId: string) {
     capabilities: AgencyCapabilities;
     reason: string;
   }) {
-    setBusy(true);
-    setMessage("");
+    beginAction();
     try {
       const updated = await setAgencyCapabilities(agencyId, {
         confirm: true,
@@ -164,23 +168,22 @@ export function usePlatformAgencyDetail(agencyId: string) {
         capabilities: input.capabilities,
       });
       setDetail(updated);
-      setMessage("Capabilities updated.");
+      setMessage("Capabilities updated. No notification is sent for capability-only changes.");
     } catch (cause) {
-      setMessage(mapAgencyError(cause, "Capabilities update failed."));
+      setActionError(mapAgencyError(cause, "Capabilities update failed."));
     } finally {
       setBusy(false);
     }
   }
 
   async function addNote(input: { body: string; risk_flag: boolean }) {
-    setBusy(true);
-    setMessage("");
+    beginAction();
     try {
       const created = await createAgencyNote(agencyId, input);
       setNotes((prev) => [created, ...prev]);
       setMessage("Internal note added.");
     } catch (cause) {
-      setMessage(mapAgencyError(cause, "Could not add note."));
+      setActionError(mapAgencyError(cause, "Could not add note."));
     } finally {
       setBusy(false);
     }
@@ -199,6 +202,7 @@ export function usePlatformAgencyDetail(agencyId: string) {
     notes,
     error,
     message,
+    actionError,
     loading,
     busy,
     saveProfile,
