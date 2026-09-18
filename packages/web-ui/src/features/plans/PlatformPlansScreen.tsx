@@ -4,9 +4,10 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
-import { ApiNote } from "@/features/platform/ux/ApiNote";
-import { usePlatformPlans } from "./hooks/usePlatformPlans";
-import type { PlanTermsInput, PlanVersion } from "./types";
+import { PlanTermsFields } from "@/features/plans/components/PlanTermsFields";
+import { usePlatformPlans } from "@/features/plans/hooks/usePlatformPlans";
+import { termsFromForm } from "@/features/plans/lib/termsFromForm";
+import { formatCapLimit, type PlanVersion } from "@/features/plans/types";
 
 type Tab = "entitlements" | "versions" | "assignment" | "grandfathering";
 
@@ -15,19 +16,6 @@ function statusTone(status?: string): BadgeTone {
   if (value === "active") return "success";
   if (value === "archived") return "danger";
   return "neutral";
-}
-
-function termsFromForm(form: FormData): PlanTermsInput {
-  return {
-    price_minor: Number(form.get("price_minor") || 0),
-    included_minutes: Number(form.get("included_minutes") || 0),
-    allow_topups: form.get("allow_topups") === "on",
-    topup_minutes: Number(form.get("topup_minutes") || 0),
-    topup_price_minor: Number(form.get("topup_price_minor") || 0),
-    overage_enabled: form.get("overage_enabled") === "on",
-    overage_price_per_minute_minor: Number(form.get("overage_price_per_minute_minor") || 0),
-    grace_seconds: Number(form.get("grace_seconds") || 0),
-  };
 }
 
 function latestVersion(versions?: PlanVersion[]) {
@@ -44,6 +32,7 @@ export function PlatformPlansScreen() {
     setSelectedId,
     error,
     message,
+    actionError,
     loading,
     busy,
     query,
@@ -74,7 +63,7 @@ export function PlatformPlansScreen() {
       event.currentTarget.reset();
       setTab("entitlements");
     } catch {
-      /* message in hook */
+      /* feedback in hook */
     }
   }
 
@@ -86,7 +75,7 @@ export function PlatformPlansScreen() {
       await addVersion(selected.id, termsFromForm(form));
       event.currentTarget.reset();
     } catch {
-      /* message in hook */
+      /* feedback in hook */
     }
   }
 
@@ -96,7 +85,7 @@ export function PlatformPlansScreen() {
     try {
       await assignToCustomer(assignCustomerId, assignVersionId);
     } catch {
-      /* message in hook */
+      /* feedback in hook */
     }
   }
 
@@ -117,7 +106,7 @@ export function PlatformPlansScreen() {
             Plans
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            SA11-001–004 · Permission: plans.manage
+            Versioned catalog with entitlements · Permission: plans.manage
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -135,6 +124,11 @@ export function PlatformPlansScreen() {
           {error}
         </p>
       ) : null}
+      {actionError ? (
+        <p className="mb-4 text-danger" role="alert">
+          {actionError}
+        </p>
+      ) : null}
       {message ? (
         <p className="mb-4 text-body text-text-brand" role="status">
           {message}
@@ -143,17 +137,21 @@ export function PlatformPlansScreen() {
 
       {showCreate ? (
         <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-          <h2 className="m-0 text-section text-text-primary">Create plan</h2>
-          <p className="mt-1 mb-4 text-body-sm text-text-muted">
-            Creates plan + version 1 entitlements via POST /api/v1/platform/plans.
+          <h2 className="m-0 mb-1 text-section text-text-primary">Create plan</h2>
+          <p className="mt-0 mb-4 text-body-sm text-text-muted">
+            Creates the plan and version 1. Caps of 0 mean unlimited. Empty integrations means all
+            providers.
           </p>
           <form className="grid gap-4" onSubmit={(event) => void onCreate(event)}>
-            <Field label="Name" name="name" required />
-            <TermsFields />
-            <ApiNote>
-              Agent/number/concurrency limits and feature flags are not accepted by the plan API
-              yet. Billing cycle is implied by subscription assignment, not a plan field.
-            </ApiNote>
+            <label className="m-0 grid gap-1.5 font-normal">
+              <span className="text-body-sm text-text-muted">Name</span>
+              <input
+                name="name"
+                required
+                className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+              />
+            </label>
+            <PlanTermsFields availableIntegrations={selected?.available_integrations} />
             <div>
               <ActionButton type="submit" disabled={busy}>
                 Create plan
@@ -194,10 +192,7 @@ export function PlatformPlansScreen() {
         </h2>
 
         {loading && plans.length === 0 ? (
-          <TableSkeleton
-            headers={["Plan", "Status", "Versions", "Latest price"]}
-            rows={8}
-          />
+          <TableSkeleton headers={["Plan", "Status", "Versions", "Latest price"]} rows={8} />
         ) : plans.length === 0 ? (
           <p className="m-0 py-10 text-center text-body text-text-muted">No plans yet.</p>
         ) : (
@@ -229,7 +224,7 @@ export function PlatformPlansScreen() {
                       }}
                     >
                       <td className="px-2 py-3 font-semibold text-text-primary">
-                        {row.name || row.id.slice(0, 8)}
+                        {row.name || "Plan"}
                       </td>
                       <td className="px-2 py-3">
                         <StatusBadge tone={statusTone(row.status)}>
@@ -257,10 +252,10 @@ export function PlatformPlansScreen() {
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="m-0 text-section text-text-primary">
-                {selected.name || selected.id.slice(0, 8)}
-              </h2>
-              <p className="mt-1 mb-0 text-body text-text-muted">{selected.id}</p>
+              <h2 className="m-0 text-section text-text-primary">{selected.name || "Plan"}</h2>
+              <p className="mt-1 mb-0 text-body text-text-muted">
+                Versions keep purchase-time snapshots for active subscriptions.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={statusTone(selected.status)}>
@@ -294,7 +289,7 @@ export function PlatformPlansScreen() {
           </div>
 
           {tab === "entitlements" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {selectedLatest ? (
                 <>
                   <InfoTile
@@ -320,8 +315,7 @@ export function PlatformPlansScreen() {
                     label="Overage"
                     value={
                       selectedLatest.overage_enabled
-                        ? formatMoneyMinor(selectedLatest.overage_price_per_minute_minor ?? 0) +
-                          "/min"
+                        ? `${formatMoneyMinor(selectedLatest.overage_price_per_minute_minor ?? 0)}/min`
                         : "Disabled"
                     }
                   />
@@ -329,16 +323,31 @@ export function PlatformPlansScreen() {
                     label="Grace seconds"
                     value={String(selectedLatest.grace_seconds ?? "—")}
                   />
+                  <InfoTile label="Max agents" value={formatCapLimit(selectedLatest.max_agents)} />
+                  <InfoTile
+                    label="Max phone numbers"
+                    value={formatCapLimit(selectedLatest.max_phone_numbers)}
+                  />
+                  <InfoTile
+                    label="Max concurrency"
+                    value={formatCapLimit(selectedLatest.max_concurrency)}
+                  />
+                  <InfoTile
+                    label="Recording"
+                    value={selectedLatest.recording_allowed === false ? "Blocked" : "Allowed"}
+                  />
+                  <InfoTile
+                    label="Integrations"
+                    value={
+                      selectedLatest.allowed_integrations?.length
+                        ? selectedLatest.allowed_integrations.join(", ")
+                        : "All providers"
+                    }
+                  />
                 </>
               ) : (
                 <p className="m-0 text-body text-text-muted">No versions on this plan.</p>
               )}
-              <div className="sm:col-span-2">
-                <ApiNote>
-                  Entitlement fields supported today: price, included minutes, top-ups, overage,
-                  grace. Agent/number/concurrency limits and feature flags are not in the API.
-                </ApiNote>
-              </div>
             </div>
           ) : null}
 
@@ -351,6 +360,7 @@ export function PlatformPlansScreen() {
                       <th className="border-0 px-2 py-2 text-left">Version</th>
                       <th className="border-0 px-2 py-2 text-left">Price</th>
                       <th className="border-0 px-2 py-2 text-left">Minutes</th>
+                      <th className="border-0 px-2 py-2 text-left">Caps</th>
                       <th className="border-0 px-2 py-2 text-left">Used</th>
                     </tr>
                   </thead>
@@ -367,6 +377,11 @@ export function PlatformPlansScreen() {
                           {version.included_minutes ?? "—"}
                         </td>
                         <td className="px-2 py-3 text-text-secondary">
+                          A{formatCapLimit(version.max_agents)} · N
+                          {formatCapLimit(version.max_phone_numbers)} · C
+                          {formatCapLimit(version.max_concurrency)}
+                        </td>
+                        <td className="px-2 py-3 text-text-secondary">
                           {version.used ? "Yes" : "No"}
                         </td>
                       </tr>
@@ -374,9 +389,12 @@ export function PlatformPlansScreen() {
                   </tbody>
                 </table>
               </div>
-              <form className="grid gap-3 rounded-xl border border-border-default bg-canvas p-4" onSubmit={(event) => void onAddVersion(event)}>
+              <form
+                className="grid gap-3 rounded-xl border border-border-default bg-canvas p-4"
+                onSubmit={(event) => void onAddVersion(event)}
+              >
                 <h3 className="m-0 text-body font-semibold text-text-primary">Add version</h3>
-                <TermsFields />
+                <PlanTermsFields availableIntegrations={selected.available_integrations} />
                 <ActionButton type="submit" disabled={busy || selected.status === "archived"}>
                   Create version
                 </ActionButton>
@@ -385,7 +403,7 @@ export function PlatformPlansScreen() {
           ) : null}
 
           {tab === "assignment" ? (
-            <form className="grid max-w-lg gap-3" onSubmit={(event) => void onAssign(event)}>
+            <form className="grid w-full min-w-0 gap-3 sm:max-w-xl" onSubmit={(event) => void onAssign(event)}>
               <label className="m-0 grid gap-1.5 font-normal">
                 <span className="text-body-sm text-text-muted">Customer</span>
                 <select
@@ -397,7 +415,7 @@ export function PlatformPlansScreen() {
                   <option value="">Select customer</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
-                      {customer.display_name || customer.id.slice(0, 8)}
+                      {customer.display_name || "Customer"}
                     </option>
                   ))}
                 </select>
@@ -419,90 +437,34 @@ export function PlatformPlansScreen() {
                   ))}
                 </select>
               </label>
+              <p className="m-0 text-body-sm text-text-muted">
+                First assign only. Mid-cycle changes run from the customer detail Plan tab.
+              </p>
               <ActionButton type="submit" disabled={busy}>
                 Assign to customer
               </ActionButton>
-              <ApiNote>
-                Assignment uses POST /api/v1/platform/customers/{"{id}"}/subscription (permission:
-                customers.create). Agency-level plan assignment is not a separate platform route.
-              </ApiNote>
             </form>
           ) : null}
 
           {tab === "grandfathering" ? (
-            <div className="grid gap-3">
-              <p className="m-0 text-body text-text-secondary">
-                Existing subscriptions keep the plan version they were assigned. Creating a new
-                version does not migrate active subscribers automatically.
-              </p>
-              <ApiNote>
-                SA11-004 (Should): there is no migrate-subscription endpoint. Grandfathering is the
-                default runtime behavior when new versions are added.
-              </ApiNote>
-            </div>
+            <p className="m-0 text-body text-text-secondary">
+              Existing subscriptions keep the plan version they were assigned. Creating a new
+              version does not migrate active subscribers automatically.
+            </p>
           ) : null}
         </article>
       ) : (
-        <p className="text-body text-text-muted">Select a plan to manage SA11 controls.</p>
+        <p className="text-body text-text-muted">Select a plan to manage entitlements and versions.</p>
       )}
     </section>
   );
 }
 
-function TermsFields() {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <Field label="Price (minor)" name="price_minor" defaultValue="10000" />
-      <Field label="Included minutes" name="included_minutes" defaultValue="100" />
-      <Field label="Top-up minutes" name="topup_minutes" defaultValue="50" />
-      <Field label="Top-up price (minor)" name="topup_price_minor" defaultValue="2000" />
-      <Field
-        label="Overage price / min (minor)"
-        name="overage_price_per_minute_minor"
-        defaultValue="0"
-      />
-      <Field label="Grace seconds" name="grace_seconds" defaultValue="30" />
-      <label className="m-0 flex items-center gap-2 font-normal">
-        <input type="checkbox" name="allow_topups" defaultChecked />
-        <span className="text-body text-text-secondary">Allow top-ups</span>
-      </label>
-      <label className="m-0 flex items-center gap-2 font-normal">
-        <input type="checkbox" name="overage_enabled" />
-        <span className="text-body text-text-secondary">Overage enabled</span>
-      </label>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  name,
-  defaultValue,
-  required,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="m-0 grid gap-1.5 font-normal">
-      <span className="text-body-sm text-text-muted">{label}</span>
-      <input
-        name={name}
-        required={required}
-        defaultValue={defaultValue}
-        className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-      />
-    </label>
-  );
-}
-
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border-default bg-canvas px-3 py-3">
+    <div className="min-w-0 rounded-xl border border-border-default bg-canvas px-3 py-3">
       <p className="m-0 text-body-sm text-text-muted">{label}</p>
-      <p className="mt-1 mb-0 font-semibold text-text-primary">{value}</p>
+      <p className="mt-1 mb-0 break-words font-semibold text-text-primary">{value}</p>
     </div>
   );
 }

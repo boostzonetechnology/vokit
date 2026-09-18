@@ -283,6 +283,69 @@ def test_finance_admin_cannot_create_agency() -> None:
 
 
 @pytest.mark.django_db
+def test_agency_customer_detail_includes_subscription_and_remaining_minutes() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "Detail Ag", "life_detail", "odetail@vokit.test")
+    assert agency.status_code == 200
+    agency_id = agency.json()["data"]["id"]
+    created = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(agency_id, "Detail Cust"),
+    )
+    assert created.status_code == 201
+    customer_id = created.json()["data"]["id"]
+    plan = _post(
+        platform,
+        "/api/v1/platform/plans",
+        {
+            "name": "Agency Detail Plan",
+            "price_minor": 2000,
+            "included_minutes": 30,
+            "allow_topups": False,
+            "topup_minutes": 0,
+            "topup_price_minor": 0,
+            "overage_enabled": False,
+            "overage_price_per_minute_minor": 0,
+            "grace_seconds": 0,
+        },
+    )
+    version_id = plan.json()["data"]["versions"][0]["id"]
+    assigned = _post(
+        platform,
+        f"/api/v1/platform/customers/{customer_id}/subscription",
+        {"plan_version_id": version_id},
+    )
+    assert assigned.status_code == 201
+    credited = _post(
+        platform,
+        f"/api/v1/platform/customers/{customer_id}/minutes-adjustment",
+        {"minutes": 7, "reason": "agency detail credit"},
+    )
+    assert credited.status_code == 201
+
+    _user(
+        "agency-detail@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        uuid.UUID(agency_id),
+    )
+    agency_client = _client()
+    _login(agency_client, "agency-detail@vokit.test")
+    detail = agency_client.get(f"/api/v1/agency/customers/{customer_id}")
+    assert detail.status_code == 200
+    body = detail.json()["data"]
+    assert body["remaining_minutes"] == 7
+    assert body["subscription"] is not None
+    assert body["subscription"]["plan_name"] == "Agency Detail Plan"
+    assert body["subscription"]["plan_version"] == 1
+    assert body["subscription"]["included_minutes"] == 30
+    assert "status" in body["subscription"]
+
+
+@pytest.mark.django_db
 def test_customer_account_ignores_forged_customer_id() -> None:
     customer_id = new_uuid7()
     other_id = new_uuid7()

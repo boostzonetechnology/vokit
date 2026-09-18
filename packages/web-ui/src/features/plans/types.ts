@@ -11,6 +11,11 @@ export type PlanVersion = {
   overage_enabled?: boolean;
   overage_price_per_minute_minor?: number;
   grace_seconds?: number;
+  max_agents?: number;
+  max_phone_numbers?: number;
+  max_concurrency?: number;
+  recording_allowed?: boolean;
+  allowed_integrations?: string[];
   used?: boolean;
 };
 
@@ -19,6 +24,7 @@ export type PlanRecord = {
   name?: string;
   status?: string;
   versions?: PlanVersion[];
+  available_integrations?: string[];
 };
 
 export type CustomerOption = {
@@ -27,6 +33,7 @@ export type CustomerOption = {
   agency_id?: string;
 };
 
+/** Shared create-plan / add-version body (ADR-011 entitlements included). */
 export type PlanTermsInput = {
   name?: string;
   price_minor: number;
@@ -37,4 +44,14 @@ export type PlanTermsInput = {
   overage_enabled: boolean;
   overage_price_per_minute_minor: number;
   grace_seconds: number;
+  max_agents: number;
+  max_phone_numbers: number;
+  max_concurrency: number;
+  recording_allowed: boolean;
+  allowed_integrations: string[];
 };
+
+export function formatCapLimit(value?: number): string {
+  if (typeof value !== "number") return "—";
+  return value === 0 ? "Unlimited" : String(value);
+}

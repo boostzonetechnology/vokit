@@ -16,6 +16,7 @@ def _index(row: CustomerIndex) -> CustomerIndexRecord:
         display_name=row.display_name,
         status=CustomerStatus(row.status),
         created_at=row.created_at,
+        updated_at=row.updated_at,
     )
 
 

@@ -16,6 +16,7 @@ class CustomerIndexRecord:
     display_name: str
     status: CustomerStatus
     created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class CustomerIndexRepository(Protocol):

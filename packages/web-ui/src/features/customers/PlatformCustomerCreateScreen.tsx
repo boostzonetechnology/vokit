@@ -125,6 +125,10 @@ export function PlatformCustomerCreateScreen() {
         <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
           Create customer
         </h1>
+        <p className="mt-1 mb-0 text-body text-text-muted">
+          Creates an Invited customer and emails the owner invite. Accepting the invite activates
+          the account. Plan assignment is done from customer detail.
+        </p>
       </div>
 
       <div className="mb-6">

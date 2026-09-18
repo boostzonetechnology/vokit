@@ -69,7 +69,53 @@ def _index_payload(row) -> dict[str, object]:
         "display_name": row.display_name,
         "status": row.status.value,
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+def _subscription_payload(customer_id) -> dict[str, object] | None:
+    subscription = get_customer_subscription().execute(customer_id)
+    if subscription is None:
+        return None
+    sub = subscription.subscription
+    return {
+        "id": str(sub.subscription_id),
+        "plan_id": str(sub.plan_id),
+        "plan_version_id": str(sub.plan_version_id),
+        "plan_name": subscription.plan_name,
+        "plan_version": subscription.plan_version,
+        "status": sub.status.value,
+        "included_minutes": subscription.included_minutes,
+        "period_end": subscription.period_end.isoformat() if subscription.period_end else None,
+        "pending_kind": sub.pending_kind,
+        "pending_effective_at": sub.pending_effective_at.isoformat()
+        if sub.pending_effective_at
+        else None,
+    }
+
+
+def _directory_payload(row) -> dict[str, object]:
+    """Platform directory row: index fields + usage/subscription summary for the page slice."""
+    payload = _index_payload(row)
+    usage = get_customer_usage().execute(row.id)
+    payload["remaining_minutes"] = usage.remaining_minutes
+    subscription = get_customer_subscription().execute(row.id)
+    if subscription is not None:
+        payload["plan_name"] = subscription.plan_name
+        payload["plan_version"] = subscription.plan_version
+        payload["subscription_status"] = subscription.subscription.status.value
+    else:
+        payload["plan_name"] = None
+        payload["plan_version"] = None
+        payload["subscription_status"] = None
+    return payload
+
+
+def _enrich_customer_detail(payload: dict[str, object], customer_id) -> dict[str, object]:
+    usage = get_customer_usage().execute(customer_id)
+    payload["remaining_minutes"] = usage.remaining_minutes
+    payload["subscription"] = _subscription_payload(customer_id)
+    return payload
 
 
 class PlatformCustomerCollectionView(CsrfAPIView):
@@ -87,13 +133,14 @@ class PlatformCustomerCollectionView(CsrfAPIView):
         agency_id = parse_optional_uuid(
             request.query_params.get("agency_id"), field="agency_id"
         )
+        # Plan filter is client-side on the current page for now (avoid N+1 on full catalog).
         rows = customer_index().list(
             tenant_id=agency_id,
             status=status,
             query=str(request.query_params.get("q") or ""),
         )
         sliced, page = page_slice(rows, offset, limit)
-        return success([_index_payload(row) for row in sliced], page=page)
+        return success([_directory_payload(row) for row in sliced], page=page)
 
     def post(self, request: Request) -> Response:
         context = require_platform_perm(request, "customer.create")
@@ -129,23 +176,7 @@ class PlatformCustomerDetailView(CsrfAPIView):
         row = lifecycle().get_customer(indexed.tenant_id, identifier)
         if row is None:
             return success(_index_payload(indexed))
-        payload = _customer_payload(row)
-        usage = get_customer_usage().execute(identifier)
-        payload["remaining_minutes"] = usage.remaining_minutes
-        subscription = get_customer_subscription().execute(identifier)
-        if subscription is not None:
-            payload["subscription"] = {
-                "id": str(subscription.subscription.subscription_id),
-                "plan_id": str(subscription.subscription.plan_id),
-                "plan_version_id": str(subscription.subscription.plan_version_id),
-                "plan_name": subscription.plan_name,
-                "plan_version": subscription.plan_version,
-                "status": subscription.subscription.status.value,
-                "included_minutes": subscription.included_minutes,
-            }
-        else:
-            payload["subscription"] = None
-        return success(payload)
+        return success(_enrich_customer_detail(_customer_payload(row), identifier))
 
 
 class PlatformCustomerStatusView(CsrfAPIView):
@@ -265,12 +296,11 @@ class AgencyCustomerDetailView(CsrfAPIView):
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         parse_optional_uuid(request.query_params.get("tenant_id"), field="tenant_id")
-        row = lifecycle().get_customer(
-            tenant_id, parse_uuid(customer_id, field="customer_id")
-        )
+        identifier = parse_uuid(customer_id, field="customer_id")
+        row = lifecycle().get_customer(tenant_id, identifier)
         if row is None:
             raise customer_not_found()
-        return success(_customer_payload(row))
+        return success(_enrich_customer_detail(_customer_payload(row), identifier))
 
 
 class AgencyCustomerStatusView(CsrfAPIView):

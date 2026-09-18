@@ -32,7 +32,7 @@ from control_plane.tenancy.domain.lifecycle import AgencyCapabilities, AgencySta
 from control_plane.tenancy.domain.policies import isolation_violation, pool_exhausted
 from shared_kernel.errors import DomainError
 from shared_kernel.secrets import SecretRef
-from shared_kernel.time import utc_now
+from shared_kernel.time import ensure_utc, utc_now
 from tenant.agents.domain import (
     AgentVersionRecord,
     InstructionLayerRecord,
@@ -1438,16 +1438,17 @@ class MysqlRuntime:
             currency=str(row[5]),
             total_minor=int(row[6]),
             lines=lines,
-            created_at=row[7],
-            updated_at=row[8],
-            paid_at=row[9],
-            due_at=row[10] if len(row) > 10 else None,
+            created_at=_as_utc(row[7]),
+            updated_at=_as_utc(row[8]),
+            paid_at=_as_utc(row[9]),
+            due_at=_as_utc(row[10]) if len(row) > 10 else None,
         )
 
     def _subscription(self, row, expected_tenant: uuid.UUID) -> SubscriptionRecord:
         tenant_id = uuid.UUID(str(row[1]))
         if tenant_id != expected_tenant:
             raise isolation_violation()
+        created_at = _as_utc(row[7])
         return SubscriptionRecord(
             subscription_id=uuid.UUID(str(row[0])),
             tenant_id=tenant_id,
@@ -1456,13 +1457,13 @@ class MysqlRuntime:
             plan_version_id=uuid.UUID(str(row[4])),
             status=SubscriptionStatus(str(row[5])),
             cycle=str(row[6]),
-            created_at=row[7],
-            updated_at=row[8],
-            period_started_at=row[9] if len(row) > 9 else row[7],
+            created_at=created_at,
+            updated_at=_as_utc(row[8]),
+            period_started_at=_as_utc(row[9]) if len(row) > 9 else created_at,
             pending_plan_version_id=uuid.UUID(str(row[10])) if len(row) > 10 and row[10] else None,
             pending_kind=str(row[11]) if len(row) > 11 and row[11] else None,
             pending_invoice_id=uuid.UUID(str(row[12])) if len(row) > 12 and row[12] else None,
-            pending_effective_at=row[13] if len(row) > 13 else None,
+            pending_effective_at=_as_utc(row[13]) if len(row) > 13 else None,
         )
 
     def put_assignment(
@@ -2459,6 +2460,12 @@ class MysqlRuntime:
         if target.tls_required:
             return {}
         return None
+
+
+def _as_utc(value):
+    if value is None:
+        return None
+    return ensure_utc(value)
 
 
 def _safe_ident(name: str) -> str:
