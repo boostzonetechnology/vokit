@@ -1,37 +1,47 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { apiGet, apiSend, getDashboard, isApiError } from "@/api";
-import { asList } from "@/features/platform/lib/list";
+import { mapAgencyError } from "@/features/agencies/lib/mapAgencyError";
+import {
+  createAgencyNote,
+  getAgency,
+  getAgencyFinance,
+  listAgencyNotes,
+  listAgencyScopedRows,
+  patchAgencyProfile,
+  setAgencyCapabilities,
+  setAgencyCommission,
+  setAgencyStatus,
+} from "@/features/agencies/services/agency.service";
 import type {
   AgencyCapabilities,
-  AgencyDashboardSlice,
+  AgencyFinance,
   AgencyNote,
   AgencyRecord,
-  WalletBuckets,
+  SetCommissionInput,
+  SetStatusInput,
 } from "@/features/agencies/types";
 
-async function safeGet<T>(path: string): Promise<T[]> {
+async function safeScoped(
+  path: string,
+  agencyId: string,
+): Promise<Record<string, unknown>[]> {
   try {
-    return asList<T>(await apiGet<unknown>(path));
+    return await listAgencyScopedRows(path, agencyId);
   } catch {
     return [];
   }
 }
 
-function rowAgencyId(row: Record<string, unknown>): string {
-  return String(row.agency_id ?? row.tenant_id ?? row.assigned_agency_id ?? "");
-}
-
 export function usePlatformAgencyDetail(agencyId: string) {
   const [detail, setDetail] = useState<AgencyRecord | null>(null);
-  const [wallet, setWallet] = useState<WalletBuckets | null>(null);
-  const [dashboard, setDashboard] = useState<AgencyDashboardSlice | null>(null);
-  const [payouts, setPayouts] = useState<Record<string, unknown>[]>([]);
+  const [finance, setFinance] = useState<AgencyFinance | null>(null);
   const [customers, setCustomers] = useState<Record<string, unknown>[]>([]);
   const [agents, setAgents] = useState<Record<string, unknown>[]>([]);
   const [numbers, setNumbers] = useState<Record<string, unknown>[]>([]);
   const [calls, setCalls] = useState<Record<string, unknown>[]>([]);
   const [integrations, setIntegrations] = useState<Record<string, unknown>[]>([]);
+  const [team, setTeam] = useState<Record<string, unknown>[]>([]);
+  const [knowledge, setKnowledge] = useState<Record<string, unknown>[]>([]);
   const [notes, setNotes] = useState<AgencyNote[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -47,49 +57,43 @@ export function usePlatformAgencyDetail(agencyId: string) {
     setLoading(true);
     setError("");
     try {
-      const agency = await apiGet<AgencyRecord>(`/api/v1/platform/agencies/${id}`);
+      const agency = await getAgency(id);
       setDetail(agency);
 
       const [
-        walletRes,
-        dash,
-        payoutRows,
+        financeRes,
         customerRows,
         agentRows,
         numberRows,
         callRows,
         integrationRows,
+        teamRows,
+        knowledgeRows,
         noteRows,
       ] = await Promise.all([
-        apiGet<{ buckets?: WalletBuckets }>(`/api/v1/platform/agencies/${id}/wallet`).catch(
-          () => null,
-        ),
-        getDashboard("platform", {
-          period: "30d",
-          timezone: "UTC",
-          agencyId: id,
-        }).catch(() => null),
-        safeGet<Record<string, unknown>>("/api/v1/platform/payouts"),
-        safeGet<Record<string, unknown>>("/api/v1/platform/customers"),
-        safeGet<Record<string, unknown>>("/api/v1/platform/agents"),
-        safeGet<Record<string, unknown>>("/api/v1/platform/phone-numbers"),
-        safeGet<Record<string, unknown>>("/api/v1/platform/calls"),
-        safeGet<Record<string, unknown>>("/api/v1/platform/integrations"),
-        safeGet<AgencyNote>(`/api/v1/platform/agencies/${id}/notes`),
+        getAgencyFinance(id).catch(() => null),
+        safeScoped("/api/v1/platform/customers", id),
+        safeScoped("/api/v1/platform/agents", id),
+        safeScoped("/api/v1/platform/phone-numbers", id),
+        safeScoped("/api/v1/platform/calls", id),
+        safeScoped("/api/v1/platform/integrations", id),
+        safeScoped("/api/v1/platform/users", id),
+        safeScoped("/api/v1/platform/knowledge", id),
+        listAgencyNotes(id).catch(() => [] as AgencyNote[]),
       ]);
 
-      setWallet(walletRes?.buckets ?? null);
-      setDashboard(dash);
-      setPayouts(payoutRows.filter((row) => rowAgencyId(row) === id));
-      setCustomers(customerRows.filter((row) => rowAgencyId(row) === id));
-      setAgents(agentRows.filter((row) => rowAgencyId(row) === id));
-      setNumbers(numberRows.filter((row) => rowAgencyId(row) === id));
-      setCalls(callRows.filter((row) => rowAgencyId(row) === id));
-      setIntegrations(integrationRows.filter((row) => rowAgencyId(row) === id));
+      setFinance(financeRes);
+      setCustomers(customerRows);
+      setAgents(agentRows);
+      setNumbers(numberRows);
+      setCalls(callRows);
+      setIntegrations(integrationRows);
+      setTeam(teamRows);
+      setKnowledge(knowledgeRows);
       setNotes(noteRows);
     } catch (cause) {
       setDetail(null);
-      setError(isApiError(cause) ? cause.message : "Failed to load agency detail.");
+      setError(mapAgencyError(cause, "Failed to load agency detail."));
     } finally {
       setLoading(false);
     }
@@ -103,69 +107,66 @@ export function usePlatformAgencyDetail(agencyId: string) {
     setBusy(true);
     setMessage("");
     try {
-      const updated = await apiSend<AgencyRecord>(
-        `/api/v1/platform/agencies/${agencyId}`,
-        "PATCH",
-        input,
-      );
+      const updated = await patchAgencyProfile(agencyId, input);
       setDetail(updated);
       setMessage("Agency profile updated.");
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Profile update failed.");
+      setMessage(mapAgencyError(cause, "Profile update failed."));
     } finally {
       setBusy(false);
     }
   }
 
-  async function setCommission(commission_rate_bps: number) {
+  async function setCommission(input: SetCommissionInput) {
     setBusy(true);
     setMessage("");
     try {
-      const updated = await apiSend<AgencyRecord>(
-        `/api/v1/platform/agencies/${agencyId}/commission`,
-        "POST",
-        { commission_rate_bps },
-      );
+      const updated = await setAgencyCommission(agencyId, input);
       setDetail(updated);
-      setMessage("Commission rate updated. Historical ledger entries keep their original snapshot.");
+      const financeRes = await getAgencyFinance(agencyId).catch(() => null);
+      if (financeRes) setFinance(financeRes);
+      setMessage("Commission rate updated. Historical ledger entries keep their snapshot.");
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Commission update failed.");
+      setMessage(mapAgencyError(cause, "Commission update failed."));
     } finally {
       setBusy(false);
     }
   }
 
-  async function setStatus(action: string) {
+  async function setStatus(input: Omit<SetStatusInput, "confirm"> & { confirm?: true }) {
     setBusy(true);
     setMessage("");
     try {
-      const updated = await apiSend<AgencyRecord>(
-        `/api/v1/platform/agencies/${agencyId}/status`,
-        "POST",
-        { action },
-      );
+      const updated = await setAgencyStatus(agencyId, {
+        action: input.action,
+        confirm: true,
+        reason: input.reason,
+      });
       setDetail(updated);
-      setMessage(`Status action applied: ${action}`);
+      setMessage(`Status updated: ${input.action.replaceAll("_", " ")}`);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Status update failed.");
+      setMessage(mapAgencyError(cause, "Status update failed."));
     } finally {
       setBusy(false);
     }
   }
 
-  async function setCapabilities(capabilities: AgencyCapabilities) {
+  async function setCapabilities(input: {
+    capabilities: AgencyCapabilities;
+    reason: string;
+  }) {
     setBusy(true);
     setMessage("");
     try {
-      const updated = await apiSend<AgencyRecord>(
-        `/api/v1/platform/agencies/${agencyId}/capabilities`,
-        "POST",
-        { capabilities },
-      );
+      const updated = await setAgencyCapabilities(agencyId, {
+        confirm: true,
+        reason: input.reason,
+        capabilities: input.capabilities,
+      });
       setDetail(updated);
       setMessage("Capabilities updated.");
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Capabilities update failed.");
+      setMessage(mapAgencyError(cause, "Capabilities update failed."));
     } finally {
       setBusy(false);
     }
@@ -175,15 +176,11 @@ export function usePlatformAgencyDetail(agencyId: string) {
     setBusy(true);
     setMessage("");
     try {
-      const created = await apiSend<AgencyNote>(
-        `/api/v1/platform/agencies/${agencyId}/notes`,
-        "POST",
-        input,
-      );
+      const created = await createAgencyNote(agencyId, input);
       setNotes((prev) => [created, ...prev]);
       setMessage("Internal note added.");
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Could not add note.");
+      setMessage(mapAgencyError(cause, "Could not add note."));
     } finally {
       setBusy(false);
     }
@@ -191,14 +188,14 @@ export function usePlatformAgencyDetail(agencyId: string) {
 
   return {
     detail,
-    wallet,
-    dashboard,
-    payouts,
+    finance,
     customers,
     agents,
     numbers,
     calls,
     integrations,
+    team,
+    knowledge,
     notes,
     error,
     message,

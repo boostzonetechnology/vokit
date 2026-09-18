@@ -153,6 +153,10 @@ export function PlatformAgencyCreateScreen() {
         <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
           Create agency
         </h1>
+        <p className="mt-1 mb-0 text-body text-text-muted">
+          Creates the agency as Invited, provisions the tenant database, and emails the owner
+          invitation. No region or owner phone in V1.
+        </p>
       </div>
 
       <div className="mb-6">
