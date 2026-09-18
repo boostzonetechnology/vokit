@@ -31,15 +31,24 @@ export function mapAgentError(cause: unknown, fallback: string): string {
     case "agent_archived":
       return cause.message || "Restore the archived agent before editing or publishing.";
     case "status_locked":
+    case "agent_status_locked":
       return (
         cause.message ||
-        "Platform has locked this agent's status. Agency cannot change it."
+        "This agent's status is locked by the platform and cannot be changed."
+      );
+    case "invalid_transition":
+      return (
+        cause.message ||
+        "This status change is not allowed for the agent's current state."
       );
     case "validation_error":
       return cause.message || fallback;
     case "forbidden":
     case "permission_denied":
-      return cause.message || "You do not have permission for this agent action.";
+      return (
+        cause.message ||
+        "Not permitted. Ask your agency to grant customer edit access on this agent."
+      );
     default:
       return cause.message || fallback;
   }

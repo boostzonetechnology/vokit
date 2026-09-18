@@ -1,32 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "@/api";
+import { apiGet, apiSend } from "@/api";
+import { mapAgentError } from "@/features/agents/lib/mapAgentError";
 import { asList } from "@/features/platform/lib/list";
-
-export type CustomerAgentRow = {
-  id: string;
-  display_name?: string;
-  status?: string;
-  customer_id?: string;
-  agency_id?: string;
-};
-
-export type CustomerAgentDetail = CustomerAgentRow & {
-  agent_type?: string;
-  timezone?: string;
-  voice_provider?: string;
-  voice_id?: string;
-  language?: string;
-  greeting?: string;
-  instructions?: string;
-  inbound_enabled?: boolean;
-  outbound_enabled?: boolean;
-  recording_disclosure?: boolean;
-  customer_can_edit?: boolean;
-  published_version?: number | null;
-  production_routable?: boolean;
-  e164?: string;
-};
+import type { CustomerAgentDetail, CustomerAgentRow } from "@/features/agents/types";
 
 export function useCustomerAgents() {
   const [agents, setAgents] = useState<CustomerAgentRow[]>([]);
@@ -35,6 +12,7 @@ export function useCustomerAgents() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -46,7 +24,7 @@ export function useCustomerAgents() {
       setAgents(rows);
       setError("");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load agents.");
+      setError(mapAgentError(cause, "Failed to load agents."));
     } finally {
       setLoading(false);
     }
@@ -59,17 +37,19 @@ export function useCustomerAgents() {
   const loadDetail = useCallback(async (agentId: string) => {
     if (!agentId) {
       setDetail(null);
-      return;
+      return null;
     }
-    setBusy(true);
+    setDetailLoading(true);
     try {
       const row = await apiGet<CustomerAgentDetail>(`/api/v1/customer/agents/${agentId}`);
       setDetail(row);
+      return row;
     } catch (cause) {
       setDetail(null);
-      setMessage(isApiError(cause) ? cause.message : "Failed to load agent detail.");
+      setMessage(mapAgentError(cause, "Failed to load agent detail."));
+      return null;
     } finally {
-      setBusy(false);
+      setDetailLoading(false);
     }
   }, []);
 
@@ -82,13 +62,18 @@ export function useCustomerAgents() {
     return agents.filter((row) => {
       if (statusFilter && (row.status ?? "").toLowerCase() !== statusFilter) return false;
       if (!q) return true;
-      return [row.display_name, row.status, row.id]
+      return [row.display_name, row.status, row.id, row.assigned_e164, row.agent_type]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(q);
     });
   }, [agents, query, statusFilter]);
+
+  const statusOptions = useMemo(
+    () => [...new Set(agents.map((row) => (row.status ?? "").toLowerCase()).filter(Boolean))],
+    [agents],
+  );
 
   async function saveLimitedFields(input: { greeting: string; instructions: string }) {
     if (!selectedId || !detail?.customer_can_edit) {
@@ -109,7 +94,49 @@ export function useCustomerAgents() {
       setMessage("Allowed fields updated.");
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Update failed.");
+      setMessage(mapAgentError(cause, "Update failed."));
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pauseAgent(agentId = selectedId) {
+    if (!agentId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const updated = await apiSend<CustomerAgentDetail>(
+        `/api/v1/customer/agents/${agentId}/pause`,
+        "POST",
+        {},
+      );
+      setDetail(updated);
+      setMessage("Agent paused.");
+      await reload();
+    } catch (cause) {
+      setMessage(mapAgentError(cause, "Pause failed."));
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resumeAgent(agentId = selectedId) {
+    if (!agentId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const updated = await apiSend<CustomerAgentDetail>(
+        `/api/v1/customer/agents/${agentId}/resume`,
+        "POST",
+        {},
+      );
+      setDetail(updated);
+      setMessage("Agent resumed.");
+      await reload();
+    } catch (cause) {
+      setMessage(mapAgentError(cause, "Resume failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -124,12 +151,16 @@ export function useCustomerAgents() {
     error,
     message,
     loading,
+    detailLoading,
     busy,
     query,
     setQuery,
     statusFilter,
     setStatusFilter,
+    statusOptions,
     reload,
     saveLimitedFields,
+    pauseAgent,
+    resumeAgent,
   };
 }
