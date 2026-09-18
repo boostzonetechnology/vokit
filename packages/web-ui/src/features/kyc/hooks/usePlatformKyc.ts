@@ -4,6 +4,28 @@ import { apiGet, apiSend, isApiError } from "@/api";
 import { asList, safeGetList } from "@/features/platform/lib/list";
 import type { AgencyOption, KycCase, KycSettings } from "@/features/kyc/types";
 
+function overrideFeedback(action: string, status?: string): string {
+  if (action === "set_status" && status) {
+    const label = status.replaceAll("_", " ");
+    if (
+      status === "submitted" ||
+      status === "verified" ||
+      status === "rejected" ||
+      status === "more_information_required"
+    ) {
+      return `KYC status set to ${label}. Agency members were notified.`;
+    }
+    return `KYC status set to ${label}.`;
+  }
+  if (action === "freeze") {
+    return "Payouts frozen. Agency request_payouts was turned off.";
+  }
+  if (action === "unfreeze") {
+    return "Payouts unfrozen. Re-enable request_payouts on the agency if needed.";
+  }
+  return `KYC override applied (${action}).`;
+}
+
 export function usePlatformKyc() {
   const [cases, setCases] = useState<KycCase[]>([]);
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
@@ -90,7 +112,7 @@ export function usePlatformKyc() {
         "POST",
         payload,
       );
-      setMessage(`KYC override applied (${input.action}).`);
+      setMessage(overrideFeedback(input.action, input.status));
       await reload();
       if (updated.id) setSelectedId(updated.id);
       return updated;

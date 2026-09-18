@@ -10,6 +10,7 @@ import { AgencyCapabilitiesPanel } from "@/features/agencies/components/AgencyCa
 import { AgencyCommissionPanel } from "@/features/agencies/components/AgencyCommissionPanel";
 import { AgencyDetailTabBar } from "@/features/agencies/components/AgencyDetailTabBar";
 import { AgencyFinancePanel } from "@/features/agencies/components/AgencyFinancePanel";
+import { AgencyGateChips } from "@/features/agencies/components/AgencyGateChips";
 import { AgencyNotesPanel } from "@/features/agencies/components/AgencyNotesPanel";
 import {
   AgencyOverviewPanel,
@@ -39,6 +40,7 @@ export function PlatformAgencyDetailScreen({ agencyId }: { agencyId: string }) {
     notes,
     error,
     message,
+    actionError,
     loading,
     busy,
     saveProfile,
@@ -106,24 +108,32 @@ export function PlatformAgencyDetailScreen({ agencyId }: { agencyId: string }) {
           <ArrowLeft className="size-4" aria-hidden />
           Back to agencies
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border-default bg-surface px-5 py-4 shadow-subtle">
-          <div>
-            <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
-              {title}
-            </h1>
-            <p className="mt-1 mb-0 text-body text-text-muted">{subtitle}</p>
+        <div className="rounded-2xl border border-border-default bg-surface px-5 py-4 shadow-subtle">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
+                {title}
+              </h1>
+              <p className="mt-1 mb-0 text-body text-text-muted">{subtitle}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone={agencyStatusTone(detail.status)}>
+                {formatAgencyStatus(detail.status)}
+              </StatusBadge>
+              <StatusBadge tone={agencyStatusTone(detail.tenant_status)}>
+                {`DB ${formatAgencyStatus(detail.tenant_status)}`}
+              </StatusBadge>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone={agencyStatusTone(detail.status)}>
-              {formatAgencyStatus(detail.status)}
-            </StatusBadge>
-            <StatusBadge tone={agencyStatusTone(detail.tenant_status)}>
-              {`DB ${formatAgencyStatus(detail.tenant_status)}`}
-            </StatusBadge>
-          </div>
+          <AgencyGateChips capabilities={detail.capabilities} />
         </div>
       </div>
 
+      {actionError ? (
+        <p className="mb-4 text-body text-danger" role="alert">
+          {actionError}
+        </p>
+      ) : null}
       {message ? (
         <p className="mb-4 text-body text-text-brand" role="status">
           {message}

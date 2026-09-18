@@ -40,11 +40,6 @@ export function portalNav(portal: Portal): NavItem[] {
       { href: "/integrations", label: "Integrations", path: "/api/v1/platform/integrations" },
       { href: "/risk", label: "Risk", path: "/api/v1/platform/risk/cases" },
       { href: "/notifications", label: "Notifications", path: "/api/v1/platform/notifications" },
-      {
-        href: "/notice-templates",
-        label: "Notice templates",
-        path: "/api/v1/platform/notification-templates",
-      },
       { href: "/audit", label: "Audit", path: "/api/v1/platform/audit-events" },
       { href: "/users", label: "Users", path: "/api/v1/platform/users" },
       { href: "/roles", label: "Roles", path: "/api/v1/platform/roles" },

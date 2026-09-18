@@ -352,8 +352,9 @@ export function PlatformKycScreen() {
           </form>
           <div className="mt-4">
             <ApiNote>
-              POST /api/v1/platform/kyc/cases/{"{id}"}/override supports set_status, freeze, and
-              unfreeze. Decisions are audited as kyc.override.
+              Status overrides (verified, rejected, more info, submitted) notify agency members.
+              Starting a hosted KYC session does not send kyc.submitted — only a real status change
+              does. Freeze also turns off agency payout requests.
             </ApiNote>
           </div>
         </article>
@@ -375,9 +376,9 @@ export function PlatformKycScreen() {
             />
           </div>
           <ApiNote>
-            SA4-004: payout eligibility is enforced server-side (payout_kyc_unverified /
-            payout_kyc_frozen). Freeze override also disables agency request_payouts capability
-            automatically. No separate payout-gate toggle API is required.
+            Payout eligibility is server-enforced: KYC verified, not frozen, and agency
+            request_payouts on. Freeze override disables request_payouts automatically and notifies
+            only when a KYC status change is applied — freeze alone does not send agency.suspended.
           </ApiNote>
         </article>
       ) : null}

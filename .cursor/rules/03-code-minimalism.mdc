@@ -1,0 +1,45 @@
+---
+description: Mandatory code minimalism — simplest complete solution, no dead/extra/speculative code
+alwaysApply: true
+---
+
+# Code Minimalism (mandatory)
+
+Full skill: `.cursor/skills/code-minimalism/skill.md`. Follow it on every task.
+
+## Priority
+
+Correctness → Completeness → Maintainability → Readability → Simplicity → Minimum necessary code.
+
+Never drop required behavior to shorten code. Prefer **simple + complete + maintainable** over verbose or over-engineered.
+
+## Before writing
+
+1. What is the actual requirement?
+2. What already exists — search and reuse?
+3. What is the smallest correct change?
+4. Is a new file/abstraction actually needed?
+5. Am I coding for a future requirement that does not exist?
+
+## Hard bans
+
+- Dead code: unused imports, variables, methods, files, commented-out blocks
+- Duplicate logic when an equivalent already exists
+- Speculative / “might need later” code
+- Extra layers (Manager/Helper/Wrapper/DTO/factory) without a concrete problem
+- Unrelated refactors or drive-by cleanup outside the task
+- Clever one-liners that hurt clarity
+- Extra CSS/classes/hacks for layout when correct layout primitives already solve it
+
+## Allowed complexity
+
+If the flow needs 100 lines, write 100. If 20 is enough, do not write 100.
+Split files for real separate responsibilities — not to hit a line-count target (~300 is a signal, not a hard rule).
+
+## Before finishing
+
+- No unused or speculative code
+- No unnecessary abstractions or files
+- Required validation, auth, business rules, and error handling preserved
+- Complete flow works end-to-end
+- Ask: would another senior ask why any of this code exists? If yes, remove or simplify it.

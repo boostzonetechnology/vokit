@@ -10,7 +10,6 @@ import {
   FileText,
   LayoutDashboard,
   Layers,
-  Megaphone,
   Phone,
   PhoneCall,
   Receipt,
@@ -69,7 +68,6 @@ const ICONS: Record<string, LucideIcon> = {
   audit: ClipboardList,
   disputes: Scale,
   "payment-methods": CreditCard,
-  "notice-templates": Megaphone,
 };
 
 function withIcons(items: NavItem[]): Array<NavItem & { icon: LucideIcon }> {
@@ -141,7 +139,6 @@ export function portalNavGroups(portal: Portal, nav: NavItem[]): NavGroup[] {
         label: "Account",
         items: [
           pick(byRoute, "notifications", "Notifications", portal),
-          pick(byRoute, "notice-templates", "Notice templates", portal),
           pick(byRoute, "users", "Users", portal),
           pick(byRoute, "roles", "Roles", portal),
           pick(byRoute, "permissions", "Permissions", portal),
