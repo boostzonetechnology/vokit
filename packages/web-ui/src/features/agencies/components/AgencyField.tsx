@@ -1,6 +1,6 @@
 import { FormField } from "@/components/forms/FormField";
 
-/** Agency feature wrapper — shared pill field used on create/detail forms. */
+/** Agency feature wrapper — shared pill field used oncreate/detail forms. */
 export function AgencyField({
   label,
   name,
