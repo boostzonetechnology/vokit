@@ -15,6 +15,7 @@ from control_plane.identity.application.ports import (
 )
 from control_plane.identity.domain.policies import (
     MembershipBinding,
+    assert_can_hold_new_membership,
     normalize_email,
     validate_membership_binding,
 )
@@ -48,21 +49,20 @@ class InviteUser:
         self._clock = clock
         self._ttl = ttl
 
+    def assert_email_available(self, email: str) -> str:
+        normalized = normalize_email(email)
+        existing = self._users.get_by_email(normalized)
+        if existing is not None:
+            assert_can_hold_new_membership(
+                has_platform=self._memberships.has_platform(existing.id),
+                has_tenant=self._memberships.has_tenant(existing.id),
+            )
+        return normalized
+
     def execute(self, command: InviteUserCommand) -> tuple[InvitationRecord, str]:
         validate_membership_binding(command.binding)
         self._assert_actor_may_invite(command)
-        email = normalize_email(command.email)
-        existing = self._users.get_by_email(email)
-        if existing is not None:
-            taken = self._memberships.has_platform(existing.id) or self._memberships.has_tenant(
-                existing.id
-            )
-            if taken:
-                raise DomainError(
-                    "membership_conflict",
-                    "A user can belong to only one platform or tenant context.",
-                    http_status=409,
-                )
+        email = self.assert_email_available(command.email)
         token = secrets.token_urlsafe(32)
         record = InvitationRecord(
             id=new_uuid7(),

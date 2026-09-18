@@ -198,7 +198,7 @@ Never returned:
 | Missing username/password | `validation_error` (400) |
 | Client supplied `database.name` | `validation_error` (400) |
 | Duplicate `database.username` | `db_username_conflict` (409) |
-| Owner email already has membership | `owner_conflict` (409) |
+| Owner email already has membership | `owner_conflict` (409) — checked **before** MySQL/tenant provision; no half-created agency |
 | Admin cannot GRANT | `tenant_db_admin_denied` (503) |
 | Other MySQL/provision exception | `tenant_provision_failed` (503) |
 | Empty `db_username` on later open | `tenant_db_misconfigured` (503) |
