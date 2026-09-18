@@ -4,12 +4,14 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { AgencyInfoTile } from "@/features/agencies/components/AgencyInfoTile";
 import { AgencyStackField } from "@/features/agencies/components/AgencyStackField";
 import { resolveCommissionDisplay } from "@/features/agencies/lib/commission";
+import { formatGateState } from "@/features/agencies/lib/gates";
 import { formatAgencyStatus } from "@/features/agencies/lib/status";
-import type { AgencyRecord } from "@/features/agencies/types";
+import { CAPABILITY_FIELDS, type AgencyRecord } from "@/features/agencies/types";
 
 export function AgencyOverviewPanel({ detail }: { detail: AgencyRecord }) {
   const commission = resolveCommissionDisplay(detail);
   const db = detail.database;
+  const caps = detail.capabilities;
 
   return (
     <div className="grid w-full min-w-0 gap-4">
@@ -29,6 +31,13 @@ export function AgencyOverviewPanel({ detail }: { detail: AgencyRecord }) {
           />
         )}
         <AgencyInfoTile label="Currency" value={detail.currency || "USD"} />
+        {CAPABILITY_FIELDS.map((field) => (
+          <AgencyInfoTile
+            key={field.key}
+            label={field.label}
+            value={caps ? formatGateState(Boolean(caps[field.key])) : "—"}
+          />
+        ))}
         <AgencyInfoTile label="Database" value={db?.name || "—"} />
         <AgencyInfoTile label="DB username" value={db?.username || "—"} />
         <AgencyInfoTile
@@ -43,7 +52,8 @@ export function AgencyOverviewPanel({ detail }: { detail: AgencyRecord }) {
         />
       </div>
       <p className="m-0 text-body-sm text-text-muted">
-        MySQL password is never returned by the API. Database name is server-allocated.
+        Capability gates are enforced server-side on every protected action. MySQL password is never
+        returned by the API.
       </p>
     </div>
   );
