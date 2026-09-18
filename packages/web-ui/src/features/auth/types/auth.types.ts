@@ -48,3 +48,30 @@ export type EmailEnrollResult = {
 };
 
 export type LoginStep = "credentials" | "challenge" | "privilegedBlock";
+
+export type LoginPortalCopy = {
+  title: string;
+  subtitle: string;
+  heroEyebrow: string;
+  heroTitle: string;
+};
+
+export type MfaStepUpMode = "totp" | "recovery";
+
+export type AcceptInvitePortalCopy = {
+  eyebrow: string;
+  heroTitle: string;
+  subtitle: string;
+};
+
+export type AcceptInvitationResult = {
+  user_id: string;
+  email: string;
+};
+
+export type AcceptInviteFormValues = {
+  token: string;
+  password: string;
+  confirm: string;
+  acceptPlatformTerms: boolean;
+};

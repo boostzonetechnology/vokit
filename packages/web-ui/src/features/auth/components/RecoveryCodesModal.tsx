@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 
 import { ActionButton } from "@/components/ui/ActionButton";
+import { copyTextToClipboard } from "@/features/auth/lib/copyText";
 
 export function RecoveryCodesModal({
   codes,
@@ -9,14 +10,6 @@ export function RecoveryCodesModal({
   codes: string[];
   onAcknowledge: () => void;
 }) {
-  async function copyAll() {
-    try {
-      await navigator.clipboard.writeText(codes.join("\n"));
-    } catch {
-      // Clipboard may be unavailable; user can still copy manually.
-    }
-  }
-
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-text-primary/40 p-4"
@@ -40,7 +33,10 @@ export function RecoveryCodesModal({
           ))}
         </ul>
         <div className="flex flex-wrap gap-2">
-          <ActionButton variant="secondary" onClick={() => void copyAll()}>
+          <ActionButton
+            variant="secondary"
+            onClick={() => void copyTextToClipboard(codes.join("\n"))}
+          >
             Copy all
           </ActionButton>
           <ActionButton onClick={onAcknowledge}>I have saved these codes</ActionButton>

@@ -243,9 +243,14 @@ def test_invite_accept_lifecycle() -> None:
     accepted = _post(
         guest,
         "/api/v1/auth/invitations/accept",
-        {"token": token, "password": PASSWORD},
+        {"token": token, "password": PASSWORD, "accept_platform_terms": True},
     )
     assert accepted.status_code == 201
+    from control_plane.identity.models import User
+
+    user_row = User.objects.get(email="customer@vokit.test")
+    assert user_row.platform_terms_accepted_at is not None
+    assert user_row.platform_terms_version == "v1"
     login = _post(
         guest,
         "/api/v1/auth/login",
@@ -255,6 +260,39 @@ def test_invite_accept_lifecycle() -> None:
     assert login.json()["data"]["membership"]["principal_type"] == "customer"
     me = guest.get("/api/v1/customer/me")
     assert me.status_code == 200
+
+
+@pytest.mark.django_db
+def test_invite_accept_requires_platform_terms() -> None:
+    _create_user("platform@vokit.test", principal=PrincipalType.PLATFORM, role="super_admin")
+    client = _client()
+    _post(client, "/api/v1/auth/login", {"email": "platform@vokit.test", "password": PASSWORD})
+    invited = _post(
+        client,
+        "/api/v1/platform/invitations",
+        {
+            "email": "terms-required@vokit.test",
+            "principal_type": "customer",
+            "role": "customer_owner",
+            "tenant_id": str(DEMO_AGENCY_TENANT_ID),
+            "customer_id": str(DEMO_CUSTOMER_ID),
+        },
+    )
+    assert invited.status_code == 201
+    token = invited.json()["data"]["token"]
+
+    guest = _client()
+    rejected = _post(
+        guest,
+        "/api/v1/auth/invitations/accept",
+        {"token": token, "password": PASSWORD},
+    )
+    assert rejected.status_code == 400
+    assert rejected.json()["error"]["code"] == "validation_error"
+    from control_plane.identity.models import Invitation, User
+
+    assert not User.objects.filter(email="terms-required@vokit.test").exists()
+    assert Invitation.objects.get(email="terms-required@vokit.test").status == "invited"
 
 
 @pytest.mark.django_db

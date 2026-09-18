@@ -1,14 +1,11 @@
-import { FormEvent, useMemo, useState } from "react";
-
 import { ActionButton } from "@/components/ui/ActionButton";
 import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { RecoveryCodesModal } from "@/features/auth/components/RecoveryCodesModal";
 import { TotpEnrollPreview } from "@/features/auth/components/TotpEnrollPreview";
-import { useMfaMethods } from "@/features/auth/hooks/useMfaMethods";
+import { useMfaSettingsPanel } from "@/features/auth/hooks/useMfaSettingsPanel";
+import { mfaMethodTitle } from "@/features/auth/lib/mfaLabels";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
-
-type StepUpMode = "totp" | "recovery";
 
 export function MfaSettingsPanel() {
   const {
@@ -22,93 +19,32 @@ export function MfaSettingsPanel() {
     recoveryCodes,
     reload,
     startTotpEnroll,
-    finishTotpEnroll,
     startEmailEnroll,
-    finishEmailEnroll,
-    disableMethod,
-    regenerateCodes,
-    clearRecoveryCodes,
     cancelEnroll,
-  } = useMfaMethods();
-
-  const [totpCode, setTotpCode] = useState("");
-  const [emailCode, setEmailCode] = useState("");
-  const [disableTargetId, setDisableTargetId] = useState<string | null>(null);
-  const [stepUpMode, setStepUpMode] = useState<StepUpMode>("totp");
-  const [stepUpCode, setStepUpCode] = useState("");
-  const [stepUpMethodId, setStepUpMethodId] = useState("");
-  const [regenOpen, setRegenOpen] = useState(false);
-
-  const activeMethods = useMemo(
-    () => methods.filter((method) => (method.status || "").toLowerCase() === "active"),
-    [methods],
-  );
-  const totpMethods = activeMethods.filter((method) => method.type === "totp");
-
-  function resetStepUp() {
-    setDisableTargetId(null);
-    setRegenOpen(false);
-    setStepUpCode("");
-    setStepUpMode("totp");
-    setStepUpMethodId(totpMethods[0]?.id ?? "");
-  }
-
-  async function onConfirmTotp(event: FormEvent) {
-    event.preventDefault();
-    try {
-      await finishTotpEnroll(totpCode.trim());
-      setTotpCode("");
-    } catch {
-      /* surfaced in hook */
-    }
-  }
-
-  async function onConfirmEmail(event: FormEvent) {
-    event.preventDefault();
-    try {
-      await finishEmailEnroll(emailCode.trim());
-      setEmailCode("");
-    } catch {
-      /* surfaced in hook */
-    }
-  }
-
-  async function onDisable(event: FormEvent) {
-    event.preventDefault();
-    if (!disableTargetId) return;
-    try {
-      if (stepUpMode === "recovery") {
-        await disableMethod(disableTargetId, { recovery_code: stepUpCode.trim() });
-      } else {
-        await disableMethod(disableTargetId, {
-          code: stepUpCode.trim(),
-          verify_method_id: stepUpMethodId || totpMethods[0]?.id,
-        });
-      }
-      resetStepUp();
-    } catch {
-      /* surfaced in hook */
-    }
-  }
-
-  async function onRegenerate(event: FormEvent) {
-    event.preventDefault();
-    try {
-      if (stepUpMode === "recovery") {
-        await regenerateCodes({ recovery_code: stepUpCode.trim() });
-      } else {
-        await regenerateCodes({
-          code: stepUpCode.trim(),
-          method_id: stepUpMethodId || totpMethods[0]?.id,
-        });
-      }
-      resetStepUp();
-    } catch {
-      /* surfaced in hook */
-    }
-  }
-
-  const enrolled = activeMethods.length > 0;
+    clearRecoveryCodes,
+    totpCode,
+    emailCode,
+    disableTargetId,
+    stepUpMode,
+    stepUpCode,
+    stepUpMethodId,
+    regenOpen,
+    activeMethods,
+    totpMethods,
+    enrolled,
+    setTotpCode,
+    setEmailCode,
+    setStepUpMode,
+    setStepUpCode,
+    setStepUpMethodId,
+    resetStepUp,
+    beginDisable,
+    beginRegenerate,
+    onConfirmTotp,
+    onConfirmEmail,
+    onDisable,
+    onRegenerate,
+  } = useMfaSettingsPanel();
 
   return (
     <div className="grid gap-4">
@@ -156,7 +92,7 @@ export function MfaSettingsPanel() {
               >
                 <div>
                   <p className="m-0 font-medium text-text-primary">
-                    {method.type === "totp" ? "Authenticator app" : "Email OTP"}
+                    {mfaMethodTitle(method.type)}
                   </p>
                   <p className="m-0 text-sm text-text-muted">
                     {method.email_hint || method.id.slice(0, 8)}
@@ -166,13 +102,7 @@ export function MfaSettingsPanel() {
                 <ActionButton
                   variant="outline"
                   disabled={busy}
-                  onClick={() => {
-                    setDisableTargetId(method.id);
-                    setRegenOpen(false);
-                    setStepUpMethodId(totpMethods[0]?.id ?? "");
-                    setStepUpMode(totpMethods.length ? "totp" : "recovery");
-                    setStepUpCode("");
-                  }}
+                  onClick={() => beginDisable(method.id)}
                 >
                   Disable
                 </ActionButton>
@@ -199,13 +129,7 @@ export function MfaSettingsPanel() {
         <ActionButton
           variant="outline"
           disabled={busy || !activeMethods.length}
-          onClick={() => {
-            setRegenOpen(true);
-            setDisableTargetId(null);
-            setStepUpMethodId(totpMethods[0]?.id ?? "");
-            setStepUpMode(totpMethods.length ? "totp" : "recovery");
-            setStepUpCode("");
-          }}
+          onClick={beginRegenerate}
         >
           Regenerate recovery codes
         </ActionButton>

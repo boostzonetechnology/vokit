@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { isApiError } from "@/api";
+import { mapMfaError } from "@/features/auth/lib/mapMfaError";
 import {
   confirmEmail,
   confirmTotp,
@@ -33,7 +33,7 @@ export function useMfaMethods() {
       const rows = await listMfaMethods();
       setMethods(rows);
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load MFA methods.");
+      setError(mapMfaError(cause, "Failed to load MFA methods."));
       setMethods([]);
     } finally {
       setLoading(false);
@@ -53,7 +53,7 @@ export function useMfaMethods() {
       setTotpEnroll(result);
       setEmailEnroll(null);
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Could not start authenticator enrollment.");
+      setError(mapMfaError(cause, "Could not start authenticator enrollment."));
       throw cause;
     } finally {
       setBusy(false);
@@ -73,7 +73,7 @@ export function useMfaMethods() {
       setMessage("Authenticator app enrolled.");
       await reload();
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Invalid authenticator code.");
+      setError(mapMfaError(cause, "Invalid authenticator code."));
       throw cause;
     } finally {
       setBusy(false);
@@ -90,7 +90,7 @@ export function useMfaMethods() {
       setTotpEnroll(null);
       setMessage("Email code sent. Enter it below to confirm.");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Could not start email enrollment.");
+      setError(mapMfaError(cause, "Could not start email enrollment."));
       throw cause;
     } finally {
       setBusy(false);
@@ -114,7 +114,7 @@ export function useMfaMethods() {
       setMessage("Email MFA enrolled.");
       await reload();
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Invalid email code.");
+      setError(mapMfaError(cause, "Invalid email code."));
       throw cause;
     } finally {
       setBusy(false);
@@ -133,14 +133,7 @@ export function useMfaMethods() {
       setMessage("MFA method disabled.");
       await reload();
     } catch (cause) {
-      if (isApiError(cause) && cause.code === "mfa_last_method") {
-        setError(
-          cause.message ||
-            "You cannot disable your last MFA method while privileged MFA is required.",
-        );
-      } else {
-        setError(isApiError(cause) ? cause.message : "Could not disable MFA method.");
-      }
+      setError(mapMfaError(cause, "Could not disable MFA method."));
       throw cause;
     } finally {
       setBusy(false);
@@ -160,7 +153,7 @@ export function useMfaMethods() {
       setRecoveryCodes(codes);
       setMessage("New recovery codes generated. Store them securely.");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Could not regenerate recovery codes.");
+      setError(mapMfaError(cause, "Could not regenerate recovery codes."));
       throw cause;
     } finally {
       setBusy(false);

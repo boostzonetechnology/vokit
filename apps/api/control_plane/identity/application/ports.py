@@ -19,6 +19,8 @@ class UserRecord:
     email: str
     password_hash: str
     status: UserStatus
+    platform_terms_accepted_at: datetime | None = None
+    platform_terms_version: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +74,13 @@ class UserRepository(Protocol):
     def list_by_ids(self, user_ids: list[uuid.UUID]) -> list[UserRecord]: ...
     def create(self, user: UserRecord) -> None: ...
     def update_status(self, user_id: uuid.UUID, status: UserStatus) -> None: ...
+    def record_platform_terms(
+        self,
+        user_id: uuid.UUID,
+        *,
+        accepted_at: datetime,
+        version: str,
+    ) -> None: ...
 
 
 class MembershipRepository(Protocol):

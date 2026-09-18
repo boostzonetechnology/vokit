@@ -21,6 +21,7 @@ from control_plane.identity.domain.policies import (
 )
 from control_plane.identity.domain.tokens import hash_invitation_token
 from control_plane.identity.domain.types import (
+    PLATFORM_TERMS_VERSION,
     InvitationStatus,
     MembershipStatus,
     PrincipalType,
@@ -38,6 +39,7 @@ class CustomerInviteActivator(Protocol):
 class AcceptInvitationCommand:
     token: str
     password: str
+    accept_platform_terms: bool
 
 
 class AcceptInvitation:
@@ -58,6 +60,11 @@ class AcceptInvitation:
         self._activate_customer = activate_customer
 
     def execute(self, command: AcceptInvitationCommand) -> UserRecord:
+        if not command.accept_platform_terms:
+            raise DomainError(
+                "validation_error",
+                "Platform terms must be accepted to continue.",
+            )
         invitation = self._invitations.get_by_token_hash(hash_invitation_token(command.token))
         if invitation is None or invitation.status is not InvitationStatus.INVITED:
             raise DomainError("not_found", "Resource not found.", http_status=404)
@@ -71,6 +78,7 @@ class AcceptInvitation:
         )
         validate_membership_binding(binding)
         email = normalize_email(invitation.email)
+        now = self._clock.now()
         user = self._users.get_by_email(email)
         if user is None:
             if len(command.password) < 12:
@@ -80,6 +88,8 @@ class AcceptInvitation:
                 email=email,
                 password_hash=self._passwords.hash(command.password),
                 status=UserStatus.ACTIVE,
+                platform_terms_accepted_at=now,
+                platform_terms_version=PLATFORM_TERMS_VERSION,
             )
             self._users.create(user)
         else:
@@ -91,6 +101,19 @@ class AcceptInvitation:
             )
             if not self._passwords.verify(command.password, user.password_hash):
                 raise DomainError("unauthenticated", "Invalid email or password.", http_status=401)
+            self._users.record_platform_terms(
+                user.id,
+                accepted_at=now,
+                version=PLATFORM_TERMS_VERSION,
+            )
+            user = UserRecord(
+                id=user.id,
+                email=user.email,
+                password_hash=user.password_hash,
+                status=user.status,
+                platform_terms_accepted_at=now,
+                platform_terms_version=PLATFORM_TERMS_VERSION,
+            )
         # Propagate role_id from the invitation so the membership FK is resolved.
         self._memberships.create(
             MembershipRecord(
