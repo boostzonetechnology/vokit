@@ -26,7 +26,6 @@ from control_plane.tenancy.infrastructure.container import (
     lifecycle,
     router,
     runtime,
-    tenant_repo,
 )
 from providers.billing.braintree import BraintreePaymentAdapter
 from providers.billing.sandbox import SandboxPaymentAdapter
@@ -113,17 +112,14 @@ def pay_invoice() -> PayInvoice:
 
 
 def settle_payment() -> SettlePayment:
-    from control_plane.commission.application.accrue import AccrueCommission
-    from control_plane.commission.infrastructure.repositories import (
-        DjangoLedgerRepository,
-    )
+    from control_plane.commission.infrastructure.container import accrue_commission
 
     return SettlePayment(
         processor_events(),
         invoice_index(),
         tenant_billing(),
         SystemClock(),
-        AccrueCommission(DjangoLedgerRepository(), tenant_repo()),
+        accrue_commission(),
         plan_versions(),
     )
 
