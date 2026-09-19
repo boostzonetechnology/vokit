@@ -861,6 +861,54 @@ def test_customer_layer_instructions_and_knowledge_detach() -> None:
     assert audit.json()["data"]
 
 
+@pytest.mark.django_db
+def test_agency_knowledge_filters_by_customer_id() -> None:
+    ctx = _ready_agent()
+    other = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(ctx["agency_id"], "Other Cust"),
+    )
+    other_id = other.json()["data"]["id"]
+    agency_src = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {"title": "Agency facts", "body": "agency marker", "scope": "agency"},
+    )
+    assert agency_src.status_code == 201
+    customer_src = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/knowledge",
+        {
+            "title": "Customer facts",
+            "body": "customer marker",
+            "scope": "customer",
+            "customer_id": str(ctx["customer_id"]),
+        },
+    )
+    assert customer_src.status_code == 201
+    filtered = ctx["agency_client"].get(
+        f"/api/v1/agency/knowledge?customer_id={ctx['customer_id']}"
+    )
+    assert filtered.status_code == 200
+    ids = {row["id"] for row in filtered.json()["data"]}
+    assert customer_src.json()["data"]["id"] in ids
+    assert agency_src.json()["data"]["id"] not in ids
+    empty = ctx["agency_client"].get(f"/api/v1/agency/knowledge?customer_id={other_id}")
+    assert empty.status_code == 200
+    assert empty.json()["data"] == []
+    foreign = _create_agency(ctx["platform"], "Know X", "know_x", "oa-know-x@vokit.test")
+    foreign_customer = _post(
+        ctx["platform"],
+        "/api/v1/platform/customers",
+        platform_customer_body(foreign.json()["data"]["id"], "Foreign Know"),
+    )
+    hidden = ctx["agency_client"].get(
+        f"/api/v1/agency/knowledge?customer_id={foreign_customer.json()['data']['id']}"
+    )
+    assert hidden.status_code == 404
+
+
 def _post_file(client: Client, path: str, fields: dict, upload):
     payload = dict(fields)
     payload["file"] = upload

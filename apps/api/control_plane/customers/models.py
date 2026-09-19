@@ -14,6 +14,9 @@ class CustomerIndex(models.Model):
     )
     display_name = models.CharField(max_length=255)
     status = models.CharField(max_length=32, default="active")
+    plan_id = models.UUIDField(null=True, blank=True)
+    remaining_minutes = models.IntegerField(default=0)
+    payment_due = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -9,10 +9,11 @@ from control_plane.billing.domain.lots import LotBalance, drain_lots, remaining_
 from control_plane.billing.domain.policies import (
     assert_invoice_total,
     assert_plan_version_mutable,
+    assigned_plan_is_payment_due,
     line_is_commissionable,
 )
 from control_plane.billing.domain.proration import add_one_calendar_month, unused_credit_minor
-from control_plane.billing.domain.types import LineKind, LotKind
+from control_plane.billing.domain.types import InvoiceStatus, LineKind, LotKind
 from shared_kernel.errors import DomainError
 from shared_kernel.money import Money
 
@@ -109,4 +110,32 @@ def test_same_price_tighter_caps_count_as_downgrade() -> None:
         old_recording_allowed=True,
         new_integrations=(),
         old_integrations=(),
+    )
+
+
+class _Line:
+    def __init__(self, kind: LineKind) -> None:
+        self.kind = kind
+
+
+class _Invoice:
+    def __init__(self, subscription_id, status, kinds) -> None:
+        self.subscription_id = subscription_id
+        self.status = status
+        self.lines = tuple(_Line(kind) for kind in kinds)
+
+
+def test_payment_due_only_follows_open_plan_invoice() -> None:
+    sub_id = "sub-1"
+    assert assigned_plan_is_payment_due(None, []) is False
+    assert assigned_plan_is_payment_due(
+        sub_id,
+        [_Invoice(sub_id, InvoiceStatus.OPEN, (LineKind.SUBSCRIPTION,))],
+    )
+    assert not assigned_plan_is_payment_due(
+        sub_id,
+        [
+            _Invoice(sub_id, InvoiceStatus.PAID, (LineKind.SUBSCRIPTION,)),
+            _Invoice(None, InvoiceStatus.OPEN, (LineKind.TOPUP,)),
+        ],
     )

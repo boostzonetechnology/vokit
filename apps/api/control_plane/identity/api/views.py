@@ -245,6 +245,13 @@ class TeamListView(CsrfAPIView):
             )
         if self.principal_type is PrincipalType.AGENCY:
             customer_id = _optional_scope_id(request, "customer_id")
+            if customer_id is not None:
+                from control_plane.customers.domain.policies import customer_not_found
+                from control_plane.customers.infrastructure.container import customer_index
+
+                indexed = customer_index().get(customer_id)
+                if indexed is None or indexed.tenant_id != context.membership.tenant_id:
+                    raise customer_not_found()
             principal = PrincipalType.CUSTOMER if customer_id else PrincipalType.AGENCY
             return MembershipBinding(
                 principal_type=principal,

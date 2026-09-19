@@ -1179,7 +1179,8 @@ class MysqlRuntime:
         return self._knowledge_row(mysql, row)
 
     def list_knowledge(
-        self, connection: TenantConnection, *, scope: str | None = None
+        self, connection: TenantConnection, *, scope: str | None = None,
+        owner_id: uuid.UUID | None = None,
     ) -> list[KnowledgeSourceRecord]:
         mysql = self._as_mysql(connection)
         sql = """
@@ -1193,6 +1194,9 @@ class MysqlRuntime:
         if scope:
             sql += " AND scope = %s"
             params.append(scope)
+        if owner_id is not None:
+            sql += " AND owner_id = %s"
+            params.append(str(owner_id))
         with mysql.raw.cursor() as cursor:
             cursor.execute(sql, params)
             rows = cursor.fetchall()

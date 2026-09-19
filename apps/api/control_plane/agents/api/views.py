@@ -729,7 +729,18 @@ class AgencyKnowledgeView(CsrfAPIView):
         context = require_agency_perm(request, "agent.view")
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
-        rows = [_knowledge_list_item(row) for row in tenant_agents().list_knowledge(tenant_id)]
+        raw_customer = request.query_params.get("customer_id")
+        if raw_customer:
+            customer_id = parse_uuid(raw_customer, field="customer_id")
+            customer = customer_index().get(customer_id)
+            if customer is None or customer.tenant_id != tenant_id:
+                raise DomainError("not_found", "Resource not found.", http_status=404)
+            sources = tenant_agents().list_knowledge(
+                tenant_id, scope="customer", owner_id=customer_id
+            )
+        else:
+            sources = tenant_agents().list_knowledge(tenant_id)
+        rows = [_knowledge_list_item(row) for row in sources]
         return success(rows)
 
     def post(self, request: Request) -> Response:

@@ -124,10 +124,30 @@ class ChangeSubscription:
         if old is None:
             raise DomainError("not_found", "Resource not found.", http_status=404)
         if target.price.minor_units > old.price.minor_units:
-            return self._upgrade(current, target, old, now)
-        if target.price.minor_units < old.price.minor_units or _tighter(target, old):
-            return self._downgrade(current, target, now)
-        return self._apply_now(current, target, now, kind="applied")
+            result = self._upgrade(current, target, old, now)
+        elif target.price.minor_units < old.price.minor_units or _tighter(target, old):
+            result = self._downgrade(current, target, now)
+        else:
+            result = self._apply_now(current, target, now, kind="applied")
+        from control_plane.billing.application.customer_projection import (
+            refresh_minutes_projection,
+            refresh_plan_projection,
+        )
+
+        refresh_plan_projection(
+            self._customers,
+            self._billing,
+            result.subscription.tenant_id,
+            result.subscription.customer_id,
+            result.subscription,
+        )
+        refresh_minutes_projection(
+            self._customers,
+            self._billing,
+            result.subscription.tenant_id,
+            result.subscription.customer_id,
+        )
+        return result
 
     def _require_version(self, version_id: uuid.UUID) -> PlanVersionRecord:
         version = self._versions.get(version_id)
@@ -378,6 +398,12 @@ def void_open_invoice(
         invoice, status=InvoiceStatus.VOID, updated_at=now, paid_at=None
     )
     billing.put_invoice(invoice.tenant_id, voided)
+    from control_plane.billing.application.customer_projection import refresh_plan_projection
+    from control_plane.customers.infrastructure.container import customer_index
+
+    refresh_plan_projection(
+        customer_index(), billing, invoice.tenant_id, invoice.customer_id
+    )
     invoices.update(
         InvoiceIndexRecord(
             invoice_id=voided.invoice_id,

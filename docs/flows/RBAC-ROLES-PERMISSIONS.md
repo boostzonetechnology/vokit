@@ -73,7 +73,7 @@ Also: `python manage.py sync_permissions` then `python manage.py seed_system_rol
 | Method | Path | Permission |
 |---|---|---|
 | GET | `/api/v1/platform/roles?namespace=` | `role.view` |
-| POST | `/api/v1/platform/roles` | `role.create` (platform namespace only in V1) |
+| POST | `/api/v1/platform/roles` | `role.create` (`namespace` platform, agency, or customer) |
 | GET | `/api/v1/platform/roles/{id}` | `role.view` |
 | PATCH | `/api/v1/platform/roles/{id}` | `role.update` (display_name + permissions replace) |
 | DELETE | `/api/v1/platform/roles/{id}` | `role.delete` (non-system only) |
@@ -132,7 +132,7 @@ Keep these slugs so current invite UIs keep working before FE refactor.
 3. Load permissions from `GET /platform/permissions` for role editor.
 4. Use `is_super_admin` for UI chrome only — **never** as a security boundary (WF-08).
 5. Hide/disable actions using `permissions[]` for UX only; server 403 remains authoritative.
-6. Role create/edit UI: platform portal only for V1.
+6. Role create/edit UI is platform portal only. Super Admin may create custom roles with `namespace` `platform`, `agency`, or `customer`. Agency/customer portals only list roles (`GET /agency/roles`, `GET /customer/roles`) for invites.
 
 ---
 

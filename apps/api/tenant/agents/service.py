@@ -114,10 +114,13 @@ class TenantAgentService:
             return self._store.get_knowledge(connection, source_id)
 
     def list_knowledge(
-        self, tenant_id: uuid.UUID, *, scope: str | None = None
+        self, tenant_id: uuid.UUID, *, scope: str | None = None,
+        owner_id: uuid.UUID | None = None,
     ) -> list[KnowledgeSourceRecord]:
         with self._router.connection_for_tenant(tenant_id) as connection:
-            return self._store.list_knowledge(connection, scope=scope)
+            return self._store.list_knowledge(
+                connection, scope=scope, owner_id=owner_id
+            )
 
     def delete_knowledge(self, tenant_id: uuid.UUID, source_id: uuid.UUID) -> None:
         with self._router.connection_for_tenant(tenant_id) as connection:

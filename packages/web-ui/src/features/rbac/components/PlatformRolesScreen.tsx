@@ -118,6 +118,7 @@ export function PlatformRolesScreen() {
   const [displayName, setDisplayName] = useState("");
   const [slug, setSlug] = useState("");
   const [permCodes, setPermCodes] = useState<string[]>([]);
+  const [createNamespace, setCreateNamespace] = useState("platform");
 
   useEffect(() => {
     if (!selected) {
@@ -142,6 +143,7 @@ export function PlatformRolesScreen() {
         slug: slug.trim(),
         display_name: displayName.trim() || slug.trim(),
         permissions: permCodes,
+        namespace: createNamespace,
       });
       setSlug("");
       setMode("view");
@@ -200,6 +202,7 @@ export function PlatformRolesScreen() {
                 setSlug("");
                 setDisplayName("");
                 setPermCodes([]);
+                setCreateNamespace(namespace || "platform");
               }}
             >
               Create role
@@ -287,7 +290,22 @@ export function PlatformRolesScreen() {
         <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
           {mode === "create" ? (
             <form className="grid gap-4" onSubmit={(event) => void onCreate(event)}>
-              <h2 className="m-0 text-section text-text-primary">Create platform role</h2>
+              <h2 className="m-0 text-section text-text-primary">Create role</h2>
+              <label className="m-0 grid gap-1.5 font-normal">
+                <span className="text-body-sm text-text-muted">Namespace</span>
+                <select
+                  value={createNamespace}
+                  onChange={(event) => {
+                    setCreateNamespace(event.target.value);
+                    setPermCodes([]);
+                  }}
+                  className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+                >
+                  <option value="platform">Platform</option>
+                  <option value="agency">Agency</option>
+                  <option value="customer">Customer</option>
+                </select>
+              </label>
               <label className="m-0 grid gap-1.5 font-normal">
                 <span className="text-body-sm text-text-muted">Slug</span>
                 <input
@@ -312,7 +330,7 @@ export function PlatformRolesScreen() {
                   Permissions ({permCodes.length})
                 </p>
                 <PermissionPicker
-                  namespace="platform"
+                  namespace={createNamespace}
                   selected={permCodes}
                   onChange={setPermCodes}
                 />
@@ -321,8 +339,8 @@ export function PlatformRolesScreen() {
                 Create role
               </ActionButton>
               <ApiNote>
-                V1: only platform custom roles can be created. PATCH later replaces the full
-                permission list.
+                Permissions must match the selected namespace. Customer roles appear on GET
+                /customer/roles for invite dropdowns.
               </ApiNote>
             </form>
           ) : !selected ? (

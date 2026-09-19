@@ -708,3 +708,43 @@ def test_active_agent_cap_and_scheduled_downgrade() -> None:
     )
     assert resume.status_code == 409
     assert resume.json()["error"]["code"] == "plan_limit_agents"
+
+
+@pytest.mark.django_db
+def test_payment_due_false_when_plan_paid_and_topup_open() -> None:
+    ctx = _bootstrap_paid_ready()
+    before = ctx["platform"].get(f"/api/v1/platform/customers/{ctx['customer_id']}")
+    assert before.json()["data"]["payment_due"] is True
+    pay = _post(
+        ctx["customer_client"],
+        f"/api/v1/customer/invoices/{ctx['invoice_id']}/pay",
+        {"processor": "stripe"},
+        HTTP_IDEMPOTENCY_KEY="pay-due-1",
+    )
+    assert pay.status_code == 200
+    captured = _webhook(
+        "stripe",
+        {
+            "event_id": "evt_pay_due_1",
+            "invoice_id": ctx["invoice_id"],
+            "amount_minor": ctx["amount_minor"],
+            "currency": "USD",
+            "status": "captured",
+        },
+        secret_ref=STRIPE_REF,
+    )
+    assert captured.status_code == 200
+    topup = _post(
+        ctx["customer_client"],
+        "/api/v1/customer/usage/top-ups",
+        {},
+        HTTP_IDEMPOTENCY_KEY="topup-due-1",
+    )
+    assert topup.status_code == 201
+    after = ctx["platform"].get(
+        f"/api/v1/platform/customers/{ctx['customer_id']}/subscription"
+    )
+    assert after.status_code == 200
+    assert after.json()["data"]["payment_due"] is False
+    listed = ctx["platform"].get("/api/v1/platform/customers?payment_due=true")
+    assert all(row["id"] != str(ctx["customer_id"]) for row in listed.json()["data"])

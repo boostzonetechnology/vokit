@@ -293,6 +293,30 @@ def test_get_subscription_before_and_after_assign() -> None:
     assert current.status_code == 200
     assert current.json()["data"]["plan_version_id"] == version_id
     assert current.json()["data"]["included_minutes"] == 40
+    assert current.json()["data"]["payment_due"] is True
+    listed = platform.get(
+        f"/api/v1/platform/customers?plan_id={current.json()['data']['plan_id']}&payment_due=true"
+    )
+    assert listed.status_code == 200
+    assert listed.json()["data"][0]["id"] == customer_id
+    assert listed.json()["data"][0]["payment_due"] is True
+    credited = _post(
+        platform,
+        f"/api/v1/platform/customers/{customer_id}/minutes-adjustment",
+        {"minutes": 12, "reason": "directory balance"},
+    )
+    assert credited.status_code == 201
+    low = platform.get("/api/v1/platform/customers?remaining_minutes_max=12")
+    assert any(row["id"] == customer_id for row in low.json()["data"])
+    assert any(
+        row["remaining_minutes"] == 12
+        for row in low.json()["data"]
+        if row["id"] == customer_id
+    )
+    assert listed.json()["data"][0]["updated_at"]
+    future = platform.get("/api/v1/platform/customers?updated_after=2099-01-01T00:00:00Z")
+    assert future.status_code == 200
+    assert all(row["id"] != customer_id for row in future.json()["data"])
 
 
 @pytest.mark.django_db
