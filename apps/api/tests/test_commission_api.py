@@ -267,7 +267,11 @@ def test_agency_cannot_fetch_payout_proof() -> None:
     assert denied.status_code == 404
     assert "object_ref" not in json.dumps(denied.json())
 
-    shared = _patch(platform, f"/api/v1/platform/payouts/{payout_id}/proof", {"agency_visible": True})
+    shared = _patch(
+        platform,
+        f"/api/v1/platform/payouts/{payout_id}/proof",
+        {"agency_visible": True},
+    )
     assert shared.status_code == 200
     assert shared.json()["data"]["agency_visible"] is True
     visible = agency_client.get(f"/api/v1/agency/payouts/{payout_id}/proof")

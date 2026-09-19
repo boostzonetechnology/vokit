@@ -7,6 +7,7 @@ from datetime import datetime
 
 from django.db import transaction
 
+from control_plane.commission.application.payout_methods import ManageAgencyPayoutMethods
 from control_plane.commission.application.ports import (
     CommissionIdempotencyRepository,
     LedgerEntryRecord,
@@ -16,7 +17,6 @@ from control_plane.commission.application.ports import (
     PayoutRecord,
     PayoutRepository,
 )
-from control_plane.commission.application.payout_methods import ManageAgencyPayoutMethods
 from control_plane.commission.domain.policies import (
     assert_payout_amount,
     assert_payout_transition,

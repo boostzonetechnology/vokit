@@ -152,7 +152,9 @@ function buildPayoutReceiptPdfBytes(receipt: PayoutReceipt): Uint8Array {
 /** Agency-visible payout receipt as a downloadable PDF file. */
 export function downloadPayoutReceiptPdf(receipt: PayoutReceipt): void {
   const bytes = buildPayoutReceiptPdfBytes(receipt);
-  const blob = new Blob([bytes], { type: "application/pdf" });
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  const blob = new Blob([buffer], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

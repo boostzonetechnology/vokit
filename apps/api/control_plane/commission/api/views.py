@@ -250,7 +250,8 @@ def _proof_file_response(proof) -> Response:
     from control_plane.commission.infrastructure.proof_storage import resolve_proof_path
 
     path = resolve_proof_path(proof.object_ref)
-    response = FileResponse(path.open("rb"), content_type=proof.content_type or "application/octet-stream")
+    content_type = proof.content_type or "application/octet-stream"
+    response = FileResponse(path.open("rb"), content_type=content_type)
     response["Content-Disposition"] = f'inline; filename="{path.name}"'
     return response
 
