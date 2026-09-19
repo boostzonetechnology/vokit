@@ -94,6 +94,18 @@ export async function apiSend<T>(
   return parse<T>(response);
 }
 
+/** Multipart upload — do not set Content-Type (browser sets boundary). */
+export async function apiSendForm<T>(path: string, form: FormData): Promise<T> {
+  const csrf = await getCsrf();
+  const response = await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRFToken": csrf },
+    body: form,
+  });
+  return parse<T>(response);
+}
+
 export async function login(email: string, password: string): Promise<LoginResult> {
   const csrf = await getCsrf();
   const response = await fetch("/api/v1/auth/login", {

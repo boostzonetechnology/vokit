@@ -4,7 +4,7 @@
 **Surface:** Django API (`/api/v1/agency/wallet`, `/api/v1/agency/payouts*`, `/api/v1/platform/payouts*`)  
 **Related:** SRS SA13-002..005, BR-009..010, §11.3–11.4, §19, NOT-001..005, WAL-001..007; Jira VKT-053 / VKT-054 / VKT-055 / VKT-060
 
-Ledger entries are the wallet source of truth. Cached balances are not used. Private Super Admin proof is never returned to the agency.
+Ledger entries are the wallet source of truth. Cached balances are not used. Private Super Admin proof is **default-private** (BR-009). TL product exception: Super Admin may set **per-payout** `agency_visible=true` so that agency can GET that payout's proof metadata only. There is no global share toggle.
 
 There is **no** payout status `under_review`. Super Admin reviews rows in `requested` (the existing SA queue filter).
 
@@ -40,8 +40,12 @@ SA GET /platform/payouts  and  GET /platform/payouts/{id}
               notify payout.rejected → agency
         │
         ▼
-SA POST /platform/payouts/{id}/proof   { object_ref, content_type, checksum }
-  agency GET proof → 404
+SA POST /platform/payouts/{id}/proof
+  multipart file (image/PDF) preferred, or legacy { object_ref, content_type, checksum }
+  optional agency_visible on upload
+  agency GET proof → 404 unless agency_visible
+SA PATCH /platform/payouts/{id}/proof  { agency_visible: true|false }
+GET .../proof/file  streams bytes (platform always; agency only when shared)
         │
         ▼
 SA POST /platform/payouts/{id}/mark-paid  { transaction_ref }
@@ -117,7 +121,7 @@ POST /api/v1/platform/payouts/{id}/mark-paid
   { transaction_ref }
 ```
 
-Setting `payout.proof_required` (bool, default `true`). Agency `GET .../proof` is always 404 (BR-009). Paid payouts reject new proof (`payout_already_paid`).
+Setting `payout.proof_required` (bool, default `true`). Agency `GET .../proof` is **404 by default** (BR-009). Super Admin may share **one payout's** proof via `PATCH .../proof` `{ "agency_visible": true }` (TL exception). Paid payouts reject new proof (`payout_already_paid`).
 
 Mark-paid is allowed from `approved` or `processing` (existing SA path can skip `process`).
 

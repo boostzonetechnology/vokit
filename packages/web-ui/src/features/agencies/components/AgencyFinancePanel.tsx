@@ -73,6 +73,18 @@ export function AgencyFinancePanel({
           hint="Frozen wallet"
           accent="warning"
         />
+        <MetricCard
+          label="Pending withdrawal"
+          value={formatMoneyMinor(Number(buckets?.withdrawal_pending_minor ?? 0), currency)}
+          hint="Reserved in payout queue"
+          accent="info"
+        />
+        <MetricCard
+          label="Lifetime paid"
+          value={formatMoneyMinor(Number(buckets?.lifetime_paid_minor ?? 0), currency)}
+          hint="Completed payouts"
+          accent="success"
+        />
       </div>
 
       <div>

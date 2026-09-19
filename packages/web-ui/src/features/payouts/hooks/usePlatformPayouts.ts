@@ -1,13 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "@/api";
-import { asList, safeGetList } from "@/features/platform/lib/list";
-import type { AgencyOption, PayoutProof, PayoutRecord, WalletBuckets } from "@/features/payouts/types";
+import { nameOrId } from "@/features/payouts/lib/display";
+import { mapPayoutError } from "@/features/payouts/lib/mapPayoutError";
+import {
+  adjustAgencyWallet,
+  freezeAgencyWallet,
+  getPlatformAgencyWallet,
+  getPlatformPayoutProof,
+  listPlatformPayouts,
+  listPayoutAgencies,
+  markPlatformPayoutPaid,
+  runPlatformPayoutAction,
+  setPlatformPayoutProofAgencyVisible,
+  uploadPlatformPayoutProof,
+} from "@/features/payouts/services/wallet.service";
+import type {
+  AgencyOption,
+  PayoutProof,
+  PayoutRecord,
+  WalletBuckets,
+} from "@/features/payouts/types";
+
+const OPEN_STATUSES = new Set(["requested", "approved", "processing", "frozen"]);
 
 export function usePlatformPayouts() {
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [selected, setSelected] = useState<PayoutRecord | null>(null);
   const [agencyId, setAgencyId] = useState("");
   const [wallet, setWallet] = useState<WalletBuckets | null>(null);
   const [proof, setProof] = useState<PayoutProof | null>(null);
@@ -16,25 +36,23 @@ export function usePlatformPayouts() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("requested");
+  /** open = queue work; paid/rejected/specific; empty = all */
+  const [statusFilter, setStatusFilter] = useState("open");
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (statusFilter) params.set("status", statusFilter);
-      const qs = params.toString();
+      const apiStatus =
+        statusFilter && statusFilter !== "open" ? statusFilter : undefined;
       const [rows, agencyRows] = await Promise.all([
-        asList<PayoutRecord>(
-          await apiGet<unknown>(`/api/v1/platform/payouts${qs ? `?${qs}` : ""}`),
-        ),
-        safeGetList<AgencyOption>("/api/v1/platform/agencies", (path) => apiGet(path)),
+        listPlatformPayouts({ status: apiStatus }),
+        listPayoutAgencies(),
       ]);
       setPayouts(rows);
       setAgencies(agencyRows);
       setError("");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load payouts.");
+      setError(mapPayoutError(cause, "Failed to load payouts."));
     } finally {
       setLoading(false);
     }
@@ -44,19 +62,34 @@ export function usePlatformPayouts() {
     void reload();
   }, [reload]);
 
+  useEffect(() => {
+    if (!selectedId) {
+      setSelected(null);
+      return;
+    }
+    const match = payouts.find((row) => row.id === selectedId);
+    if (match) setSelected(match);
+  }, [payouts, selectedId]);
+
+  const agencyLabel = useCallback(
+    (id?: string | null) => {
+      if (!id) return "—";
+      const match = agencies.find((row) => row.id === id);
+      return nameOrId(match?.display_name, id);
+    },
+    [agencies],
+  );
+
   const loadWallet = useCallback(async (id: string) => {
     if (!id) {
       setWallet(null);
       return;
     }
     try {
-      const data = await apiGet<{ buckets?: WalletBuckets }>(
-        `/api/v1/platform/agencies/${id}/wallet`,
-      );
-      setWallet(data.buckets ?? null);
+      setWallet(await getPlatformAgencyWallet(id));
     } catch (cause) {
       setWallet(null);
-      setMessage(isApiError(cause) ? cause.message : "Failed to load wallet.");
+      setMessage(mapPayoutError(cause, "Failed to load wallet."));
     }
   }, []);
 
@@ -66,30 +99,59 @@ export function usePlatformPayouts() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return payouts;
-    return payouts.filter((row) =>
-      [row.id, row.agency_id, row.status, row.method_label, row.receipt_number]
+    return payouts.filter((row) => {
+      if (statusFilter === "open" && !OPEN_STATUSES.has((row.status ?? "").toLowerCase())) {
+        return false;
+      }
+      if (!q) return true;
+      return [
+        row.id,
+        row.agency_id,
+        agencyLabel(row.agency_id),
+        row.status,
+        row.method_label,
+        row.receipt_number,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(q),
-    );
-  }, [payouts, query]);
+        .includes(q);
+    });
+  }, [payouts, query, agencyLabel, statusFilter]);
 
-  const selected = payouts.find((row) => row.id === selectedId) ?? null;
+  function selectPayout(row: PayoutRecord) {
+    setSelectedId(row.id);
+    setSelected(row);
+    if (row.agency_id) setAgencyId(row.agency_id);
+  }
+
+  async function loadProof(payoutId: string) {
+    setProof(await getPlatformPayoutProof(payoutId));
+  }
+
+  useEffect(() => {
+    if (selectedId) void loadProof(selectedId);
+    else setProof(null);
+  }, [selectedId]);
 
   async function runAction(payoutId: string, action: string, transactionRef = "") {
     setBusy(true);
     setMessage("");
     try {
-      await apiSend(`/api/v1/platform/payouts/${payoutId}/action`, "POST", {
+      const updated = await runPlatformPayoutAction(payoutId, {
         action,
         transaction_ref: transactionRef,
       });
-      setMessage(`Payout ${action} completed.`);
+      setSelected(updated);
+      setSelectedId(updated.id);
+      setMessage(
+        action === "approve"
+          ? "Approved. Next: upload proof, then mark paid."
+          : `Payout ${action} completed.`,
+      );
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Action failed.");
+      setMessage(mapPayoutError(cause, "Action failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -100,47 +162,53 @@ export function usePlatformPayouts() {
     setBusy(true);
     setMessage("");
     try {
-      await apiSend(`/api/v1/platform/payouts/${payoutId}/mark-paid`, "POST", {
-        transaction_ref: transactionRef,
-      });
-      setMessage("Payout marked paid. Agency receipt is generated server-side.");
+      const updated = await markPlatformPayoutPaid(payoutId, transactionRef);
+      setSelected(updated);
+      setMessage("Marked paid. Agency receipt is ready.");
       await reload();
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Mark paid failed.");
+      setMessage(mapPayoutError(cause, "Mark paid failed."));
       throw cause;
     } finally {
       setBusy(false);
     }
   }
 
-  async function uploadProof(
-    payoutId: string,
-    input: { object_ref: string; content_type: string; checksum: string },
-  ) {
+  async function uploadProof(payoutId: string, file: File, agencyVisible: boolean) {
     setBusy(true);
     setMessage("");
     try {
-      const created = await apiSend<PayoutProof>(
-        `/api/v1/platform/payouts/${payoutId}/proof`,
-        "POST",
-        input,
-      );
+      const created = await uploadPlatformPayoutProof(payoutId, file, agencyVisible);
       setProof(created);
-      setMessage("Private payout proof uploaded.");
+      setMessage(
+        agencyVisible
+          ? "Proof uploaded and shared with this agency."
+          : "Proof uploaded (private). Toggle share if the agency should see it.",
+      );
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Proof upload failed.");
+      setMessage(mapPayoutError(cause, "Proof upload failed."));
       throw cause;
     } finally {
       setBusy(false);
     }
   }
 
-  async function loadProof(payoutId: string) {
+  async function setProofAgencyVisible(payoutId: string, agencyVisible: boolean) {
+    setBusy(true);
+    setMessage("");
     try {
-      const data = await apiGet<PayoutProof>(`/api/v1/platform/payouts/${payoutId}/proof`);
-      setProof(data);
-    } catch {
-      setProof(null);
+      const updated = await setPlatformPayoutProofAgencyVisible(payoutId, agencyVisible);
+      setProof(updated);
+      setMessage(
+        agencyVisible
+          ? "Proof shared with this agency for this payout only."
+          : "Proof hidden from the agency again.",
+      );
+    } catch (cause) {
+      setMessage(mapPayoutError(cause, "Could not update proof visibility."));
+      throw cause;
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -153,15 +221,11 @@ export function usePlatformPayouts() {
     setBusy(true);
     setMessage("");
     try {
-      await apiSend(`/api/v1/platform/agencies/${input.agencyId}/wallet/adjust`, "POST", {
-        amount_minor: input.amount_minor,
-        direction: input.direction,
-        reason: input.reason,
-      });
+      await adjustAgencyWallet(input);
       setMessage("Audited wallet adjustment recorded.");
       await loadWallet(input.agencyId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Adjustment failed.");
+      setMessage(mapPayoutError(cause, "Adjustment failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -172,14 +236,11 @@ export function usePlatformPayouts() {
     setBusy(true);
     setMessage("");
     try {
-      await apiSend(`/api/v1/platform/agencies/${input.agencyId}/wallet/freeze`, "POST", {
-        frozen: input.frozen,
-        reason: input.reason,
-      });
+      await freezeAgencyWallet(input);
       setMessage(input.frozen ? "Wallet frozen." : "Wallet unfrozen.");
       await loadWallet(input.agencyId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Freeze failed.");
+      setMessage(mapPayoutError(cause, "Freeze failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -189,9 +250,10 @@ export function usePlatformPayouts() {
   return {
     payouts: filtered,
     agencies,
+    agencyLabel,
     selected,
     selectedId,
-    setSelectedId,
+    selectPayout,
     agencyId,
     setAgencyId,
     wallet,
@@ -208,7 +270,7 @@ export function usePlatformPayouts() {
     runAction,
     markPaid,
     uploadProof,
-    loadProof,
+    setProofAgencyVisible,
     adjustWallet,
     freezeWallet,
   };

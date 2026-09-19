@@ -673,6 +673,7 @@ These do **not** block architecture. They will be decided during detailed design
 - Knowledge ingest details (file types, URL crawl, malware scan)
 - Recording as paid add-on (PRIV-003 note) — plan entitlement flag, not a new bounded context
 - Hold clock calendar vs business days; dunning retry days; min/max payout amounts
+- **Payout proof agency visibility (TL exception to BR-009):** default remains private; Super Admin may set **per-payout** `agency_visible` so the owning agency can GET proof metadata for that payout only. No global share toggle. Implemented 2026-09-19.
 - Specific KYC vendor product/SDK (adapter only; API keys in secrets) — Q-015 / ADR-005
 - Card-image OCR vs manual masking review (customer payment-risk module; not agency KYC)
 - Permanently-banned customer matching keys (need a fraud-index; exact keys are legal/design)

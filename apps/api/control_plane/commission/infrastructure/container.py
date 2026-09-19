@@ -7,14 +7,17 @@ from control_plane.commission.application.freeze import FreezeWallet
 from control_plane.commission.application.payout import (
     DecidePayout,
     RequestAgencyPayout,
+    SetProofAgencyVisibility,
     UploadPayoutProof,
 )
+from control_plane.commission.application.payout_methods import ManageAgencyPayoutMethods
 from control_plane.commission.application.reconcile import ReconcileFinance
 from control_plane.commission.application.release_holds import ReleaseHolds
 from control_plane.commission.application.reverse import ReverseCommission
 from control_plane.commission.infrastructure.repositories import (
     DjangoCommissionIdempotencyRepository,
     DjangoLedgerRepository,
+    DjangoPayoutMethodRepository,
     DjangoPayoutProofRepository,
     DjangoPayoutRepository,
 )
@@ -35,8 +38,16 @@ def proofs() -> DjangoPayoutProofRepository:
     return DjangoPayoutProofRepository()
 
 
+def payout_methods() -> DjangoPayoutMethodRepository:
+    return DjangoPayoutMethodRepository()
+
+
 def keys() -> DjangoCommissionIdempotencyRepository:
     return DjangoCommissionIdempotencyRepository()
+
+
+def manage_payout_methods() -> ManageAgencyPayoutMethods:
+    return ManageAgencyPayoutMethods(payout_methods(), kyc_cases(), SystemClock())
 
 
 def accrue_commission() -> AccrueCommission:
@@ -71,6 +82,7 @@ def request_payout() -> RequestAgencyPayout:
         kyc_cases(),
         tenant_repo(),
         SystemClock(),
+        manage_payout_methods(),
     )
 
 
@@ -88,6 +100,10 @@ def decide_payout() -> DecidePayout:
 
 def upload_proof() -> UploadPayoutProof:
     return UploadPayoutProof(payouts(), proofs())
+
+
+def set_proof_agency_visibility() -> SetProofAgencyVisibility:
+    return SetProofAgencyVisibility(payouts(), proofs(), SystemClock())
 
 
 def reconcile_finance() -> ReconcileFinance:

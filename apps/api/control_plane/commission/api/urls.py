@@ -4,6 +4,9 @@ from django.urls import path
 
 from control_plane.commission.api.views import (
     AgencyPayoutCollectionView,
+    AgencyPayoutMethodCollectionView,
+    AgencyPayoutMethodDetailView,
+    AgencyPayoutProofFileView,
     AgencyPayoutProofView,
     AgencyPayoutReceiptView,
     AgencyWalletView,
@@ -11,6 +14,7 @@ from control_plane.commission.api.views import (
     PlatformPayoutCollectionView,
     PlatformPayoutDetailView,
     PlatformPayoutMarkPaidView,
+    PlatformPayoutProofFileView,
     PlatformPayoutProofView,
     PlatformReverseCommissionView,
     PlatformWalletAdjustView,
@@ -22,6 +26,16 @@ urlpatterns = [
     path("agency/wallet", AgencyWalletView.as_view(), name="agency-wallet"),
     path("agency/payouts", AgencyPayoutCollectionView.as_view(), name="agency-payouts"),
     path(
+        "agency/payout-methods",
+        AgencyPayoutMethodCollectionView.as_view(),
+        name="agency-payout-methods",
+    ),
+    path(
+        "agency/payout-methods/<str:method_id>",
+        AgencyPayoutMethodDetailView.as_view(),
+        name="agency-payout-method-detail",
+    ),
+    path(
         "agency/payouts/<str:payout_id>/receipt",
         AgencyPayoutReceiptView.as_view(),
         name="agency-payout-receipt",
@@ -30,6 +44,11 @@ urlpatterns = [
         "agency/payouts/<str:payout_id>/proof",
         AgencyPayoutProofView.as_view(),
         name="agency-payout-proof",
+    ),
+    path(
+        "agency/payouts/<str:payout_id>/proof/file",
+        AgencyPayoutProofFileView.as_view(),
+        name="agency-payout-proof-file",
     ),
     path(
         "platform/agencies/<str:agency_id>/wallet",
@@ -61,6 +80,11 @@ urlpatterns = [
         "platform/payouts/<str:payout_id>/proof",
         PlatformPayoutProofView.as_view(),
         name="platform-payout-proof",
+    ),
+    path(
+        "platform/payouts/<str:payout_id>/proof/file",
+        PlatformPayoutProofFileView.as_view(),
+        name="platform-payout-proof-file",
     ),
     path(
         "platform/payouts/<str:payout_id>/mark-paid",

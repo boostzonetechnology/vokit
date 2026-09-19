@@ -1,15 +1,14 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
-import { ApiNote } from "@/features/platform/ux/ApiNote";
+import { platformPayoutProofFileUrl } from "@/features/payouts/services/wallet.service";
 import { usePlatformPayouts } from "./hooks/usePlatformPayouts";
-import { PAYOUT_ACTIONS } from "./types";
 
-type Tab = "wallet" | "queue" | "actions" | "proof" | "receipt" | "adjustment";
+type Tab = "payouts" | "wallet" | "adjustment";
 
 function statusTone(status?: string): BadgeTone {
   const value = (status ?? "").toLowerCase();
@@ -19,13 +18,28 @@ function statusTone(status?: string): BadgeTone {
   return "neutral";
 }
 
+function stepHint(status?: string, hasProof?: boolean): string {
+  const value = (status ?? "").toLowerCase();
+  if (value === "requested") return "Step 1 — Approve (or reject / freeze).";
+  if (value === "approved" || value === "processing") {
+    return hasProof
+      ? "Step 3 — Enter bank/transaction ref and Mark paid."
+      : "Step 2 — Upload proof image/PDF, then Mark paid.";
+  }
+  if (value === "paid") return "Done — receipt is available to the agency.";
+  if (value === "rejected") return "Rejected — funds returned to available.";
+  if (value === "frozen") return "Frozen — reject to release, or continue after review.";
+  return "Select a payout to review.";
+}
+
 export function PlatformPayoutsScreen() {
   const {
     payouts,
     agencies,
+    agencyLabel,
     selected,
     selectedId,
-    setSelectedId,
+    selectPayout,
     agencyId,
     setAgencyId,
     wallet,
@@ -42,35 +56,31 @@ export function PlatformPayoutsScreen() {
     runAction,
     markPaid,
     uploadProof,
-    loadProof,
+    setProofAgencyVisible,
     adjustWallet,
     freezeWallet,
   } = usePlatformPayouts();
 
-  const [tab, setTab] = useState<Tab>("queue");
+  const [tab, setTab] = useState<Tab>("payouts");
   const [transactionRef, setTransactionRef] = useState("");
+  const [shareWithAgency, setShareWithAgency] = useState(false);
   const currency = wallet?.currency || selected?.currency || "USD";
+  const status = (selected?.status ?? "").toLowerCase();
+  const canApprove = status === "requested";
+  const canMarkPaid = status === "approved" || status === "processing";
+  const canUploadProof = Boolean(selected) && status !== "paid";
 
-  useEffect(() => {
-    if (selected?.agency_id && !agencyId) setAgencyId(selected.agency_id);
-  }, [selected, agencyId, setAgencyId]);
-
-  useEffect(() => {
-    if (selectedId && (tab === "proof" || tab === "actions")) {
-      void loadProof(selectedId);
-    }
-  }, [selectedId, tab, loadProof]);
-
-  async function onProof(event: FormEvent<HTMLFormElement>) {
+  async function onUploadProof(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
     const form = new FormData(event.currentTarget);
+    const file = form.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      return;
+    }
     try {
-      await uploadProof(selected.id, {
-        object_ref: String(form.get("object_ref") || ""),
-        content_type: String(form.get("content_type") || "application/pdf"),
-        checksum: String(form.get("checksum") || ""),
-      });
+      await uploadProof(selected.id, file, shareWithAgency);
+      event.currentTarget.reset();
     } catch {
       /* message in hook */
     }
@@ -94,11 +104,8 @@ export function PlatformPayoutsScreen() {
   }
 
   const tabs: Array<{ id: Tab; label: string }> = [
+    { id: "payouts", label: "Payouts" },
     { id: "wallet", label: "Wallet" },
-    { id: "queue", label: "Payout queue" },
-    { id: "actions", label: "Actions" },
-    { id: "proof", label: "Proof" },
-    { id: "receipt", label: "Receipt" },
     { id: "adjustment", label: "Adjustment" },
   ];
 
@@ -110,7 +117,7 @@ export function PlatformPayoutsScreen() {
             Wallet & payouts
           </h1>
           <p className="mt-1 mb-0 text-body text-text-muted">
-            SA13-001–006 · Permissions: billing.view, payout.approve, wallet.adjust
+            Review queue → approve → upload proof → mark paid
           </p>
         </div>
         <ActionButton variant="secondary" onClick={() => void reload()}>
@@ -234,183 +241,295 @@ export function PlatformPayoutsScreen() {
         </article>
       ) : null}
 
-      {tab === "queue" || tab === "actions" || tab === "proof" || tab === "receipt" ? (
-        <article className="mb-4 rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-          <div className="mb-4 grid gap-3 lg:grid-cols-2">
-            <label className="m-0 grid gap-1.5 font-normal">
-              <span className="text-body-sm text-text-muted">Search</span>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-              />
-            </label>
-            <label className="m-0 grid gap-1.5 font-normal">
-              <span className="text-body-sm text-text-muted">Status</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-              >
-                <option value="">All</option>
-                <option value="requested">requested</option>
-                <option value="approved">approved</option>
-                <option value="processing">processing</option>
-                <option value="paid">paid</option>
-                <option value="rejected">rejected</option>
-                <option value="frozen">frozen</option>
-              </select>
-            </label>
-          </div>
-          <h2 className="m-0 mb-3 text-section text-text-primary">
-            Payout queue
-            <span className="ml-2 text-body font-normal text-text-muted">({payouts.length})</span>
-          </h2>
-          {loading && payouts.length === 0 ? (
-            <TableSkeleton
-              headers={["Payout", "Agency", "Amount", "Status", "Receipt"]}
-              rows={8}
-            />
-          ) : payouts.length === 0 ? (
-            <p className="m-0 py-8 text-center text-body text-text-muted">No payouts in this filter.</p>
-          ) : (
-            <div className="overflow-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="text-label uppercase text-text-muted">
-                    <th className="border-0 px-2 py-2 text-left">Payout</th>
-                    <th className="border-0 px-2 py-2 text-left">Agency</th>
-                    <th className="border-0 px-2 py-2 text-left">Amount</th>
-                    <th className="border-0 px-2 py-2 text-left">Status</th>
-                    <th className="border-0 px-2 py-2 text-left">Receipt</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payouts.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={
-                        selectedId === row.id
-                          ? "cursor-pointer bg-brand-subtle/40"
-                          : "cursor-pointer hover:bg-canvas"
-                      }
-                      onClick={() => setSelectedId(row.id)}
-                    >
-                      <td className="px-2 py-3 font-semibold text-text-primary">
-                        {row.id.slice(0, 8)}
-                      </td>
-                      <td className="px-2 py-3 text-text-secondary">
-                        {row.agency_id?.slice(0, 8) || "—"}
-                      </td>
-                      <td className="px-2 py-3 text-text-secondary">
-                        {formatMoneyMinor(Number(row.amount_minor ?? 0), row.currency || "USD")}
-                      </td>
-                      <td className="px-2 py-3">
-                        <StatusBadge tone={statusTone(row.status)}>
-                          {row.status || "unknown"}
-                        </StatusBadge>
-                      </td>
-                      <td className="px-2 py-3 text-text-secondary">
-                        {row.receipt_number || "—"}
-                      </td>
+      {tab === "payouts" ? (
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+            <div className="mb-4 grid gap-3 sm:grid-cols-2">
+              <label className="m-0 grid gap-1.5 font-normal">
+                <span className="text-body-sm text-text-muted">Search</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+                />
+              </label>
+              <label className="m-0 grid gap-1.5 font-normal">
+                <span className="text-body-sm text-text-muted">Status</span>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+                >
+                  <option value="open">Open queue</option>
+                  <option value="">All</option>
+                  <option value="requested">requested</option>
+                  <option value="approved">approved</option>
+                  <option value="processing">processing</option>
+                  <option value="paid">paid</option>
+                  <option value="rejected">rejected</option>
+                  <option value="frozen">frozen</option>
+                </select>
+              </label>
+            </div>
+            <h2 className="m-0 mb-3 text-section text-text-primary">
+              Queue
+              <span className="ml-2 text-body font-normal text-text-muted">({payouts.length})</span>
+            </h2>
+            {loading && payouts.length === 0 ? (
+              <TableSkeleton headers={["Payout", "Agency", "Amount", "Status"]} rows={6} />
+            ) : payouts.length === 0 ? (
+              <p className="m-0 py-8 text-center text-body text-text-muted">
+                No payouts in this filter. Switch to All or paid to see history.
+              </p>
+            ) : (
+              <div className="overflow-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="text-label uppercase text-text-muted">
+                      <th className="border-0 px-2 py-2 text-left">Payout</th>
+                      <th className="border-0 px-2 py-2 text-left">Agency</th>
+                      <th className="border-0 px-2 py-2 text-left">Amount</th>
+                      <th className="border-0 px-2 py-2 text-left">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </article>
-      ) : null}
+                  </thead>
+                  <tbody>
+                    {payouts.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={
+                          selectedId === row.id
+                            ? "cursor-pointer bg-brand-subtle/40"
+                            : "cursor-pointer hover:bg-canvas"
+                        }
+                        onClick={() => selectPayout(row)}
+                      >
+                        <td className="px-2 py-3">
+                          <p className="m-0 font-semibold text-text-primary">
+                            {row.receipt_number || row.id.slice(0, 8)}
+                          </p>
+                          <p className="m-0 text-body-sm text-text-muted">{row.id.slice(0, 8)}</p>
+                        </td>
+                        <td className="px-2 py-3 text-text-secondary">
+                          {agencyLabel(row.agency_id)}
+                        </td>
+                        <td className="px-2 py-3 text-text-secondary">
+                          {formatMoneyMinor(Number(row.amount_minor ?? 0), row.currency || "USD")}
+                        </td>
+                        <td className="px-2 py-3">
+                          <StatusBadge tone={statusTone(row.status)}>
+                            {row.status || "unknown"}
+                          </StatusBadge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </article>
 
-      {tab === "actions" && selected ? (
-        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-          <h2 className="m-0 mb-3 text-section text-text-primary">
-            Actions · {selected.id.slice(0, 8)}
-          </h2>
-          <label className="mb-3 m-0 grid max-w-md gap-1.5 font-normal">
-            <span className="text-body-sm text-text-muted">Transaction ref (mark paid / process)</span>
-            <input
-              value={transactionRef}
-              onChange={(event) => setTransactionRef(event.target.value)}
-              className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {PAYOUT_ACTIONS.map((action) => (
-              <ActionButton
-                key={action.value}
-                variant="outline"
-                disabled={busy}
-                onClick={() => void runAction(selected.id, action.value, transactionRef)}
-              >
-                {action.label}
-              </ActionButton>
-            ))}
-            <ActionButton
-              disabled={busy}
-              onClick={() => void markPaid(selected.id, transactionRef)}
-            >
-              Mark paid
-            </ActionButton>
-          </div>
-          <div className="mt-4">
-            <ApiNote>
-              Actions use POST /api/v1/platform/payouts/{"{id}"}/action and /mark-paid (permission:
-              payout.approve). Valid transitions are enforced server-side.
-            </ApiNote>
-          </div>
-        </article>
-      ) : null}
+          <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
+            {!selected ? (
+              <p className="m-0 text-body text-text-muted">
+                Select a payout from the queue to approve, attach proof, and mark paid.
+              </p>
+            ) : (
+              <div className="grid gap-4">
+                <div>
+                  <h2 className="m-0 text-section text-text-primary">
+                    {agencyLabel(selected.agency_id)} · {selected.id.slice(0, 8)}
+                  </h2>
+                  <p className="mt-1 mb-0 text-body text-text-muted">
+                    {stepHint(selected.status, Boolean(proof))}
+                  </p>
+                  <div className="mt-2">
+                    <StatusBadge tone={statusTone(selected.status)}>
+                      {selected.status || "—"}
+                    </StatusBadge>
+                  </div>
+                </div>
 
-      {tab === "proof" && selected ? (
-        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-          <h2 className="m-0 mb-3 text-section text-text-primary">Private proof</h2>
-          {proof ? (
-            <div className="mb-4 grid gap-2 sm:grid-cols-2">
-              <InfoTile label="Object ref" value={proof.object_ref || "—"} />
-              <InfoTile label="Content type" value={proof.content_type || "—"} />
-              <InfoTile label="Checksum" value={proof.checksum || "—"} />
-            </div>
-          ) : (
-            <p className="mb-4 mt-0 text-body text-text-muted">No proof on file yet.</p>
-          )}
-          <form className="grid max-w-xl gap-3" onSubmit={(event) => void onProof(event)}>
-            <Field label="Object ref" name="object_ref" required />
-            <Field label="Content type" name="content_type" defaultValue="application/pdf" />
-            <Field label="Checksum" name="checksum" required />
-            <ActionButton type="submit" disabled={busy}>
-              Upload proof metadata
-            </ActionButton>
-          </form>
-          <div className="mt-4">
-            <ApiNote>
-              Proof stores private object references only (not binary upload in this API). Agency
-              proof GET returns 404 by design.
-            </ApiNote>
-          </div>
-        </article>
-      ) : null}
+                <div className="grid gap-2 rounded-lg border border-border-default px-3 py-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="m-0 text-text-muted">Amount</p>
+                    <p className="m-0 font-medium text-text-primary">
+                      {formatMoneyMinor(
+                        Number(selected.amount_minor ?? 0),
+                        selected.currency || "USD",
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="m-0 text-text-muted">Method</p>
+                    <p className="m-0 font-medium text-text-primary">
+                      {selected.method_label || "—"}
+                    </p>
+                  </div>
+                  {selected.receipt_number ? (
+                    <div className="sm:col-span-2">
+                      <p className="m-0 text-text-muted">Receipt</p>
+                      <p className="m-0 font-medium text-text-primary">{selected.receipt_number}</p>
+                    </div>
+                  ) : null}
+                </div>
 
-      {tab === "receipt" && selected ? (
-        <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-          <h2 className="m-0 mb-3 text-section text-text-primary">Receipt</h2>
-          {selected.status === "paid" && selected.receipt_number ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              <InfoTile label="Receipt number" value={selected.receipt_number} />
-              <InfoTile label="Paid at" value={selected.paid_at || "—"} />
-              <InfoTile label="Transaction ref" value={selected.transaction_ref || "—"} />
-              <InfoTile
-                label="Amount"
-                value={formatMoneyMinor(Number(selected.amount_minor ?? 0), selected.currency || "USD")}
-              />
-            </div>
-          ) : (
-            <p className="m-0 text-body text-text-muted">
-              Receipt appears after mark paid. Agency-visible receipt is GET
-              /api/v1/agency/payouts/{"{id}"}/receipt.
-            </p>
-          )}
-        </article>
+                <div className="flex flex-wrap gap-2">
+                  {canApprove ? (
+                    <ActionButton
+                      disabled={busy}
+                      onClick={() => void runAction(selected.id, "approve")}
+                    >
+                      Approve
+                    </ActionButton>
+                  ) : null}
+                  {status === "approved" ? (
+                    <ActionButton
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void runAction(selected.id, "process")}
+                    >
+                      Process
+                    </ActionButton>
+                  ) : null}
+                  {status === "requested" ||
+                  status === "approved" ||
+                  status === "frozen" ? (
+                    <ActionButton
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void runAction(selected.id, "reject")}
+                    >
+                      Reject
+                    </ActionButton>
+                  ) : null}
+                  {status === "requested" ||
+                  status === "approved" ||
+                  status === "processing" ? (
+                    <ActionButton
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => void runAction(selected.id, "freeze")}
+                    >
+                      Freeze
+                    </ActionButton>
+                  ) : null}
+                </div>
+
+                {canUploadProof ? (
+                  <div className="grid gap-3 border-t border-border-default pt-4">
+                    <h3 className="m-0 text-body font-semibold text-text-primary">Proof</h3>
+                    {proof ? (
+                      <div className="grid gap-3">
+                        {(proof.content_type ?? "").startsWith("image/") ? (
+                          <img
+                            src={platformPayoutProofFileUrl(selected.id)}
+                            alt="Payout proof"
+                            className="max-h-56 w-full rounded-lg border border-border-default object-contain bg-canvas"
+                          />
+                        ) : (
+                          <a
+                            href={platformPayoutProofFileUrl(selected.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-body text-text-brand"
+                          >
+                            Open proof file
+                          </a>
+                        )}
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-default px-3 py-3">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={Boolean(proof.agency_visible)}
+                            disabled={busy}
+                            onChange={(event) =>
+                              void setProofAgencyVisible(selected.id, event.target.checked)
+                            }
+                          />
+                          <span>
+                            <span className="block font-medium text-text-primary">
+                              Show proof to this agency
+                            </span>
+                            <span className="mt-0.5 block text-sm text-text-muted">
+                              Only this payout. Off by default.
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+                    ) : (
+                      <form className="grid gap-3" onSubmit={(event) => void onUploadProof(event)}>
+                        <label className="m-0 grid gap-1.5 font-normal">
+                          <span className="text-body-sm text-text-muted">
+                            Image or PDF (max 5MB)
+                          </span>
+                          <input
+                            name="file"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,application/pdf"
+                            required
+                            className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+                          />
+                        </label>
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border-default px-3 py-3">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={shareWithAgency}
+                            onChange={(event) => setShareWithAgency(event.target.checked)}
+                          />
+                          <span className="text-sm text-text-primary">
+                            Share with agency when uploading
+                          </span>
+                        </label>
+                        <ActionButton type="submit" disabled={busy}>
+                          Upload proof
+                        </ActionButton>
+                      </form>
+                    )}
+                  </div>
+                ) : null}
+
+                {canMarkPaid ? (
+                  <div className="grid gap-3 border-t border-border-default pt-4">
+                    <label className="m-0 grid gap-1.5 font-normal">
+                      <span className="text-body-sm text-text-muted">
+                        Transaction / bank reference
+                      </span>
+                      <input
+                        value={transactionRef}
+                        onChange={(event) => setTransactionRef(event.target.value)}
+                        className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+                        placeholder="e.g. ACH-12345"
+                      />
+                    </label>
+                    <ActionButton
+                      disabled={busy || !transactionRef.trim()}
+                      onClick={() => void markPaid(selected.id, transactionRef.trim())}
+                    >
+                      Mark paid
+                    </ActionButton>
+                    {!proof ? (
+                      <p className="m-0 text-sm text-text-muted">
+                        Proof is usually required before mark paid (platform setting).
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {status === "paid" ? (
+                  <div className="grid gap-2 border-t border-border-default pt-4 text-sm">
+                    <p className="m-0 text-text-muted">Receipt number</p>
+                    <p className="m-0 font-medium text-text-primary">
+                      {selected.receipt_number || "—"}
+                    </p>
+                    <p className="m-0 text-text-muted">Paid at</p>
+                    <p className="m-0 font-medium text-text-primary">{selected.paid_at || "—"}</p>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </article>
+        </div>
       ) : null}
 
       {tab === "adjustment" ? (
@@ -433,7 +552,15 @@ export function PlatformPayoutsScreen() {
                 ))}
               </select>
             </label>
-            <Field label="Amount (minor)" name="amount_minor" required defaultValue="1000" />
+            <label className="m-0 grid gap-1.5 font-normal">
+              <span className="text-body-sm text-text-muted">Amount (minor)</span>
+              <input
+                name="amount_minor"
+                required
+                defaultValue="1000"
+                className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+              />
+            </label>
             <label className="m-0 grid gap-1.5 font-normal">
               <span className="text-body-sm text-text-muted">Direction</span>
               <select
@@ -458,51 +585,8 @@ export function PlatformPayoutsScreen() {
               Record adjustment
             </ActionButton>
           </form>
-          <div className="mt-4">
-            <ApiNote>
-              POST /api/v1/platform/agencies/{"{id}"}/wallet/adjust requires wallet.adjust and a
-              reason. Balances are never silently mutated.
-            </ApiNote>
-          </div>
         </article>
       ) : null}
-
-      {(tab === "actions" || tab === "proof" || tab === "receipt") && !selected ? (
-        <p className="text-body text-text-muted">Select a payout from the queue.</p>
-      ) : null}
     </section>
-  );
-}
-
-function Field({
-  label,
-  name,
-  defaultValue,
-  required,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="m-0 grid gap-1.5 font-normal">
-      <span className="text-body-sm text-text-muted">{label}</span>
-      <input
-        name={name}
-        required={required}
-        defaultValue={defaultValue}
-        className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
-      />
-    </label>
-  );
-}
-
-function InfoTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border-default bg-canvas px-3 py-3">
-      <p className="m-0 text-body-sm text-text-muted">{label}</p>
-      <p className="mt-1 mb-0 break-all font-semibold text-text-primary">{value}</p>
-    </div>
   );
 }
