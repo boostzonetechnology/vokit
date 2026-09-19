@@ -28,14 +28,62 @@ export type AgencyOption = {
 
 export type PayoutProof = {
   payout_id?: string;
-  object_ref?: string;
   content_type?: string;
-  checksum?: string;
+  agency_visible?: boolean;
+  agency_visible_at?: string | null;
 };
 
-export const PAYOUT_ACTIONS = [
-  { value: "approve", label: "Approve" },
-  { value: "reject", label: "Reject" },
-  { value: "freeze", label: "Freeze" },
-  { value: "process", label: "Process" },
-] as const;
+export type LedgerEntry = {
+  id: string;
+  kind?: string;
+  amount_minor?: number;
+  currency?: string;
+  invoice_id?: string | null;
+  payment_id?: string | null;
+  reason?: string;
+  earned_at?: string | null;
+  available_at?: string | null;
+  state?: string;
+  eligible_base_minor?: number;
+  rate_bps_snapshot?: number;
+};
+
+export type PayoutReceipt = {
+  receipt_number?: string;
+  payout_id?: string;
+  agency_id?: string;
+  agency_display_name?: string;
+  agency_legal_name?: string;
+  amount_minor?: number;
+  currency?: string;
+  method_label?: string;
+  transaction_ref?: string;
+  status?: string;
+  requested_at?: string | null;
+  paid_at?: string | null;
+  issuer?: string;
+  disclaimer?: string;
+};
+
+export type PayoutMethodRecord = {
+  id: string;
+  beneficiary_name?: string;
+  account_identifier_masked?: string;
+  bank_name?: string;
+  country?: string;
+  currency?: string;
+  label?: string;
+  status?: string;
+  is_default?: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type PayoutMethodInput = {
+  beneficiary_name: string;
+  account_identifier: string;
+  bank_name: string;
+  country: string;
+  currency?: string;
+  is_default?: boolean;
+};

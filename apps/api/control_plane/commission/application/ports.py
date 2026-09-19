@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from control_plane.commission.domain.types import LedgerKind, PayoutStatus
+from control_plane.commission.domain.types import LedgerKind, PayoutMethodStatus, PayoutStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +52,25 @@ class PayoutProofRecord:
     content_type: str
     checksum: str
     uploaded_by_id: uuid.UUID
+    agency_visible: bool = False
+    agency_visible_at: datetime | None = None
+    agency_visible_by: uuid.UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PayoutMethodRecord:
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    beneficiary_name: str
+    account_identifier: str
+    bank_name: str
+    country: str
+    currency: str
+    label: str
+    status: PayoutMethodStatus
+    is_default: bool
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class LedgerRepository(Protocol):
@@ -89,6 +108,20 @@ class PayoutProofRepository(Protocol):
     def create(self, record: PayoutProofRecord) -> None: ...
 
     def get(self, payout_id: uuid.UUID) -> PayoutProofRecord | None: ...
+
+    def update(self, record: PayoutProofRecord) -> None: ...
+
+
+class PayoutMethodRepository(Protocol):
+    def create(self, record: PayoutMethodRecord) -> None: ...
+
+    def get(self, method_id: uuid.UUID) -> PayoutMethodRecord | None: ...
+
+    def list_for_tenant(self, tenant_id: uuid.UUID) -> list[PayoutMethodRecord]: ...
+
+    def update(self, record: PayoutMethodRecord) -> None: ...
+
+    def clear_default(self, tenant_id: uuid.UUID) -> None: ...
 
 
 class CommissionIdempotencyRepository(Protocol):

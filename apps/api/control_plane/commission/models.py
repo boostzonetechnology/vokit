@@ -72,6 +72,29 @@ class Payout(HardDeleteForbiddenModel):
         ]
 
 
+class AgencyPayoutMethod(HardDeleteForbiddenModel):
+    """Agency bank/payout destination (AG11-004 / VKT-028)."""
+
+    id = models.UUIDField(primary_key=True, default=new_uuid7, editable=False)
+    tenant_id = models.UUIDField()
+    beneficiary_name = models.CharField(max_length=128)
+    account_identifier = models.CharField(max_length=128)
+    bank_name = models.CharField(max_length=128)
+    country = models.CharField(max_length=2)
+    currency = models.CharField(max_length=3, default="USD")
+    label = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, default="pending")
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "commission_payout_methods"
+        indexes = [
+            models.Index(fields=["tenant_id", "status"], name="idx_payout_method_tenant"),
+        ]
+
+
 class PayoutProof(HardDeleteForbiddenModel):
     payout = models.OneToOneField(
         Payout,
@@ -83,6 +106,10 @@ class PayoutProof(HardDeleteForbiddenModel):
     content_type = models.CharField(max_length=128)
     checksum = models.CharField(max_length=128)
     uploaded_by_id = models.UUIDField()
+    # TL exception to BR-009: per-payout share only (default private).
+    agency_visible = models.BooleanField(default=False)
+    agency_visible_at = models.DateTimeField(null=True, blank=True)
+    agency_visible_by = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

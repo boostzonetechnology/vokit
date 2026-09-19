@@ -29,6 +29,9 @@ venv/
 htmlcov/
 db.sqlite3
 
+# Local payout proof object storage (dev)
+apps/api/var/
+
 # Node / React portals
 node_modules/
 dist/

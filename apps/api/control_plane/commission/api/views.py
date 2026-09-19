@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -8,9 +9,12 @@ from control_plane.commission.application.freeze import FreezeWalletCommand
 from control_plane.commission.application.payout import (
     DecidePayoutCommand,
     RequestPayoutCommand,
+    SetProofAgencyVisibilityCommand,
     UploadProofCommand,
 )
+from control_plane.commission.application.payout_methods import UpsertPayoutMethodCommand
 from control_plane.commission.application.reverse import ReverseCommissionCommand
+from control_plane.commission.domain.payout_method import mask_account_identifier
 from control_plane.commission.domain.policies import payout_not_found
 from control_plane.commission.domain.types import PayoutStatus
 from control_plane.commission.domain.wallet import (
@@ -23,10 +27,12 @@ from control_plane.commission.infrastructure.container import (
     decide_payout,
     freeze_wallet,
     ledger,
+    manage_payout_methods,
     payouts,
     proofs,
     request_payout,
     reverse_commission,
+    set_proof_agency_visibility,
     upload_proof,
 )
 from control_plane.identity.api.auth import (
@@ -202,6 +208,53 @@ def _receipt_payload(row) -> dict[str, object]:
     }
 
 
+def _method_public(row) -> dict[str, object]:
+    return {
+        "id": str(row.id),
+        "beneficiary_name": row.beneficiary_name,
+        "account_identifier_masked": mask_account_identifier(row.account_identifier),
+        "bank_name": row.bank_name,
+        "country": row.country,
+        "currency": row.currency,
+        "label": row.label,
+        "status": row.status.value,
+        "is_default": row.is_default,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _proof_public(row, *, for_agency: bool = False) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "payout_id": str(row.payout_id),
+        "object_ref": row.object_ref,
+        "content_type": row.content_type,
+        "checksum": row.checksum,
+        "agency_visible": bool(row.agency_visible),
+        "agency_visible_at": (
+            row.agency_visible_at.isoformat() if row.agency_visible_at else None
+        ),
+        "has_file": True,
+    }
+    if not for_agency:
+        payload["uploaded_by_id"] = str(row.uploaded_by_id)
+        payload["agency_visible_by"] = (
+            str(row.agency_visible_by) if row.agency_visible_by else None
+        )
+    return payload
+
+
+def _proof_file_response(proof) -> Response:
+    from django.http import FileResponse
+
+    from control_plane.commission.infrastructure.proof_storage import resolve_proof_path
+
+    path = resolve_proof_path(proof.object_ref)
+    response = FileResponse(path.open("rb"), content_type=proof.content_type or "application/octet-stream")
+    response["Content-Disposition"] = f'inline; filename="{path.name}"'
+    return response
+
+
 class AgencyWalletView(CsrfAPIView):
     def get(self, request: Request) -> Response:
         context = require_agency_perm(request, "wallet.view")
@@ -250,12 +303,106 @@ class AgencyPayoutCollectionView(CsrfAPIView):
             RequestPayoutCommand(
                 tenant_id=tenant_id,
                 amount_minor=amount_minor,
-                method_label=str(request.data.get("method_label") or "bank"),
                 actor_id=context.user.id,
                 idempotency_key=str(request.headers.get("Idempotency-Key") or ""),
+                payout_method_id=parse_optional_uuid(
+                    request.data.get("payout_method_id"), field="payout_method_id"
+                ),
+                method_label=str(request.data.get("method_label") or ""),
             )
         )
         return success(_payout_public(payout), status=201)
+
+
+class AgencyPayoutMethodCollectionView(CsrfAPIView):
+    def get(self, request: Request) -> Response:
+        context = require_agency_perm(request, "wallet.view")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        rows = manage_payout_methods().list(tenant_id)
+        usable_only = str(request.query_params.get("usable") or "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if usable_only:
+            from control_plane.commission.domain.types import PayoutMethodStatus
+
+            rows = [row for row in rows if row.status is PayoutMethodStatus.USABLE]
+        return success([_method_public(row) for row in rows])
+
+    def post(self, request: Request) -> Response:
+        context = require_agency_perm(request, "payout.request")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        created = manage_payout_methods().upsert(
+            UpsertPayoutMethodCommand(
+                tenant_id=tenant_id,
+                beneficiary_name=str(request.data.get("beneficiary_name") or ""),
+                account_identifier=str(request.data.get("account_identifier") or ""),
+                bank_name=str(request.data.get("bank_name") or ""),
+                country=str(request.data.get("country") or ""),
+                currency=str(request.data.get("currency") or "USD"),
+                is_default=bool(request.data.get("is_default")),
+            )
+        )
+        return success(_method_public(created), status=201)
+
+
+class AgencyPayoutMethodDetailView(CsrfAPIView):
+    def patch(self, request: Request, method_id: str) -> Response:
+        context = require_agency_perm(request, "payout.request")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        existing = manage_payout_methods().get_for_tenant(
+            tenant_id, parse_uuid(method_id, field="method_id")
+        )
+        updated = manage_payout_methods().upsert(
+            UpsertPayoutMethodCommand(
+                tenant_id=tenant_id,
+                method_id=existing.id,
+                beneficiary_name=str(
+                    request.data.get("beneficiary_name") or existing.beneficiary_name
+                ),
+                account_identifier=str(
+                    request.data.get("account_identifier") or existing.account_identifier
+                ),
+                bank_name=str(request.data.get("bank_name") or existing.bank_name),
+                country=str(request.data.get("country") or existing.country),
+                currency=str(request.data.get("currency") or existing.currency),
+                is_default=(
+                    bool(request.data.get("is_default"))
+                    if "is_default" in request.data
+                    else existing.is_default
+                ),
+            )
+        )
+        return success(_method_public(updated))
+
+    def post(self, request: Request, method_id: str) -> Response:
+        context = require_agency_perm(request, "payout.request")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        action = str(request.data.get("action") or "enable").strip().lower()
+        if action != "enable":
+            raise DomainError(
+                "validation_error",
+                "Unsupported action. Use action=enable.",
+                http_status=400,
+            )
+        enabled = manage_payout_methods().enable(
+            tenant_id, parse_uuid(method_id, field="method_id")
+        )
+        return success(_method_public(enabled))
+
+    def delete(self, request: Request, method_id: str) -> Response:
+        context = require_agency_perm(request, "payout.request")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        disabled = manage_payout_methods().disable(
+            tenant_id, parse_uuid(method_id, field="method_id")
+        )
+        return success(_method_public(disabled))
 
 
 class AgencyPayoutReceiptView(CsrfAPIView):
@@ -271,8 +418,30 @@ class AgencyPayoutReceiptView(CsrfAPIView):
 
 class AgencyPayoutProofView(CsrfAPIView):
     def get(self, request: Request, payout_id: str) -> Response:
-        require_agency_perm(request, "wallet.view")
-        raise DomainError("not_found", "Resource not found.", http_status=404)
+        context = require_agency_perm(request, "wallet.view")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        payout = payouts().get(parse_uuid(payout_id, field="payout_id"))
+        if payout is None or payout.tenant_id != tenant_id:
+            raise DomainError("not_found", "Resource not found.", http_status=404)
+        proof = proofs().get(payout.id)
+        if proof is None or not proof.agency_visible:
+            raise DomainError("not_found", "Resource not found.", http_status=404)
+        return success(_proof_public(proof, for_agency=True))
+
+
+class AgencyPayoutProofFileView(CsrfAPIView):
+    def get(self, request: Request, payout_id: str) -> Response:
+        context = require_agency_perm(request, "wallet.view")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        payout = payouts().get(parse_uuid(payout_id, field="payout_id"))
+        if payout is None or payout.tenant_id != tenant_id:
+            raise DomainError("not_found", "Resource not found.", http_status=404)
+        proof = proofs().get(payout.id)
+        if proof is None or not proof.agency_visible:
+            raise DomainError("not_found", "Resource not found.", http_status=404)
+        return _proof_file_response(proof)
 
 
 class PlatformWalletView(CsrfAPIView):
@@ -332,40 +501,92 @@ class PlatformPayoutActionView(CsrfAPIView):
 
 
 class PlatformPayoutProofView(CsrfAPIView):
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
+
     def get(self, request: Request, payout_id: str) -> Response:
         require_platform_perm(request, "payout.approve")
         proof = proofs().get(parse_uuid(payout_id, field="payout_id"))
         if proof is None:
             raise payout_not_found()
-        return success(
-            {
-                "payout_id": str(proof.payout_id),
-                "object_ref": proof.object_ref,
-                "content_type": proof.content_type,
-                "checksum": proof.checksum,
-            }
-        )
+        return success(_proof_public(proof))
 
     def post(self, request: Request, payout_id: str) -> Response:
+        from control_plane.commission.infrastructure.proof_storage import store_proof_file
+
         context = require_platform_perm(request, "payout.approve")
+        payout_uuid = parse_uuid(payout_id, field="payout_id")
+        upload = None
+        if getattr(request, "FILES", None) is not None:
+            upload = request.FILES.get("file")
+        if upload is None and hasattr(request, "data"):
+            candidate = request.data.get("file")
+            if hasattr(candidate, "read"):
+                upload = candidate
+        if upload is not None:
+            object_ref, content_type, checksum = store_proof_file(
+                payout_id=payout_uuid,
+                filename=str(getattr(upload, "name", "") or "proof"),
+                content_type=str(getattr(upload, "content_type", "") or ""),
+                content=upload.read(),
+            )
+        else:
+            object_ref = str(request.data.get("object_ref") or "")
+            content_type = str(request.data.get("content_type") or "")
+            checksum = str(request.data.get("checksum") or "")
         proof = upload_proof().execute(
             UploadProofCommand(
-                payout_id=parse_uuid(payout_id, field="payout_id"),
-                object_ref=str(request.data.get("object_ref") or ""),
-                content_type=str(request.data.get("content_type") or ""),
-                checksum=str(request.data.get("checksum") or ""),
+                payout_id=payout_uuid,
+                object_ref=object_ref,
+                content_type=content_type,
+                checksum=checksum,
                 actor_id=context.user.id,
             )
         )
-        return success(
-            {
-                "payout_id": str(proof.payout_id),
-                "object_ref": proof.object_ref,
-                "content_type": proof.content_type,
-                "checksum": proof.checksum,
-            },
-            status=201,
+        raw_visible = request.data.get("agency_visible")
+        if raw_visible is not None:
+            if isinstance(raw_visible, bool):
+                visible = raw_visible
+            else:
+                visible = str(raw_visible).strip().lower() in {"1", "true", "yes", "on"}
+            proof = set_proof_agency_visibility().execute(
+                SetProofAgencyVisibilityCommand(
+                    payout_id=payout_uuid,
+                    agency_visible=visible,
+                    actor_id=context.user.id,
+                )
+            )
+        return success(_proof_public(proof), status=201)
+
+    def patch(self, request: Request, payout_id: str) -> Response:
+        context = require_platform_perm(request, "payout.approve")
+        if "agency_visible" not in request.data:
+            raise DomainError(
+                "validation_error",
+                "agency_visible is required.",
+                http_status=400,
+            )
+        raw = request.data.get("agency_visible")
+        if isinstance(raw, bool):
+            visible = raw
+        else:
+            visible = str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        proof = set_proof_agency_visibility().execute(
+            SetProofAgencyVisibilityCommand(
+                payout_id=parse_uuid(payout_id, field="payout_id"),
+                agency_visible=visible,
+                actor_id=context.user.id,
+            )
         )
+        return success(_proof_public(proof))
+
+
+class PlatformPayoutProofFileView(CsrfAPIView):
+    def get(self, request: Request, payout_id: str) -> Response:
+        require_platform_perm(request, "payout.approve")
+        proof = proofs().get(parse_uuid(payout_id, field="payout_id"))
+        if proof is None:
+            raise payout_not_found()
+        return _proof_file_response(proof)
 
 
 class PlatformPayoutMarkPaidView(CsrfAPIView):

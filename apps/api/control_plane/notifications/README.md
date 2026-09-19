@@ -11,6 +11,11 @@ KYC status changes notify on `submitted` / `verified` / `rejected` /
 `kyc.submitted`. Agency restrict uses the same mandatory `agency.suspended`
 template as suspend. Recipients are agency memberships (`recipients_for_scope`).
 
+Billing/wallet triggers (`billing_notify`): `payment.success` / `payment.failure`,
+`minutes.low`, `commission.available`, `payout.requested` / `payout.paid` /
+`payout.rejected`. Wired from settle, hold release, payout request/decide, and
+customer minute projection.
+
 ## Email delivery (SMTP + Celery)
 
 Outbound email is queued on Celery (broker = Redis via `REDIS_URL`):

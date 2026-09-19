@@ -6,11 +6,13 @@ from django.db import IntegrityError, transaction
 
 from control_plane.commission.application.ports import (
     LedgerEntryRecord,
+    PayoutMethodRecord,
     PayoutProofRecord,
     PayoutRecord,
 )
-from control_plane.commission.domain.types import LedgerKind, PayoutStatus
+from control_plane.commission.domain.types import LedgerKind, PayoutMethodStatus, PayoutStatus
 from control_plane.commission.models import (
+    AgencyPayoutMethod,
     CommissionIdempotencyKey,
     LedgerEntry,
     Payout,
@@ -166,6 +168,9 @@ class DjangoPayoutProofRepository:
                 content_type=record.content_type,
                 checksum=record.checksum,
                 uploaded_by_id=record.uploaded_by_id,
+                agency_visible=bool(record.agency_visible),
+                agency_visible_at=record.agency_visible_at,
+                agency_visible_by=record.agency_visible_by,
             )
         except IntegrityError:
             return
@@ -174,12 +179,90 @@ class DjangoPayoutProofRepository:
         row = PayoutProof.objects.filter(payout_id=payout_id).first()
         if row is None:
             return None
-        return PayoutProofRecord(
-            payout_id=row.payout_id,
-            object_ref=row.object_ref,
-            content_type=row.content_type,
-            checksum=row.checksum,
-            uploaded_by_id=row.uploaded_by_id,
+        return _proof(row)
+
+    def update(self, record: PayoutProofRecord) -> None:
+        PayoutProof.objects.filter(payout_id=record.payout_id).update(
+            object_ref=record.object_ref,
+            content_type=record.content_type,
+            checksum=record.checksum,
+            uploaded_by_id=record.uploaded_by_id,
+            agency_visible=bool(record.agency_visible),
+            agency_visible_at=record.agency_visible_at,
+            agency_visible_by=record.agency_visible_by,
+        )
+
+
+def _proof(row: PayoutProof) -> PayoutProofRecord:
+    return PayoutProofRecord(
+        payout_id=row.payout_id,
+        object_ref=row.object_ref,
+        content_type=row.content_type,
+        checksum=row.checksum,
+        uploaded_by_id=row.uploaded_by_id,
+        agency_visible=bool(row.agency_visible),
+        agency_visible_at=row.agency_visible_at,
+        agency_visible_by=row.agency_visible_by,
+    )
+
+
+def _method(row: AgencyPayoutMethod) -> PayoutMethodRecord:
+    return PayoutMethodRecord(
+        id=row.id,
+        tenant_id=row.tenant_id,
+        beneficiary_name=row.beneficiary_name,
+        account_identifier=row.account_identifier,
+        bank_name=row.bank_name,
+        country=row.country,
+        currency=row.currency,
+        label=row.label,
+        status=PayoutMethodStatus(row.status),
+        is_default=bool(row.is_default),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+class DjangoPayoutMethodRepository:
+    def create(self, record: PayoutMethodRecord) -> None:
+        AgencyPayoutMethod.objects.create(
+            id=record.id,
+            tenant_id=record.tenant_id,
+            beneficiary_name=record.beneficiary_name,
+            account_identifier=record.account_identifier,
+            bank_name=record.bank_name,
+            country=record.country,
+            currency=record.currency,
+            label=record.label,
+            status=record.status.value,
+            is_default=record.is_default,
+        )
+
+    def get(self, method_id: uuid.UUID) -> PayoutMethodRecord | None:
+        row = AgencyPayoutMethod.objects.filter(id=method_id).first()
+        return _method(row) if row else None
+
+    def list_for_tenant(self, tenant_id: uuid.UUID) -> list[PayoutMethodRecord]:
+        rows = AgencyPayoutMethod.objects.filter(tenant_id=tenant_id).order_by(
+            "-is_default", "-created_at"
+        )
+        return [_method(row) for row in rows]
+
+    def update(self, record: PayoutMethodRecord) -> None:
+        AgencyPayoutMethod.objects.filter(id=record.id).update(
+            beneficiary_name=record.beneficiary_name,
+            account_identifier=record.account_identifier,
+            bank_name=record.bank_name,
+            country=record.country,
+            currency=record.currency,
+            label=record.label,
+            status=record.status.value,
+            is_default=record.is_default,
+        )
+
+    def clear_default(self, tenant_id: uuid.UUID) -> None:
+        AgencyPayoutMethod.objects.filter(tenant_id=tenant_id, is_default=True).update(
+            is_default=False
         )
 
 

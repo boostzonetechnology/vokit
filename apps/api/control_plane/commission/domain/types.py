@@ -32,3 +32,9 @@ class PayoutStatus(StrEnum):
     PAID = "paid"
     REJECTED = "rejected"
     FROZEN = "frozen"
+
+
+class PayoutMethodStatus(StrEnum):
+    PENDING = "pending"
+    USABLE = "usable"
+    DISABLED = "disabled"

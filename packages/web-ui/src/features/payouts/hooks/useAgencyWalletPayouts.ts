@@ -1,46 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "@/api";
-import { asList } from "@/features/platform/lib/list";
-import type { PayoutRecord, WalletBuckets } from "@/features/payouts/types";
-
-export type LedgerEntry = {
-  id: string;
-  kind?: string;
-  amount_minor?: number;
-  currency?: string;
-  invoice_id?: string | null;
-  payment_id?: string | null;
-  reason?: string;
-  earned_at?: string | null;
-  available_at?: string | null;
-  state?: string;
-  eligible_base_minor?: number;
-  rate_bps_snapshot?: number;
-};
-
-export type PayoutReceipt = {
-  receipt_number?: string;
-  payout_id?: string;
-  agency_id?: string;
-  amount_minor?: number;
-  currency?: string;
-  method_label?: string;
-  transaction_ref?: string;
-  status?: string;
-  requested_at?: string | null;
-  paid_at?: string | null;
-};
-
-function idempotencyKey(prefix: string) {
-  return `${prefix}-${crypto.randomUUID()}`;
-}
+import { mapPayoutError } from "@/features/payouts/lib/mapPayoutError";
+import {
+  getAgencyPayoutProof,
+  getAgencyPayoutReceipt,
+  getAgencyWallet,
+  listAgencyPayouts,
+  requestAgencyPayout,
+} from "@/features/payouts/services/wallet.service";
+import type {
+  LedgerEntry,
+  PayoutProof,
+  PayoutReceipt,
+  PayoutRecord,
+  WalletBuckets,
+} from "@/features/payouts/types";
 
 export function useAgencyWalletPayouts() {
   const [buckets, setBuckets] = useState<WalletBuckets | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [receipt, setReceipt] = useState<PayoutReceipt | null>(null);
+  const [proof, setProof] = useState<PayoutProof | null>(null);
+  const [proofUnavailable, setProofUnavailable] = useState(false);
   const [selectedPayoutId, setSelectedPayoutId] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -48,20 +30,19 @@ export function useAgencyWalletPayouts() {
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [ledgerKind, setLedgerKind] = useState("");
+  const [ledgerState, setLedgerState] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [wallet, payoutRows] = await Promise.all([
-        apiGet<{ buckets?: WalletBuckets; entries?: LedgerEntry[] }>("/api/v1/agency/wallet"),
-        asList<PayoutRecord>(await apiGet<unknown>("/api/v1/agency/payouts")),
-      ]);
-      setBuckets(wallet.buckets ?? null);
-      setEntries(Array.isArray(wallet.entries) ? wallet.entries : []);
+      const [wallet, payoutRows] = await Promise.all([getAgencyWallet(), listAgencyPayouts()]);
+      setBuckets(wallet.buckets);
+      setEntries(wallet.entries);
       setPayouts(payoutRows);
       setError("");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load wallet.");
+      setError(mapPayoutError(cause, "Failed to load wallet."));
     } finally {
       setLoading(false);
     }
@@ -70,6 +51,21 @@ export function useAgencyWalletPayouts() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const filteredEntries = useMemo(() => {
+    return entries.filter((row) => {
+      if (ledgerKind && (row.kind ?? "") !== ledgerKind) return false;
+      if (ledgerState) {
+        const state = (row.state ?? "").toLowerCase();
+        if (ledgerState === "on_hold") {
+          if (state !== "on_hold" && state !== "held") return false;
+        } else if (state !== ledgerState) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [entries, ledgerKind, ledgerState]);
 
   const filteredPayouts = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -89,22 +85,20 @@ export function useAgencyWalletPayouts() {
     payouts.find((row) => row.id === selectedPayoutId) ??
     null;
 
-  async function requestWithdrawal(amountMinor: number, methodLabel: string) {
+  async function requestWithdrawal(amountMinor: number, payoutMethodId: string) {
     setBusy(true);
     setMessage("");
     try {
-      const created = await apiSend<PayoutRecord>(
-        "/api/v1/agency/payouts",
-        "POST",
-        { amount_minor: amountMinor, method_label: methodLabel },
-        { "Idempotency-Key": idempotencyKey("payout") },
-      );
+      const created = await requestAgencyPayout({
+        amount_minor: amountMinor,
+        payout_method_id: payoutMethodId,
+      });
       setMessage("Withdrawal requested from available balance.");
       await reload();
       if (created.id) setSelectedPayoutId(created.id);
       return created;
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Withdrawal failed.");
+      setMessage(mapPayoutError(cause, "Withdrawal failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -115,13 +109,44 @@ export function useAgencyWalletPayouts() {
     setBusy(true);
     setMessage("");
     try {
-      const data = await apiGet<PayoutReceipt>(`/api/v1/agency/payouts/${payoutId}/receipt`);
+      const data = await getAgencyPayoutReceipt(payoutId);
       setReceipt(data);
       setMessage("Receipt loaded.");
       return data;
     } catch (cause) {
       setReceipt(null);
-      setMessage(isApiError(cause) ? cause.message : "Receipt unavailable.");
+      setMessage(mapPayoutError(cause, "Receipt unavailable."));
+      throw cause;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function ensureReceipt(payoutId: string): Promise<PayoutReceipt> {
+    if (receipt?.payout_id === payoutId) return receipt;
+    return loadReceipt(payoutId);
+  }
+
+  async function loadProof(payoutId: string) {
+    setBusy(true);
+    setMessage("");
+    setProofUnavailable(false);
+    try {
+      const data = await getAgencyPayoutProof(payoutId);
+      if (data == null) {
+        setProof(null);
+        setProofUnavailable(true);
+        setMessage("Platform has not shared proof for this payout.");
+        return null;
+      }
+      setProof(data);
+      setProofUnavailable(false);
+      setMessage("Shared admin proof loaded.");
+      return data;
+    } catch (cause) {
+      setProof(null);
+      setProofUnavailable(true);
+      setMessage(mapPayoutError(cause, "Proof unavailable."));
       throw cause;
     } finally {
       setBusy(false);
@@ -130,23 +155,34 @@ export function useAgencyWalletPayouts() {
 
   return {
     buckets,
-    entries,
+    entries: filteredEntries,
     payouts: filteredPayouts,
+    allPayouts: payouts,
     selectedPayout,
     selectedPayoutId,
     setSelectedPayoutId,
     receipt,
     setReceipt,
+    proof,
+    setProof,
+    proofUnavailable,
     error,
     message,
+    setMessage,
     loading,
     busy,
     query,
     setQuery,
     statusFilter,
     setStatusFilter,
+    ledgerKind,
+    setLedgerKind,
+    ledgerState,
+    setLedgerState,
     reload,
     requestWithdrawal,
     loadReceipt,
+    ensureReceipt,
+    loadProof,
   };
 }

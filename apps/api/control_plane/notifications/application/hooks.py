@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import uuid
+from collections.abc import Iterable
 
 from control_plane.audit.application.record import RecordAuditCommand
 from control_plane.audit.infrastructure.container import record_audit
@@ -13,7 +15,6 @@ from control_plane.notifications.infrastructure.recipients import (
     invitation_recipient,
     recipients_for_scope,
 )
-from shared_kernel.logging import log_event
 
 logger = logging.getLogger("vokit.notifications")
 
@@ -98,35 +99,30 @@ def kyc_notify(*, tenant_id, status: str) -> None:
 def billing_notify(
     *,
     event_type: str,
-    recipients: list[Recipient] | tuple[Recipient, ...],
+    recipients: Iterable[Recipient],
     variables: dict[str, str],
-    tenant_id=None,
-    customer_id=None,
+    tenant_id: uuid.UUID | None = None,
+    customer_id: uuid.UUID | None = None,
 ) -> None:
-    unique: list[Recipient] = []
-    seen: set[tuple[object, str]] = set()
-    for row in recipients:
-        key = (row.user_id, row.email)
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(row)
-    if not unique:
+    """Dispatch billing/wallet lifecycle notifications (VKT-060 / NOT-001).
+
+    Notification failures must not roll back money-path side effects.
+    """
+    rows = tuple(recipients)
+    if not rows:
         return
     try:
         notifications().dispatch(
             DispatchCommand(
                 event_type=event_type,
-                recipients=tuple(unique),
+                recipients=rows,
                 variables=variables,
                 tenant_id=tenant_id,
                 customer_id=customer_id,
             )
         )
     except Exception:
-        log_event(
-            logger,
-            "notification.dispatched",
-            outcome="error",
-            event_type=event_type,
+        logger.exception(
+            "billing_notify.failed",
+            extra={"event_type": event_type, "tenant_id": str(tenant_id) if tenant_id else None},
         )

@@ -266,7 +266,27 @@ def test_agency_cannot_fetch_payout_proof() -> None:
     denied = agency_client.get(f"/api/v1/agency/payouts/{payout_id}/proof")
     assert denied.status_code == 404
     assert "object_ref" not in json.dumps(denied.json())
+
+    shared = _patch(platform, f"/api/v1/platform/payouts/{payout_id}/proof", {"agency_visible": True})
+    assert shared.status_code == 200
+    assert shared.json()["data"]["agency_visible"] is True
+    visible = agency_client.get(f"/api/v1/agency/payouts/{payout_id}/proof")
+    assert visible.status_code == 200
+    proof_data = visible.json()["data"]
+    assert proof_data["object_ref"].endswith("/proof/a")
+    assert "uploaded_by_id" not in proof_data
+    assert proof_data["agency_visible"] is True
+
+    unshared = _patch(
+        platform, f"/api/v1/platform/payouts/{payout_id}/proof", {"agency_visible": False}
+    )
+    assert unshared.status_code == 200
+    assert unshared.json()["data"]["agency_visible"] is False
+    denied_again = agency_client.get(f"/api/v1/agency/payouts/{payout_id}/proof")
+    assert denied_again.status_code == 404
+
     _post(platform, f"/api/v1/platform/payouts/{payout_id}/action", {"action": "approve"})
+    _patch(platform, f"/api/v1/platform/payouts/{payout_id}/proof", {"agency_visible": True})
     paid = _post(
         platform,
         f"/api/v1/platform/payouts/{payout_id}/mark-paid",
@@ -284,6 +304,92 @@ def test_agency_cannot_fetch_payout_proof() -> None:
     assert data["transaction_ref"] == "*ch-1"
     assert "banking proof" in data["disclaimer"]
     assert _event_count(agency_client, "/api/v1/agency/notifications", "payout.paid") == 1
+    still_shared = agency_client.get(f"/api/v1/agency/payouts/{payout_id}/proof")
+    assert still_shared.status_code == 200
+
+
+@pytest.mark.django_db
+def test_platform_can_upload_proof_image_file() -> None:
+    platform, _agency_id, agency_client = _ready_paid_agency()
+    _verify_kyc(agency_client)
+    ReleaseHolds(ledger(), tenant_repo(), _Clock(datetime.now(UTC) + timedelta(days=16))).execute()
+    requested = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 3000, "method_label": "bank ****1111"},
+        HTTP_IDEMPOTENCY_KEY="po-file-1",
+    )
+    assert requested.status_code == 201
+    payout_id = requested.json()["data"]["id"]
+    # minimal valid PNG
+    png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+        b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    uploaded = platform.post(
+        f"/api/v1/platform/payouts/{payout_id}/proof",
+        data={
+            "agency_visible": "true",
+            "file": SimpleUploadedFile("slip.png", png, content_type="image/png"),
+        },
+        HTTP_X_CSRFTOKEN=_csrf(platform),
+    )
+    assert uploaded.status_code == 201, uploaded.json()
+    assert uploaded.json()["data"]["content_type"] == "image/png"
+    assert uploaded.json()["data"]["agency_visible"] is True
+    file_resp = agency_client.get(f"/api/v1/agency/payouts/{payout_id}/proof/file")
+    assert file_resp.status_code == 200
+    assert file_resp["Content-Type"].startswith("image/png")
+
+
+@pytest.mark.django_db
+def test_agency_cannot_fetch_foreign_shared_payout_proof() -> None:
+    platform, _agency_a, agency_a = _ready_paid_agency()
+    other = _create_agency(platform, "Comm B", "comm_b", "oa-comm-b@vokit.test")
+    assert other.status_code == 200
+    agency_b_id = uuid.UUID(other.json()["data"]["id"])
+    _user(
+        "agency-comm-b@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        tenant_id=agency_b_id,
+    )
+    agency_b = _client()
+    _login(agency_b, "agency-comm-b@vokit.test")
+    _verify_kyc(agency_a)
+    ReleaseHolds(ledger(), tenant_repo(), _Clock(datetime.now(UTC) + timedelta(days=16))).execute()
+    requested = _post(
+        agency_a,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 3000, "method_label": "bank ****1111"},
+        HTTP_IDEMPOTENCY_KEY="po-share-foreign",
+    )
+    assert requested.status_code == 201
+    payout_id = requested.json()["data"]["id"]
+    assert (
+        _post(
+            platform,
+            f"/api/v1/platform/payouts/{payout_id}/proof",
+            {
+                "object_ref": f"payout/{payout_id}/proof/x",
+                "content_type": "application/pdf",
+                "checksum": "sha256:xyz",
+            },
+        ).status_code
+        == 201
+    )
+    assert (
+        _patch(
+            platform, f"/api/v1/platform/payouts/{payout_id}/proof", {"agency_visible": True}
+        ).status_code
+        == 200
+    )
+    denied = agency_b.get(f"/api/v1/agency/payouts/{payout_id}/proof")
+    assert denied.status_code == 404
+    assert "object_ref" not in json.dumps(denied.json())
 
 
 @pytest.mark.django_db
@@ -435,3 +541,94 @@ def test_payout_request_succeeds_when_notify_fails(monkeypatch) -> None:
         HTTP_IDEMPOTENCY_KEY="po-notify-fail",
     )
     assert requested.status_code == 201
+
+
+@pytest.mark.django_db
+def test_agency_payout_methods_crud_and_withdraw_dropdown() -> None:
+    _platform, _agency_id, agency_client = _ready_paid_agency()
+    created = _post(
+        agency_client,
+        "/api/v1/agency/payout-methods",
+        {
+            "beneficiary_name": "Acme Agency LLC",
+            "account_identifier": "PK12HABB000123456789",
+            "bank_name": "HBL",
+            "country": "PK",
+            "currency": "USD",
+            "is_default": True,
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["data"]["status"] == "pending"
+    assert created.json()["data"]["account_identifier_masked"].endswith("6789")
+    assert "PK12" not in created.json()["data"]["account_identifier_masked"]
+
+    _verify_kyc(agency_client)
+    usable = _post(
+        agency_client,
+        "/api/v1/agency/payout-methods",
+        {
+            "beneficiary_name": "Acme Agency LLC",
+            "account_identifier": "123456789012",
+            "bank_name": "Meezan",
+            "country": "pk",
+            "is_default": True,
+        },
+    )
+    assert usable.status_code == 201
+    method_id = usable.json()["data"]["id"]
+    assert usable.json()["data"]["status"] == "usable"
+    assert usable.json()["data"]["label"].startswith("Meezan")
+
+    listed = agency_client.get("/api/v1/agency/payout-methods?usable=true")
+    assert listed.status_code == 200
+    assert any(row["id"] == method_id for row in listed.json()["data"])
+
+    ReleaseHolds(ledger(), tenant_repo(), _Clock(datetime.now(UTC) + timedelta(days=16))).execute()
+    requested = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 3000, "payout_method_id": method_id},
+        HTTP_IDEMPOTENCY_KEY="po-method-1",
+    )
+    assert requested.status_code == 201
+    assert "Meezan" in requested.json()["data"]["method_label"]
+
+    foreign = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 1, "payout_method_id": str(uuid.uuid4())},
+        HTTP_IDEMPOTENCY_KEY="po-method-x",
+    )
+    assert foreign.status_code == 404
+
+    disabled = agency_client.delete(
+        f"/api/v1/agency/payout-methods/{method_id}",
+        HTTP_X_CSRFTOKEN=_csrf(agency_client),
+    )
+    assert disabled.status_code == 200
+    assert disabled.json()["data"]["status"] == "disabled"
+    still_listed = agency_client.get("/api/v1/agency/payout-methods")
+    assert still_listed.status_code == 200
+    assert any(
+        row["id"] == method_id and row["status"] == "disabled"
+        for row in still_listed.json()["data"]
+    )
+    blocked = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 1, "payout_method_id": method_id},
+        HTTP_IDEMPOTENCY_KEY="po-method-disabled",
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "payout_method_unusable"
+
+    enabled = _post(
+        agency_client,
+        f"/api/v1/agency/payout-methods/{method_id}",
+        {"action": "enable"},
+    )
+    assert enabled.status_code == 200
+    assert enabled.json()["data"]["status"] == "usable"
+    usable_again = agency_client.get("/api/v1/agency/payout-methods?usable=true")
+    assert any(row["id"] == method_id for row in usable_again.json()["data"])

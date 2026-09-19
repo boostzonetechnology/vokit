@@ -1,20 +1,14 @@
 import { useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/ui/ActionButton";
-import { StatusBadge, type BadgeTone } from "@/components/ui/StatusBadge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
+import { shortId } from "@/features/billing/lib/display";
+import { billingStatusTone } from "@/features/billing/lib/status";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
 import { ApiNote } from "@/features/platform/ux/ApiNote";
 import { usePlatformBilling } from "./hooks/usePlatformBilling";
 import type { BillingTab } from "./types";
-
-function statusTone(status?: string): BadgeTone {
-  const value = (status ?? "").toLowerCase();
-  if (value === "paid" || value === "captured" || value === "succeeded") return "success";
-  if (value === "open" || value === "pending" || value === "processing") return "warning";
-  if (value === "failed" || value === "void" || value === "lost") return "danger";
-  return "neutral";
-}
 
 const TAB_FROM_ROUTE: Record<string, BillingTab> = {
   payments: "payments",
@@ -33,6 +27,8 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
     setSelectedInvoiceId,
     selectedPaymentId,
     setSelectedPaymentId,
+    agencyLabel,
+    customerLabel,
     error,
     loading,
     query,
@@ -102,7 +98,7 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Id, customer, status…"
+              placeholder="Customer, agency, status, id…"
               className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
             />
           </label>
@@ -134,7 +130,7 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
           </h2>
           {loading && payments.length === 0 ? (
             <TableSkeleton
-              headers={["Payment", "Status", "Amount", "Processor", "Invoice"]}
+              headers={["Customer", "Status", "Amount", "Processor", "Invoice"]}
               rows={8}
             />
           ) : payments.length === 0 ? (
@@ -144,7 +140,7 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
               <table className="min-w-full">
                 <thead>
                   <tr className="text-label uppercase text-text-muted">
-                    <th className="border-0 px-2 py-2 text-left">Payment</th>
+                    <th className="border-0 px-2 py-2 text-left">Customer</th>
                     <th className="border-0 px-2 py-2 text-left">Status</th>
                     <th className="border-0 px-2 py-2 text-left">Amount</th>
                     <th className="border-0 px-2 py-2 text-left">Processor</th>
@@ -162,11 +158,14 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
                       }
                       onClick={() => setSelectedPaymentId(row.id)}
                     >
-                      <td className="px-2 py-3 font-semibold text-text-primary">
-                        {row.id.slice(0, 8)}
+                      <td className="px-2 py-3">
+                        <p className="m-0 font-semibold text-text-primary">
+                          {customerLabel(row.customer_id)}
+                        </p>
+                        <p className="m-0 text-body-sm text-text-muted">{shortId(row.id)}</p>
                       </td>
                       <td className="px-2 py-3">
-                        <StatusBadge tone={statusTone(row.status)}>
+                        <StatusBadge tone={billingStatusTone(row.status)}>
                           {row.status || "unknown"}
                         </StatusBadge>
                       </td>
@@ -177,7 +176,7 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
                       </td>
                       <td className="px-2 py-3 text-text-secondary">{row.processor || "—"}</td>
                       <td className="px-2 py-3 text-text-secondary">
-                        {row.invoice_id?.slice(0, 8) || "—"}
+                        {shortId(row.invoice_id)}
                       </td>
                     </tr>
                   ))}
@@ -187,10 +186,14 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
           )}
           {selectedPayment ? (
             <div className="mt-4 grid gap-2 rounded-xl border border-border-default bg-canvas p-4 sm:grid-cols-2">
-              <InfoTile label="Payment id" value={selectedPayment.id} />
-              <InfoTile label="Customer" value={selectedPayment.customer_id || "—"} />
-              <InfoTile label="Agency" value={selectedPayment.agency_id || "—"} />
-              <InfoTile label="Allocation invoice" value={selectedPayment.invoice_id || "—"} />
+              <InfoTile label="Customer" value={customerLabel(selectedPayment.customer_id)} />
+              <InfoTile label="Agency" value={agencyLabel(selectedPayment.agency_id)} />
+              <InfoTile label="Payment id" value={selectedPayment.id} muted />
+              <InfoTile
+                label="Allocation invoice"
+                value={selectedPayment.invoice_id || "—"}
+                muted
+              />
             </div>
           ) : null}
         </article>
@@ -211,7 +214,7 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
           </div>
           {loading && invoices.length === 0 ? (
             <TableSkeleton
-              headers={["Invoice", "Status", "Total", "Customer", "Paid at"]}
+              headers={["Customer", "Status", "Total", "Agency", "Paid at"]}
               rows={8}
             />
           ) : invoices.length === 0 ? (
@@ -221,10 +224,10 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
               <table className="min-w-full">
                 <thead>
                   <tr className="text-label uppercase text-text-muted">
-                    <th className="border-0 px-2 py-2 text-left">Invoice</th>
+                    <th className="border-0 px-2 py-2 text-left">Customer</th>
                     <th className="border-0 px-2 py-2 text-left">Status</th>
                     <th className="border-0 px-2 py-2 text-left">Total</th>
-                    <th className="border-0 px-2 py-2 text-left">Customer</th>
+                    <th className="border-0 px-2 py-2 text-left">Agency</th>
                     <th className="border-0 px-2 py-2 text-left">Paid at</th>
                   </tr>
                 </thead>
@@ -239,11 +242,14 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
                       }
                       onClick={() => setSelectedInvoiceId(row.id)}
                     >
-                      <td className="px-2 py-3 font-semibold text-text-primary">
-                        {row.id.slice(0, 8)}
+                      <td className="px-2 py-3">
+                        <p className="m-0 font-semibold text-text-primary">
+                          {customerLabel(row.customer_id)}
+                        </p>
+                        <p className="m-0 text-body-sm text-text-muted">{shortId(row.id)}</p>
                       </td>
                       <td className="px-2 py-3">
-                        <StatusBadge tone={statusTone(row.status)}>
+                        <StatusBadge tone={billingStatusTone(row.status)}>
                           {row.status || "unknown"}
                         </StatusBadge>
                       </td>
@@ -253,7 +259,7 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
                           : "—"}
                       </td>
                       <td className="px-2 py-3 text-text-secondary">
-                        {row.customer_id?.slice(0, 8) || "—"}
+                        {agencyLabel(row.agency_id)}
                       </td>
                       <td className="px-2 py-3 text-text-secondary">{row.paid_at || "—"}</td>
                     </tr>
@@ -265,8 +271,9 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
           {selectedInvoice ? (
             <div className="mt-4 grid gap-3">
               <div className="grid gap-2 rounded-xl border border-border-default bg-canvas p-4 sm:grid-cols-2">
-                <InfoTile label="Invoice id" value={selectedInvoice.id} />
-                <InfoTile label="Agency" value={selectedInvoice.agency_id || "—"} />
+                <InfoTile label="Customer" value={customerLabel(selectedInvoice.customer_id)} />
+                <InfoTile label="Agency" value={agencyLabel(selectedInvoice.agency_id)} />
+                <InfoTile label="Invoice id" value={selectedInvoice.id} muted />
               </div>
               <ApiNote>
                 Platform can view invoices via GET /api/v1/platform/invoices. Generate/reconcile
@@ -328,14 +335,14 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
                         {row.event_id || "—"}
                       </td>
                       <td className="px-2 py-3">
-                        <StatusBadge tone={statusTone(row.status)}>
+                        <StatusBadge tone={billingStatusTone(row.status)}>
                           {row.status || "unknown"}
                         </StatusBadge>
                       </td>
                       <td className="px-2 py-3 text-text-secondary">{row.kind || "—"}</td>
                       <td className="px-2 py-3 text-text-secondary">{row.processor || "—"}</td>
                       <td className="px-2 py-3 text-text-secondary">
-                        {row.customer_id?.slice(0, 8) || "—"}
+                        {customerLabel(row.customer_id)}
                       </td>
                     </tr>
                   ))}
@@ -358,14 +365,14 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
           <p className="mt-0 mb-4 text-body text-text-secondary">
             Reasoned ledger adjustments must never silently mutate balances.
           </p>
-          <ActionButton disabled title="Use Agencies → Financial for wallet adjust">
+          <ActionButton disabled title="Use Agencies → Financial or Wallet & payouts → Adjustment">
             Create ledger adjustment
           </ActionButton>
           <div className="mt-4">
             <ApiNote>
-              SA12-005: customer invoice ledger adjustments are not exposed. Agency wallet
-              adjustments use POST /api/v1/platform/agencies/{"{id}"}/wallet/adjust (permission:
-              wallet.adjust) from the Agencies financial tab — requires a reason.
+              SA12-005 / SA13-006: agency wallet adjustments use POST
+              /api/v1/platform/agencies/{"{id}"}/wallet/adjust (permission: wallet.adjust) from
+              Agencies → Financial or Wallet & payouts → Adjustment — requires a reason.
             </ApiNote>
           </div>
         </article>
@@ -374,11 +381,27 @@ export function PlatformBillingScreen({ route = "payments" }: { route?: string }
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+function InfoTile({
+  label,
+  value,
+  muted = false,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}) {
   return (
     <div>
       <p className="m-0 text-body-sm text-text-muted">{label}</p>
-      <p className="mt-1 mb-0 break-all font-semibold text-text-primary">{value}</p>
+      <p
+        className={
+          muted
+            ? "mt-1 mb-0 break-all text-body text-text-secondary"
+            : "mt-1 mb-0 break-all font-semibold text-text-primary"
+        }
+      >
+        {value}
+      </p>
     </div>
   );
 }

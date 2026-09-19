@@ -16,6 +16,7 @@ from control_plane.commission.application.ports import (
     PayoutRecord,
     PayoutRepository,
 )
+from control_plane.commission.application.payout_methods import ManageAgencyPayoutMethods
 from control_plane.commission.domain.policies import (
     assert_payout_amount,
     assert_payout_transition,
@@ -59,9 +60,10 @@ def _views(rows: list[LedgerEntryRecord]) -> tuple[LedgerView, ...]:
 class RequestPayoutCommand:
     tenant_id: uuid.UUID
     amount_minor: int
-    method_label: str
     actor_id: uuid.UUID
     idempotency_key: str
+    payout_method_id: uuid.UUID | None = None
+    method_label: str = ""
 
 
 class RequestAgencyPayout:
@@ -73,6 +75,7 @@ class RequestAgencyPayout:
         cases: KycCaseRepository,
         tenants: TenantRepository,
         clock: Clock,
+        methods: ManageAgencyPayoutMethods | None = None,
     ) -> None:
         self._ledger = ledger
         self._payouts = payouts
@@ -80,6 +83,7 @@ class RequestAgencyPayout:
         self._cases = cases
         self._tenants = tenants
         self._clock = clock
+        self._methods = methods
 
     def execute(self, command: RequestPayoutCommand) -> PayoutRecord:
         tenant = self._tenants.get(command.tenant_id)
@@ -92,6 +96,7 @@ class RequestAgencyPayout:
             agency_status=tenant.agency_status,
             capabilities=tenant.capabilities,
         )
+        method_label = self._resolve_method_label(command)
         key = command.idempotency_key.strip()
         if not key:
             raise DomainError("validation_error", "Idempotency-Key is required.")
@@ -115,7 +120,7 @@ class RequestAgencyPayout:
                 amount_minor=amount.minor_units,
                 currency=amount.currency,
                 status=PayoutStatus.REQUESTED,
-                method_label=command.method_label.strip()[:64] or "bank",
+                method_label=method_label,
                 transaction_ref="",
                 receipt_number="",
                 requested_by_id=command.actor_id,
@@ -153,6 +158,18 @@ class RequestAgencyPayout:
             payout_id=str(payout_id),
         )
         return payout
+
+    def _resolve_method_label(self, command: RequestPayoutCommand) -> str:
+        if command.payout_method_id is not None:
+            if self._methods is None:
+                raise DomainError("validation_error", "Payout method is required.")
+            method = self._methods.require_usable(
+                command.tenant_id, command.payout_method_id
+            )
+            return method.label[:64]
+        label = command.method_label.strip()[:64]
+        # Legacy callers may omit method fields; FE sends payout_method_id.
+        return label or "bank"
 
 
 @dataclass(frozen=True, slots=True)
@@ -297,7 +314,10 @@ class UploadPayoutProof:
         checksum = command.checksum.strip()
         content_type = command.content_type.strip() or "application/octet-stream"
         if not object_ref or not checksum:
-            raise DomainError("validation_error", "object_ref and checksum are required.")
+            raise DomainError(
+                "validation_error",
+                "Upload a proof image/PDF, or provide object_ref and checksum.",
+            )
         if object_ref.startswith("http://") or object_ref.startswith("https://"):
             raise DomainError("validation_error", "Proof must be an object reference.")
         existing = self._proofs.get(payout.id)
@@ -309,6 +329,9 @@ class UploadPayoutProof:
             content_type=content_type[:128],
             checksum=checksum[:128],
             uploaded_by_id=command.actor_id,
+            agency_visible=False,
+            agency_visible_at=None,
+            agency_visible_by=None,
         )
         self._proofs.create(record)
         log_event(
@@ -319,6 +342,62 @@ class UploadPayoutProof:
             payout_id=str(payout.id),
         )
         return record
+
+
+@dataclass(frozen=True, slots=True)
+class SetProofAgencyVisibilityCommand:
+    payout_id: uuid.UUID
+    agency_visible: bool
+    actor_id: uuid.UUID
+
+
+class SetProofAgencyVisibility:
+    """Per-payout share of private proof with the owning agency (TL exception to BR-009)."""
+
+    def __init__(
+        self,
+        payouts: PayoutRepository,
+        proofs: PayoutProofRepository,
+        clock: Clock,
+    ) -> None:
+        self._payouts = payouts
+        self._proofs = proofs
+        self._clock = clock
+
+    def execute(self, command: SetProofAgencyVisibilityCommand) -> PayoutProofRecord:
+        payout = self._payouts.get(command.payout_id)
+        if payout is None:
+            raise payout_not_found()
+        existing = self._proofs.get(payout.id)
+        if existing is None:
+            raise DomainError(
+                "payout_proof_required",
+                "Upload proof before sharing with the agency.",
+                http_status=409,
+            )
+        if bool(existing.agency_visible) is bool(command.agency_visible):
+            return existing
+        now = self._clock.now()
+        updated = PayoutProofRecord(
+            payout_id=existing.payout_id,
+            object_ref=existing.object_ref,
+            content_type=existing.content_type,
+            checksum=existing.checksum,
+            uploaded_by_id=existing.uploaded_by_id,
+            agency_visible=bool(command.agency_visible),
+            agency_visible_at=now if command.agency_visible else None,
+            agency_visible_by=command.actor_id if command.agency_visible else None,
+        )
+        self._proofs.update(updated)
+        log_event(
+            logger,
+            "payout.proof.agency_visibility",
+            outcome="success",
+            tenant_id=str(payout.tenant_id),
+            payout_id=str(payout.id),
+            agency_visible=bool(command.agency_visible),
+        )
+        return updated
 
 
 def _money_entry(
