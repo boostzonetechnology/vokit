@@ -25,10 +25,13 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
     resources,
     error,
     message,
+    actionError,
+    lastChange,
     loading,
     busy,
     setStatus,
     assignPlan,
+    changePlan,
     inviteCustomerUser,
   } = useAgencyCustomerDetail(customerId);
 
@@ -40,6 +43,12 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     await assignPlan(String(form.get("plan_version_id") || ""));
+  }
+
+  async function onChangePlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await changePlan(String(form.get("plan_version_id") || ""));
   }
 
   async function onInvite(event: FormEvent<HTMLFormElement>) {
@@ -128,9 +137,9 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
-              {detail.display_name || detail.id.slice(0, 8)}
+              {detail.display_name || "Customer"}
             </h1>
-            <p className="mt-1 mb-0 text-body text-text-muted">{detail.id}</p>
+            <p className="mt-1 mb-0 text-body text-text-muted">Agency customer workspace</p>
           </div>
           <StatusBadge tone={customerStatusTone(detail.status)}>
             {detail.status || "unknown"}
@@ -138,6 +147,11 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
         </div>
       </div>
 
+      {actionError ? (
+        <p className="mb-4 text-body text-danger" role="alert">
+          {actionError}
+        </p>
+      ) : null}
       {message ? (
         <p className="mb-4 text-body text-text-brand" role="status">
           {message}
@@ -163,19 +177,29 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
 
       <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
         {tab === "overview" ? (
-          <div className="grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <InfoTile label="Status" value={detail.status || "—"} />
-              <InfoTile label="Owner email" value={detail.owner_email || "—"} />
-              <InfoTile label="Legal name" value={detail.legal_name || "—"} />
-              <InfoTile label="Phone" value={detail.phone || "—"} />
-              <InfoTile label="Country" value={detail.country || "—"} />
-              <InfoTile label="Timezone" value={detail.timezone || "—"} />
-            </div>
-            <ApiNote>
-              AG2-003: Profile fields are shown read-only. PATCH profile is not available on the
-              agency customer API yet. Service status changes use the Status tab.
-            </ApiNote>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <InfoTile label="Status" value={detail.status || "—"} />
+            <InfoTile label="Owner email" value={detail.owner_email || "—"} />
+            <InfoTile label="Legal name" value={detail.legal_name || "—"} />
+            <InfoTile label="Phone" value={detail.phone || "—"} />
+            <InfoTile label="Country" value={detail.country || "—"} />
+            <InfoTile label="Timezone" value={detail.timezone || "—"} />
+            <InfoTile
+              label="Remaining minutes"
+              value={
+                typeof detail.remaining_minutes === "number"
+                  ? String(detail.remaining_minutes)
+                  : "—"
+              }
+            />
+            <InfoTile
+              label="Plan"
+              value={
+                detail.subscription
+                  ? `${detail.subscription.plan_name || "Plan"} v${detail.subscription.plan_version ?? "—"}`
+                  : "None"
+              }
+            />
           </div>
         ) : null}
 
@@ -207,10 +231,22 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
                   value={String(detail.subscription.plan_version ?? "—")}
                 />
                 <InfoTile label="Status" value={detail.subscription.status || "—"} />
+                <InfoTile
+                  label="Included minutes"
+                  value={String(detail.subscription.included_minutes ?? "—")}
+                />
+                <InfoTile
+                  label="Remaining minutes"
+                  value={
+                    typeof detail.remaining_minutes === "number"
+                      ? String(detail.remaining_minutes)
+                      : "—"
+                  }
+                />
               </div>
             ) : (
               <p className="m-0 text-body text-text-muted">
-                No subscription on detail payload. First-time assign creates an invoice.
+                No subscription yet. First assign creates an invoice.
               </p>
             )}
 
@@ -236,15 +272,44 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
                 </ActionButton>
               </form>
             ) : (
-              <ApiNote>
-                Plan change after first assign is not available yet (same gap as platform SA3).
-              </ApiNote>
+              <form
+                className="grid gap-3 sm:grid-cols-[1.4fr_auto] sm:items-end"
+                onSubmit={(e) => void onChangePlan(e)}
+              >
+                <FormSelect
+                  label="Change to plan version"
+                  name="plan_version_id"
+                  required
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Select target version
+                  </option>
+                  {planVersions
+                    .filter((row) => row.id !== detail.subscription?.plan_version_id)
+                    .map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.plan_name} v{row.version} ·{" "}
+                        {formatMoneyMinor(row.price_minor ?? 0, row.currency || "USD")} ·{" "}
+                        {row.included_minutes ?? 0} min
+                      </option>
+                    ))}
+                </FormSelect>
+                <ActionButton type="submit" disabled={busy || planVersions.length === 0}>
+                  Change plan
+                </ActionButton>
+              </form>
             )}
 
-            <ApiNote>
-              GET /agency/customers/{"{id}"}/subscription and usage are not exposed. Remaining
-              minutes are not shown here.
-            </ApiNote>
+            {lastChange?.invoice ? (
+              <p className="m-0 rounded-xl border border-border-default bg-canvas px-3.5 py-3 text-body text-text-secondary">
+                Upgrade invoice {lastChange.invoice.status || "open"} ·{" "}
+                {formatMoneyMinor(
+                  lastChange.invoice.total_minor ?? 0,
+                  lastChange.invoice.currency || "USD",
+                )}
+              </p>
+            ) : null}
           </div>
         ) : null}
 

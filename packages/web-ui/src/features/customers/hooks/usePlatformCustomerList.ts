@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { apiGet, isApiError } from "@/api";
-import { asList } from "@/features/platform/lib/list";
-import type { AgencyOption, CustomerRecord } from "@/features/customers/types";
+import {
+  listAgencyOptions,
+  listPlatformCustomers,
+} from "@/features/customers/services/customer.service";
+import { mapCustomerError, type AgencyOption, type CustomerRecord } from "@/features/customers/types";
 
 export function usePlatformCustomerList(filters: {
   agencyId: string;
@@ -17,28 +19,19 @@ export function usePlatformCustomerList(filters: {
   const reloadList = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filters.agencyId) params.set("agency_id", filters.agencyId);
-      if (filters.status) params.set("status", filters.status);
-      if (filters.query.trim()) params.set("q", filters.query.trim());
-      const qs = params.toString();
-      const path = qs ? `/api/v1/platform/customers?${qs}` : "/api/v1/platform/customers";
-
       const [customerRows, agencyRows] = await Promise.all([
-        asList<CustomerRecord>(await apiGet<unknown>(path)),
-        (async () => {
-          try {
-            return asList<AgencyOption>(await apiGet<unknown>("/api/v1/platform/agencies"));
-          } catch {
-            return [] as AgencyOption[];
-          }
-        })(),
+        listPlatformCustomers({
+          agencyId: filters.agencyId,
+          status: filters.status,
+          query: filters.query,
+        }),
+        listAgencyOptions(),
       ]);
       setCustomers(customerRows);
       setAgencies(agencyRows);
       setError("");
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Failed to load customers.");
+      setError(mapCustomerError(cause, "Failed to load customers."));
     } finally {
       setLoading(false);
     }

@@ -97,7 +97,7 @@ export function PlatformCustomersScreen() {
 
         {loading && customers.length === 0 ? (
           <TableSkeleton
-            headers={["Customer", "Agency", "Status", "Updated"]}
+            headers={["Customer", "Agency", "Status", "Plan", "Minutes", "Updated"]}
             rows={8}
           />
         ) : customers.length === 0 ? (
@@ -117,6 +117,8 @@ export function PlatformCustomersScreen() {
                   <th className="border-0 px-2 py-2 text-left">Customer</th>
                   <th className="border-0 px-2 py-2 text-left">Agency</th>
                   <th className="border-0 px-2 py-2 text-left">Status</th>
+                  <th className="border-0 px-2 py-2 text-left">Plan</th>
+                  <th className="border-0 px-2 py-2 text-left">Minutes</th>
                   <th className="border-0 px-2 py-2 text-left">Updated</th>
                   <th className="border-0 px-2 py-2 text-left">
                     <span className="sr-only">Open</span>
@@ -130,17 +132,22 @@ export function PlatformCustomersScreen() {
                     className="cursor-pointer hover:bg-canvas"
                     onClick={() => navigate(customerDetailHref(row.id))}
                   >
-                    <td className="px-2 py-3">
-                      <p className="m-0 font-semibold text-text-primary">
-                        {row.display_name || row.id.slice(0, 8)}
-                      </p>
-                      <p className="m-0 text-body-sm text-text-muted">{row.id.slice(0, 8)}</p>
+                    <td className="px-2 py-3 font-semibold text-text-primary">
+                      {row.display_name || "Customer"}
                     </td>
                     <td className="px-2 py-3 text-text-secondary">{agencyName(row.agency_id)}</td>
                     <td className="px-2 py-3">
                       <StatusBadge tone={customerStatusTone(row.status)}>
                         {row.status || "unknown"}
                       </StatusBadge>
+                    </td>
+                    <td className="px-2 py-3 text-text-secondary">
+                      {row.plan_name
+                        ? `${row.plan_name}${row.plan_version != null ? ` v${row.plan_version}` : ""}`
+                        : "—"}
+                    </td>
+                    <td className="px-2 py-3 text-text-secondary">
+                      {typeof row.remaining_minutes === "number" ? row.remaining_minutes : "—"}
                     </td>
                     <td className="px-2 py-3 text-text-secondary">
                       {row.updated_at || row.created_at

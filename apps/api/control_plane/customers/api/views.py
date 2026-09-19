@@ -81,6 +81,56 @@ def _index_payload(row) -> dict[str, object]:
     }
 
 
+def _subscription_dict(view) -> dict[str, object]:
+    sub = view.subscription
+    return {
+        "id": str(sub.subscription_id),
+        "plan_id": str(sub.plan_id),
+        "plan_version_id": str(sub.plan_version_id),
+        "plan_name": view.plan_name,
+        "plan_version": view.plan_version,
+        "status": sub.status.value,
+        "included_minutes": view.included_minutes,
+        "period_end": view.period_end.isoformat() if view.period_end else None,
+        "pending_kind": sub.pending_kind,
+        "pending_effective_at": sub.pending_effective_at.isoformat()
+        if sub.pending_effective_at
+        else None,
+    }
+
+
+def _directory_payload(row) -> dict[str, object]:
+    """Platform directory row: index fields + usage/subscription summary for the page slice."""
+    payload = _index_payload(row)
+    usage = get_customer_usage().execute(row.id)
+    payload["remaining_minutes"] = usage.remaining_minutes
+    subscription = get_customer_subscription().execute(row.id)
+    if subscription is not None:
+        payload["plan_name"] = subscription.plan_name
+        payload["plan_version"] = subscription.plan_version
+        payload["subscription_status"] = subscription.subscription.status.value
+    else:
+        payload["plan_name"] = None
+        payload["plan_version"] = None
+        payload["subscription_status"] = None
+    return payload
+
+
+def _enrich_customer_detail(
+    payload: dict[str, object], customer_id, tenant_id
+) -> dict[str, object]:
+    usage = get_customer_usage().execute(customer_id)
+    payload["remaining_minutes"] = usage.remaining_minutes
+    view = get_customer_subscription().execute(customer_id)
+    payload["subscription"] = _subscription_dict(view) if view else None
+    payload["payment_due"] = _live_payment_due(
+        tenant_id,
+        customer_id,
+        view.subscription if view else None,
+    )
+    return payload
+
+
 def _parse_time(raw: object, field: str) -> datetime | None:
     if raw in (None, ""):
         return None
@@ -167,7 +217,7 @@ class PlatformCustomerCollectionView(CsrfAPIView):
             ),
         )
         sliced, page = page_slice(rows, offset, limit)
-        return success([_index_payload(row) for row in sliced], page=page)
+        return success([_directory_payload(row) for row in sliced], page=page)
 
     def post(self, request: Request) -> Response:
         context = require_platform_perm(request, "customer.create")
@@ -203,28 +253,11 @@ class PlatformCustomerDetailView(CsrfAPIView):
         row = lifecycle().get_customer(indexed.tenant_id, identifier)
         if row is None:
             return success(_index_payload(indexed))
-        payload = _customer_payload(row)
-        usage = get_customer_usage().execute(identifier)
-        payload["remaining_minutes"] = usage.remaining_minutes
-        subscription = get_customer_subscription().execute(identifier)
-        payload["payment_due"] = _live_payment_due(
-            indexed.tenant_id,
-            identifier,
-            subscription.subscription if subscription is not None else None,
+        return success(
+            _enrich_customer_detail(
+                _customer_payload(row), identifier, indexed.tenant_id
+            )
         )
-        if subscription is not None:
-            payload["subscription"] = {
-                "id": str(subscription.subscription.subscription_id),
-                "plan_id": str(subscription.subscription.plan_id),
-                "plan_version_id": str(subscription.subscription.plan_version_id),
-                "plan_name": subscription.plan_name,
-                "plan_version": subscription.plan_version,
-                "status": subscription.subscription.status.value,
-                "included_minutes": subscription.included_minutes,
-            }
-        else:
-            payload["subscription"] = None
-        return success(payload)
 
     def patch(self, request: Request, customer_id: str) -> Response:
         context = require_platform_perm(request, "customer.update")
@@ -387,34 +420,13 @@ class AgencyCustomerDetailView(CsrfAPIView):
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         parse_optional_uuid(request.query_params.get("tenant_id"), field="tenant_id")
-        row = lifecycle().get_customer(
-            tenant_id, parse_uuid(customer_id, field="customer_id")
-        )
+        identifier = parse_uuid(customer_id, field="customer_id")
+        row = lifecycle().get_customer(tenant_id, identifier)
         if row is None:
             raise customer_not_found()
-        payload = _customer_payload(row)
-        identifier = row.customer_id
-        usage = get_customer_usage().execute(identifier)
-        payload["remaining_minutes"] = usage.remaining_minutes
-        subscription = get_customer_subscription().execute(identifier)
-        payload["payment_due"] = _live_payment_due(
-            tenant_id,
-            identifier,
-            subscription.subscription if subscription is not None else None,
+        return success(
+            _enrich_customer_detail(_customer_payload(row), identifier, tenant_id)
         )
-        if subscription is not None:
-            payload["subscription"] = {
-                "id": str(subscription.subscription.subscription_id),
-                "plan_id": str(subscription.subscription.plan_id),
-                "plan_version_id": str(subscription.subscription.plan_version_id),
-                "plan_name": subscription.plan_name,
-                "plan_version": subscription.plan_version,
-                "status": subscription.subscription.status.value,
-                "included_minutes": subscription.included_minutes,
-            }
-        else:
-            payload["subscription"] = None
-        return success(payload)
 
     def patch(self, request: Request, customer_id: str) -> Response:
         context = require_agency_perm(request, "customer.update")

@@ -1,7 +1,13 @@
 import { useState } from "react";
 
-import { apiSend, isApiError } from "@/api";
-import type { AgencyCreateCustomerInput, CustomerRecord } from "@/features/customers/types";
+import {
+  createAgencyCustomer,
+} from "@/features/customers/services/customer.service";
+import {
+  mapCustomerError,
+  type AgencyCreateCustomerInput,
+  type CustomerRecord,
+} from "@/features/customers/types";
 
 export function useCreateAgencyCustomer() {
   const [error, setError] = useState("");
@@ -11,7 +17,7 @@ export function useCreateAgencyCustomer() {
     setBusy(true);
     setError("");
     try {
-      const body: Record<string, string> = {
+      const body: AgencyCreateCustomerInput = {
         display_name: input.display_name,
         owner_email: input.owner_email,
       };
@@ -19,9 +25,9 @@ export function useCreateAgencyCustomer() {
       if (input.phone) body.phone = input.phone;
       if (input.country) body.country = input.country;
       if (input.timezone) body.timezone = input.timezone;
-      return await apiSend<CustomerRecord>("/api/v1/agency/customers", "POST", body);
+      return await createAgencyCustomer(body);
     } catch (cause) {
-      setError(isApiError(cause) ? cause.message : "Create customer failed.");
+      setError(mapCustomerError(cause, "Create customer failed."));
       throw cause;
     } finally {
       setBusy(false);

@@ -320,6 +320,71 @@ def test_get_subscription_before_and_after_assign() -> None:
 
 
 @pytest.mark.django_db
+def test_platform_customer_directory_list_includes_usage_and_plan_fields() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "SA3 Dir", "oa-sa3dir@vokit.test")
+    created = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(agency["id"], "Directory Co"),
+    )
+    assert created.status_code == 201
+    customer_id = created.json()["data"]["id"]
+    listed = platform.get(f"/api/v1/platform/customers?agency_id={agency['id']}")
+    assert listed.status_code == 200
+    rows = listed.json()["data"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["id"] == customer_id
+    assert "updated_at" in row
+    assert "remaining_minutes" in row
+    assert row["remaining_minutes"] == 0
+    assert row["plan_name"] is None
+    assert row["plan_version"] is None
+    assert row["subscription_status"] is None
+
+    plan = _post(
+        platform,
+        "/api/v1/platform/plans",
+        {
+            "name": "Dir Plan",
+            "price_minor": 1000,
+            "included_minutes": 20,
+            "allow_topups": False,
+            "topup_minutes": 0,
+            "topup_price_minor": 0,
+            "overage_enabled": False,
+            "overage_price_per_minute_minor": 0,
+            "grace_seconds": 0,
+        },
+    )
+    version_id = plan.json()["data"]["versions"][0]["id"]
+    assigned = _post(
+        platform,
+        f"/api/v1/platform/customers/{customer_id}/subscription",
+        {"plan_version_id": version_id},
+    )
+    assert assigned.status_code == 201
+    credited = _post(
+        platform,
+        f"/api/v1/platform/customers/{customer_id}/minutes-adjustment",
+        {"minutes": 12, "reason": "directory credit"},
+    )
+    assert credited.status_code == 201
+
+    listed_after = platform.get(f"/api/v1/platform/customers?agency_id={agency['id']}")
+    assert listed_after.status_code == 200
+    enriched = listed_after.json()["data"][0]
+    assert enriched["remaining_minutes"] == 12
+    assert enriched["plan_name"] == "Dir Plan"
+    assert enriched["plan_version"] == 1
+    assert enriched["subscription_status"] is not None
+    assert enriched["updated_at"] is not None
+
+
+@pytest.mark.django_db
 def test_owner_conflict_on_duplicate_membership_email() -> None:
     _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
     platform = _client()

@@ -15,7 +15,6 @@ import { customersListHref } from "@/features/customers/lib/routes";
 import { customerStatusTone } from "@/features/customers/lib/status";
 import { CUSTOMER_STATUS_ACTIONS } from "@/features/customers/types";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
-import { ApiNote } from "@/features/platform/ux/ApiNote";
 
 type Tab = "overview" | "minutes" | "plan" | "status";
 
@@ -27,10 +26,13 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
     agencyLabel,
     error,
     message,
+    actionError,
+    lastChange,
     loading,
     busy,
     setStatus,
     assignPlan,
+    changePlan,
     adjustMinutes,
   } = usePlatformCustomerDetail(customerId);
 
@@ -42,6 +44,12 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     await assignPlan(String(form.get("plan_version_id") || ""));
+  }
+
+  async function onChangePlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    await changePlan(String(form.get("plan_version_id") || ""));
   }
 
   async function onAdjustMinutes(event: FormEvent<HTMLFormElement>) {
@@ -129,9 +137,7 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
             <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
               {detail.display_name || detail.id.slice(0, 8)}
             </h1>
-            <p className="mt-1 mb-0 text-body text-text-muted">
-              {agencyLabel} · {detail.id}
-            </p>
+            <p className="mt-1 mb-0 text-body text-text-muted">{agencyLabel}</p>
           </div>
           <StatusBadge tone={customerStatusTone(detail.status)}>
             {detail.status || "unknown"}
@@ -139,6 +145,11 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
         </div>
       </div>
 
+      {actionError ? (
+        <p className="mb-4 text-body text-danger" role="alert">
+          {actionError}
+        </p>
+      ) : null}
       {message ? (
         <p className="mb-4 text-body text-text-brand" role="status">
           {message}
@@ -262,6 +273,26 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
                   label="Included minutes"
                   value={String(subscription.included_minutes ?? "—")}
                 />
+                <InfoTile
+                  label="Period end"
+                  value={
+                    subscription.period_end
+                      ? new Date(subscription.period_end).toLocaleString()
+                      : "—"
+                  }
+                />
+                <InfoTile
+                  label="Pending change"
+                  value={
+                    subscription.pending_kind
+                      ? `${subscription.pending_kind}${
+                          subscription.pending_effective_at
+                            ? ` · ${new Date(subscription.pending_effective_at).toLocaleDateString()}`
+                            : ""
+                        }`
+                      : "None"
+                  }
+                />
               </div>
             ) : (
               <p className="m-0 text-body text-text-muted">No active subscription.</p>
@@ -289,16 +320,47 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
                 </ActionButton>
               </form>
             ) : (
-              <ApiNote>
-                Plan change / version switch is not available yet. First-time assign only.
-              </ApiNote>
+              <form
+                className="grid gap-3 sm:grid-cols-[1.4fr_auto] sm:items-end"
+                onSubmit={(e) => void onChangePlan(e)}
+              >
+                <FormSelect label="Change to plan version" name="plan_version_id" required defaultValue="">
+                  <option value="" disabled>
+                    Select target version
+                  </option>
+                  {planVersions
+                    .filter((row) => row.id !== subscription?.plan_version_id)
+                    .map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.plan_name} v{row.version} ·{" "}
+                        {formatMoneyMinor(row.price_minor ?? 0, row.currency || "USD")} ·{" "}
+                        {row.included_minutes ?? 0} min
+                      </option>
+                    ))}
+                </FormSelect>
+                <ActionButton type="submit" disabled={busy || planVersions.length === 0}>
+                  Change plan
+                </ActionButton>
+              </form>
             )}
 
-            {planVersions.length === 0 && !hasSubscription ? (
-              <ApiNote>
-                No plan versions loaded. Check plans.manage permission and published plans.
-              </ApiNote>
+            {lastChange?.invoice ? (
+              <p className="m-0 rounded-xl border border-border-default bg-canvas px-3.5 py-3 text-body text-text-secondary">
+                Upgrade invoice {lastChange.invoice.status || "open"} ·{" "}
+                {formatMoneyMinor(
+                  lastChange.invoice.total_minor ?? 0,
+                  lastChange.invoice.currency || "USD",
+                )}
+                {lastChange.invoice.due_at
+                  ? ` · due ${new Date(lastChange.invoice.due_at).toLocaleString()}`
+                  : ""}
+              </p>
             ) : null}
+
+            <p className="m-0 text-body-sm text-text-muted">
+              Higher price = upgrade invoice (pay to apply). Lower price or tighter caps = downgrade
+              at period end when extras fit. Same version is rejected.
+            </p>
           </div>
         ) : null}
 

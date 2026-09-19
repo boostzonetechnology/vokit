@@ -16,6 +16,7 @@ from control_plane.billing.domain.proration import period_end
 from control_plane.risk.domain.types import AgentStatus
 from control_plane.telephony.domain.call_types import CallStatus
 from control_plane.telephony.domain.types import AssignmentStatus
+from shared_kernel.time import ensure_utc
 from tenant.agents.service import TenantAgentService
 from tenant.billing.domain import SubscriptionRecord
 from tenant.billing.service import TenantBillingService
@@ -23,7 +24,8 @@ from tenant.numbers.service import TenantNumberService
 
 
 def period_started(subscription: SubscriptionRecord):
-    return subscription.period_started_at or subscription.created_at
+    start = subscription.period_started_at or subscription.created_at
+    return ensure_utc(start) if start is not None else None
 
 
 def clear_pending(subscription: SubscriptionRecord, *, now) -> SubscriptionRecord:
@@ -47,7 +49,7 @@ def apply_due_plan_change(
         return subscription
     effective = subscription.pending_effective_at
     target_id = subscription.pending_plan_version_id
-    if effective is None or target_id is None or effective > now:
+    if effective is None or target_id is None or ensure_utc(effective) > now:
         return subscription
     target = versions.get(target_id)
     if target is None:

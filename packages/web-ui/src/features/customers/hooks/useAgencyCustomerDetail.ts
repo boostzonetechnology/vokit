@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { apiGet, apiSend, isApiError } from "@/api";
-import { asList } from "@/features/platform/lib/list";
-import type {
-  CustomerRecord,
-  CustomerResourceBundle,
-  PlanVersionOption,
+import { apiSend } from "@/api";
+import {
+  assignAgencySubscription,
+  changeAgencySubscription,
+  getAgencyCustomer,
+  listAgencyPlanVersions,
+  safeListRows,
+  setAgencyCustomerStatus,
+} from "@/features/customers/services/customer.service";
+import {
+  mapCustomerError,
+  type CustomerRecord,
+  type CustomerResourceBundle,
+  type PlanVersionOption,
+  type SubscriptionChangeResult,
 } from "@/features/customers/types";
-
-async function safeGet<T>(path: string): Promise<T[]> {
-  try {
-    return asList<T>(await apiGet<unknown>(path));
-  } catch {
-    return [];
-  }
-}
 
 const EMPTY_RESOURCES: CustomerResourceBundle = {
   agents: [],
@@ -31,6 +32,8 @@ export function useAgencyCustomerDetail(customerId: string) {
   const [resources, setResources] = useState<CustomerResourceBundle>(EMPTY_RESOURCES);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [lastChange, setLastChange] = useState<SubscriptionChangeResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -43,55 +46,52 @@ export function useAgencyCustomerDetail(customerId: string) {
     setLoading(true);
     setError("");
     try {
-      const [customer, planRows, agentRows, numberRows, callRows, knowledgeRows, integrationRows, invoiceRows] =
-        await Promise.all([
-          apiGet<CustomerRecord>(`/api/v1/agency/customers/${id}`),
-          safeGet<Record<string, unknown>>("/api/v1/agency/plans"),
-          safeGet<{ id: string; display_name?: string; status?: string; customer_id?: string }>(
-            `/api/v1/agency/agents?customer_id=${encodeURIComponent(id)}`,
-          ),
-          safeGet<{ id: string; e164?: string; status?: string; assigned_customer_id?: string; customer_id?: string }>(
-            "/api/v1/agency/phone-numbers",
-          ),
-          safeGet<{
-            id: string;
-            status?: string;
-            billed_minutes?: number;
-            started_at?: string | null;
-            customer_id?: string;
-          }>("/api/v1/agency/calls"),
-          safeGet<{ id: string; title?: string; name?: string; status?: string; customer_id?: string }>(
-            "/api/v1/agency/knowledge",
-          ),
-          safeGet<{ id: string; provider?: string; status?: string; customer_id?: string }>(
-            "/api/v1/agency/integrations",
-          ),
-          safeGet<{ id: string; status?: string; total_minor?: number; currency?: string }>(
-            `/api/v1/agency/customer-invoices?customer_id=${encodeURIComponent(id)}`,
-          ),
-        ]);
+      const [
+        customer,
+        versions,
+        agentRows,
+        numberRows,
+        callRows,
+        knowledgeRows,
+        integrationRows,
+        invoiceRows,
+      ] = await Promise.all([
+        getAgencyCustomer(id),
+        listAgencyPlanVersions(),
+        safeListRows<{ id: string; display_name?: string; status?: string; customer_id?: string }>(
+          `/api/v1/agency/agents?customer_id=${encodeURIComponent(id)}`,
+        ),
+        safeListRows<{
+          id: string;
+          e164?: string;
+          status?: string;
+          assigned_customer_id?: string;
+          customer_id?: string;
+        }>("/api/v1/agency/phone-numbers"),
+        safeListRows<{
+          id: string;
+          status?: string;
+          billed_minutes?: number;
+          started_at?: string | null;
+          customer_id?: string;
+        }>("/api/v1/agency/calls"),
+        safeListRows<{
+          id: string;
+          title?: string;
+          name?: string;
+          status?: string;
+          customer_id?: string;
+        }>("/api/v1/agency/knowledge"),
+        safeListRows<{ id: string; provider?: string; status?: string; customer_id?: string }>(
+          "/api/v1/agency/integrations",
+        ),
+        safeListRows<{ id: string; status?: string; total_minor?: number; currency?: string }>(
+          `/api/v1/agency/customer-invoices?customer_id=${encodeURIComponent(id)}`,
+        ),
+      ]);
 
       setDetail(customer);
-
-      const versions: PlanVersionOption[] = [];
-      for (const plan of planRows) {
-        const planName = String(plan.name || plan.id || "Plan");
-        const planId = String(plan.id || "");
-        const nested = asList<Record<string, unknown>>(plan.versions, ["versions", "items"]);
-        for (const version of nested) {
-          versions.push({
-            id: String(version.id),
-            plan_id: planId,
-            plan_name: planName,
-            version: Number(version.version ?? 0),
-            price_minor: Number(version.price_minor ?? 0),
-            included_minutes: Number(version.included_minutes ?? 0),
-            currency: String(version.currency || "USD"),
-          });
-        }
-      }
       setPlanVersions(versions);
-
       setResources({
         agents: agentRows,
         numbers: numberRows.filter(
@@ -105,7 +105,7 @@ export function useAgencyCustomerDetail(customerId: string) {
     } catch (cause) {
       setDetail(null);
       setResources(EMPTY_RESOURCES);
-      setError(isApiError(cause) ? cause.message : "Failed to load customer detail.");
+      setError(mapCustomerError(cause, "Failed to load customer detail."));
     } finally {
       setLoading(false);
     }
@@ -115,43 +115,66 @@ export function useAgencyCustomerDetail(customerId: string) {
     void loadDetail(customerId);
   }, [customerId, loadDetail]);
 
-  async function setStatus(action: string, reason: string) {
+  function beginAction() {
     setBusy(true);
     setMessage("");
+    setActionError("");
+  }
+
+  async function setStatus(action: string, reason: string) {
+    beginAction();
     try {
-      const updated = await apiSend<CustomerRecord>(
-        `/api/v1/agency/customers/${customerId}/status`,
-        "POST",
-        { action, reason },
-      );
+      const updated = await setAgencyCustomerStatus(customerId, {
+        action,
+        reason: reason || undefined,
+      });
       setDetail(updated);
-      setMessage(`Status updated: ${action}`);
+      setMessage(`Status updated: ${action.replaceAll("_", " ")}`);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Status update failed.");
+      setActionError(mapCustomerError(cause, "Status update failed."));
     } finally {
       setBusy(false);
     }
   }
 
   async function assignPlan(plan_version_id: string) {
-    setBusy(true);
-    setMessage("");
+    beginAction();
     try {
-      await apiSend(`/api/v1/agency/customers/${customerId}/subscription`, "POST", {
-        plan_version_id,
-      });
-      setMessage("Plan assigned. Refresh detail after payment settlement if needed.");
+      await assignAgencySubscription(customerId, plan_version_id);
+      setLastChange(null);
+      setMessage("Plan assigned. Invoice generated for first assign.");
       await loadDetail(customerId);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Plan assignment failed.");
+      setActionError(mapCustomerError(cause, "Plan assignment failed."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changePlan(plan_version_id: string) {
+    beginAction();
+    try {
+      const result = await changeAgencySubscription(customerId, plan_version_id);
+      setLastChange(result);
+      if (result.kind === "upgrade" && result.invoice) {
+        setMessage(
+          `Upgrade queued. Invoice total ${result.invoice.total_minor ?? 0} ${result.invoice.currency || "USD"}.`,
+        );
+      } else if (result.kind === "downgrade") {
+        setMessage("Downgrade scheduled for period end when extras fit.");
+      } else {
+        setMessage(`Plan change applied (${result.kind || "ok"}).`);
+      }
+      await loadDetail(customerId);
+    } catch (cause) {
+      setActionError(mapCustomerError(cause, "Plan change failed."));
     } finally {
       setBusy(false);
     }
   }
 
   async function inviteCustomerUser(email: string, role: string) {
-    setBusy(true);
-    setMessage("");
+    beginAction();
     try {
       await apiSend("/api/v1/agency/team", "POST", {
         email,
@@ -160,7 +183,7 @@ export function useAgencyCustomerDetail(customerId: string) {
       });
       setMessage(`Invite sent to ${email} (${role}).`);
     } catch (cause) {
-      setMessage(isApiError(cause) ? cause.message : "Invite failed.");
+      setActionError(mapCustomerError(cause, "Invite failed."));
       throw cause;
     } finally {
       setBusy(false);
@@ -173,10 +196,13 @@ export function useAgencyCustomerDetail(customerId: string) {
     resources,
     error,
     message,
+    actionError,
+    lastChange,
     loading,
     busy,
     setStatus,
     assignPlan,
+    changePlan,
     inviteCustomerUser,
   };
 }

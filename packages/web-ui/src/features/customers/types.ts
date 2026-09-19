@@ -6,6 +6,12 @@ export type CustomerSubscription = {
   plan_version?: number;
   status?: string;
   included_minutes?: number;
+  period_started_at?: string | null;
+  period_end?: string | null;
+  pending_kind?: string | null;
+  pending_plan_version_id?: string | null;
+  pending_invoice_id?: string | null;
+  pending_effective_at?: string | null;
 };
 
 export type MinuteLot = {
@@ -33,6 +39,9 @@ export type CustomerRecord = {
   created_at?: string | null;
   updated_at?: string | null;
   remaining_minutes?: number;
+  plan_name?: string | null;
+  plan_version?: number | null;
+  subscription_status?: string | null;
   subscription?: CustomerSubscription | null;
 };
 
@@ -80,6 +89,18 @@ export type AgencyOption = {
   display_name?: string;
 };
 
+export type SubscriptionChangeResult = {
+  kind?: string;
+  invoice?: {
+    id?: string;
+    status?: string;
+    total_minor?: number;
+    currency?: string;
+    due_at?: string | null;
+  };
+  subscription?: CustomerSubscription | null;
+};
+
 export const CUSTOMER_STATUS_ACTIONS = [
   { action: "activate", label: "Activate / reactivate", needsReason: false },
   { action: "suspend", label: "Suspend", needsReason: true },
@@ -87,3 +108,30 @@ export const CUSTOMER_STATUS_ACTIONS = [
 ] as const;
 
 export const CUSTOMER_STATUSES = ["invited", "active", "suspended", "closed"] as const;
+
+export function mapCustomerError(cause: unknown, fallback: string): string {
+  if (
+    cause &&
+    typeof cause === "object" &&
+    "message" in cause &&
+    typeof (cause as { message: unknown }).message === "string"
+  ) {
+    const code =
+      "code" in cause && typeof (cause as { code: unknown }).code === "string"
+        ? (cause as { code: string }).code
+        : "";
+    const message = (cause as { message: string }).message;
+    const copy: Record<string, string> = {
+      subscription_exists: "This customer already has a subscription. Use plan change instead.",
+      subscription_required: "Assign a plan before changing it.",
+      subscription_change_pending: "A plan change is already pending. Finish or wait for it.",
+      extras_exceed_plan:
+        "Downgrade blocked: active agents or numbers exceed the target plan caps.",
+      same_plan_version: "Customer is already on this plan version.",
+      owner_conflict: "That owner email already has a conflicting membership.",
+      agency_cannot_create_customer: "Customer creation is blocked by agency status or capability.",
+    };
+    return copy[code] || message || fallback;
+  }
+  return fallback;
+}
