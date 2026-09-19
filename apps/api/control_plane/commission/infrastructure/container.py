@@ -75,7 +75,15 @@ def request_payout() -> RequestAgencyPayout:
 
 
 def decide_payout() -> DecidePayout:
-    return DecidePayout(ledger(), payouts(), proofs(), SystemClock())
+    from control_plane.platform_settings.infrastructure.container import platform_settings
+
+    return DecidePayout(
+        ledger(),
+        payouts(),
+        proofs(),
+        SystemClock(),
+        proof_required=platform_settings().proof_required(),
+    )
 
 
 def upload_proof() -> UploadPayoutProof:

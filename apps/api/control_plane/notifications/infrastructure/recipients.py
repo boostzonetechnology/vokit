@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import uuid
 
+from django.db.models import Q
+
 from control_plane.identity.domain.types import MembershipStatus, PrincipalType
 from control_plane.identity.models import Membership, User
 from control_plane.notifications.application.ports import Recipient
@@ -26,7 +28,10 @@ def recipients_for_scope(
         )
     elif platform:
         query = query.filter(principal_type=PrincipalType.PLATFORM.value)
-    rows = list(query)
+    return _recipients_from_memberships(list(query))
+
+
+def _recipients_from_memberships(rows: list[Membership]) -> list[Recipient]:
     emails = {
         row.id: row.email
         for row in User.objects.filter(id__in=[item.user_id for item in rows])
@@ -41,6 +46,24 @@ def recipients_for_scope(
         for row in rows
         if emails.get(row.user_id)
     ]
+
+
+def recipients_for_platform_perm(code: str) -> list[Recipient]:
+    query = (
+        Membership.objects.filter(
+            status=MembershipStatus.ACTIVE.value,
+            principal_type=PrincipalType.PLATFORM.value,
+        )
+        .filter(
+            Q(role__slug="super_admin")
+            | Q(
+                role__role_permissions__permission__namespace="platform",
+                role__role_permissions__permission__code=code,
+            )
+        )
+        .distinct()
+    )
+    return _recipients_from_memberships(list(query))
 
 
 def invitation_recipient(

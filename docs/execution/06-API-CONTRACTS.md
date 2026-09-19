@@ -89,9 +89,11 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET/POST | `/platform/customers/{id}/subscription` | SA3-004, PLAN-* first assign; GET includes entitlements/period/pending/`payment_due` (open assigned-plan invoice only) |
 | POST | `/platform/customers/{id}/subscription/change` | PLAN-005/007, SA3-004 mid-cycle upgrade/downgrade |
 | GET | `/platform/payments` `/invoices` `/disputes` | SA12-* |
-| GET/POST | `/platform/payouts` | SA13-* |
-| POST | `/platform/payouts/{id}/proof` | SA13-004, BR-009 |
-| POST | `/platform/payouts/{id}/mark-paid` | SA13-005, BR-010 |
+| GET | `/platform/payouts` | SA13-002 queue; `status`/`agency_id`; `requested_at` + `compliance` |
+| GET | `/platform/payouts/{id}` | SA13-002 detail + KYC/agency/wallet compliance |
+| POST | `/platform/payouts/{id}/action` | SA13-003 approve/reject/freeze/process |
+| POST | `/platform/payouts/{id}/proof` | SA13-004, BR-009 object_ref only |
+| POST | `/platform/payouts/{id}/mark-paid` | SA13-005, BR-010; proof required unless `payout.proof_required` is false |
 | GET | `/platform/calls` | SA14-* |
 | GET | `/platform/audit-events` | SA17-* — search only; no PATCH/DELETE |
 | GET/PATCH | `/platform/settings` | SA19-* — secrets masked; reason required |
@@ -130,6 +132,7 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET/POST | `/agency/customers/{id}/subscription` | AG10 / SA3-004 first assign; GET includes `payment_due` |
 | POST | `/agency/customers/{id}/subscription/change` | PLAN-007 mid-cycle; agency `customer.update` |
 | GET/POST | `/agency/wallet` `/payouts` | AG11-*, WAL-* |
+| GET | `/agency/payouts/{id}/receipt` | BR-010 §11.4 agency name, issuer, disclaimer; proof 404 |
 | GET | `/agency/kyc` | AG12-002 status + payout gate |
 | POST | `/agency/kyc/session` | Start/resume external KYC (Q-015) |
 | GET/POST | `/agency/team` | AG13-* |

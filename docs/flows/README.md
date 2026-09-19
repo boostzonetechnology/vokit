@@ -9,7 +9,7 @@ These describe **what runs today**, not backlog wishes. SRS and ADRs remain auth
 | [Agency create + MySQL provisioning](AGENCY-CREATE-MYSQL.md) | Super Admin creates an agency, provisions a dedicated MySQL DB/user, invites the owner |
 | [Super Admin Agencies (VKT-018–023)](agencies/SUPER-ADMIN-AGENCIES.md) | Directory, profile, resources, finance MRR, commission effective date, status/capabilities confirm, platform notes, VKT-033/034 gates and KYC/restriction notices |
 | [Super Admin Customers](CUSTOMER-SUPER-ADMIN.md) | SA3 create/invite/status/usage/minutes + open deferrals |
-| [Plans, assign, caps, change](plans/PLAN-CREATE-ASSIGN-CAPS.md) | Super Admin catalog, first assign, PLAN-005 caps, upgrade credit, scheduled downgrade |
+| [Payout review → receipt](../payouts/PAYOUT-REVIEW-TO-RECEIPT.md) | Agency withdraw, SA review/proof/Paid, receipt fields, billing/wallet notification triggers (VKT-053–055, VKT-060) |
 | [Roles & permissions (RBAC)](RBAC-ROLES-PERMISSIONS.md) | Dynamic DB roles/permissions, sync, invite-by-slug, super_admin bypass (ADR-007) |
 | [Ledger & AgentAction SoT](LEDGER-AND-AGENT-ACTION-SOT.md) | LedgerEntry = CommissionEntry; AgentAction = tool allowlist; TEN-006 hard-delete |
 | [Authentication](auth/AUTHENTICATION_FLOW.md) | CSRF + session login/logout; MFA challenge gate |

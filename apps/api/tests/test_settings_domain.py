@@ -20,6 +20,11 @@ def test_hold_days_are_bounded_and_used() -> None:
         coerce_value(spec, 400)
     earned = datetime(2026, 9, 1, tzinfo=UTC)
     assert hold_available_at(earned, 21) == datetime(2026, 9, 22, tzinfo=UTC)
+    proof = assert_setting_key("payout.proof_required")
+    assert coerce_value(proof, True) is True
+    assert coerce_value(proof, False) is False
+    issuer = assert_setting_key("payout.receipt_issuer")
+    assert coerce_value(issuer, "Vokit Finance") == "Vokit Finance"
 
 
 def test_secret_settings_are_not_returned() -> None:

@@ -37,6 +37,11 @@ from control_plane.identity.api.auth import (
 )
 from control_plane.identity.api.views import CsrfAPIView
 from control_plane.identity.infrastructure.clock import SystemClock
+from control_plane.kyc.domain.policies import payout_block_reason
+from control_plane.kyc.domain.types import KycStatus
+from control_plane.kyc.infrastructure.container import kyc_cases
+from control_plane.platform_settings.infrastructure.container import platform_settings
+from control_plane.tenancy.infrastructure.container import tenant_repo
 from shared_kernel.errors import DomainError
 from shared_kernel.http.envelope import success
 from shared_kernel.http.pagination import page_slice, parse_page
@@ -103,8 +108,60 @@ def _entry_payload(row, rows, now) -> dict[str, object]:
     return payload
 
 
-def _payout_public(row) -> dict[str, object]:
-    return {
+def _mask_public(value: str) -> str:
+    text = (value or "").strip()
+    if "*" in text or len(text) <= 4:
+        return text
+    return f"{'*' * (len(text) - 4)}{text[-4:]}"
+
+
+def _compliance_payload(tenant_id, now, cache: dict | None = None) -> dict[str, object]:
+    if cache is not None and tenant_id in cache:
+        return cache[tenant_id]
+    tenant = tenant_repo().get(tenant_id)
+    case = kyc_cases().get_for_tenant(tenant_id)
+    status = case.status if case is not None else None
+    frozen = bool(case.frozen) if case is not None else False
+    agency_status = tenant.agency_status if tenant is not None else None
+    capabilities = tenant.capabilities if tenant is not None else None
+    block = None
+    if tenant is not None:
+        block = payout_block_reason(
+            kyc_status=status,
+            frozen=frozen,
+            agency_status=agency_status,
+            capabilities=capabilities,
+        )
+    buckets = project_wallet(
+        tuple(
+            LedgerView(
+                id=row.id,
+                kind=row.kind,
+                amount_minor=row.amount_minor,
+                currency=row.currency,
+                commission_id=row.commission_id,
+                payout_id=row.payout_id,
+                earned_at=row.earned_at,
+                available_at=row.available_at,
+            )
+            for row in ledger().list_for_tenant(tenant_id)
+        ),
+        now,
+    )
+    payload = {
+        "agency_status": agency_status.value if agency_status is not None else None,
+        "kyc_status": status.value if status is not None else KycStatus.NOT_STARTED.value,
+        "kyc_frozen": frozen,
+        "payout_eligible": block is None and tenant is not None,
+        "wallet_frozen": buckets.frozen_minor > 0,
+    }
+    if cache is not None:
+        cache[tenant_id] = payload
+    return payload
+
+
+def _payout_public(row, *, now=None, cache: dict | None = None) -> dict[str, object]:
+    payload: dict[str, object] = {
         "id": str(row.id),
         "agency_id": str(row.tenant_id),
         "amount_minor": row.amount_minor,
@@ -113,24 +170,35 @@ def _payout_public(row) -> dict[str, object]:
         "method_label": row.method_label,
         "transaction_ref": row.transaction_ref,
         "receipt_number": row.receipt_number or None,
+        "requested_at": row.requested_at.isoformat() if row.requested_at else None,
         "paid_at": row.paid_at.isoformat() if row.paid_at else None,
     }
+    if now is not None:
+        payload["compliance"] = _compliance_payload(row.tenant_id, now, cache)
+    return payload
 
 
 def _receipt_payload(row) -> dict[str, object]:
     if row.status is not PayoutStatus.PAID or not row.receipt_number:
         raise DomainError("not_found", "Resource not found.", http_status=404)
+    tenant = tenant_repo().get(row.tenant_id)
     return {
         "receipt_number": row.receipt_number,
         "payout_id": str(row.id),
         "agency_id": str(row.tenant_id),
+        "agency_display_name": tenant.display_name if tenant is not None else "",
+        "agency_legal_name": tenant.legal_name if tenant is not None else "",
         "amount_minor": row.amount_minor,
         "currency": row.currency,
-        "method_label": row.method_label,
-        "transaction_ref": row.transaction_ref,
+        "method_label": _mask_public(row.method_label),
+        "transaction_ref": _mask_public(row.transaction_ref),
         "status": row.status.value,
         "requested_at": row.requested_at.isoformat() if row.requested_at else None,
         "paid_at": row.paid_at.isoformat() if row.paid_at else None,
+        "issuer": platform_settings().receipt_issuer(),
+        "disclaimer": (
+            "This receipt confirms payout processing and is not the underlying banking proof."
+        ),
     }
 
 
@@ -233,7 +301,20 @@ class PlatformPayoutCollectionView(CsrfAPIView):
         rows, page = page_slice(
             payouts().list(tenant_id=agency_id, status=status), offset, limit
         )
-        return success([_payout_public(row) for row in rows], page=page)
+        now = SystemClock().now()
+        cache: dict = {}
+        return success(
+            [_payout_public(row, now=now, cache=cache) for row in rows], page=page
+        )
+
+
+class PlatformPayoutDetailView(CsrfAPIView):
+    def get(self, request: Request, payout_id: str) -> Response:
+        require_platform_perm(request, "billing.view")
+        payout = payouts().get(parse_uuid(payout_id, field="payout_id"))
+        if payout is None:
+            raise payout_not_found()
+        return success(_payout_public(payout, now=SystemClock().now(), cache={}))
 
 
 class PlatformPayoutActionView(CsrfAPIView):

@@ -109,6 +109,20 @@ class PlatformSettingsControl:
             return 15
         return value
 
+    def proof_required(self) -> bool:
+        self.ensure_defaults()
+        row = self._settings.get("payout.proof_required")
+        if row is None:
+            return True
+        return row.value is not False
+
+    def receipt_issuer(self) -> str:
+        self.ensure_defaults()
+        row = self._settings.get("payout.receipt_issuer")
+        if row is None or not str(row.value or "").strip():
+            return "Vokit"
+        return str(row.value).strip()[:128]
+
     def update(
         self,
         *,
