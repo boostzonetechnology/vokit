@@ -34,6 +34,8 @@ SETTING_CATALOG: dict[str, SettingSpec] = {
     ),
     "payout.hold_days": SettingSpec("payout.hold_days", 15, False, "int"),
     "payout.sla_business_days": SettingSpec("payout.sla_business_days", 2, False, "int"),
+    "payout.proof_required": SettingSpec("payout.proof_required", True, False, "bool"),
+    "payout.receipt_issuer": SettingSpec("payout.receipt_issuer", "Vokit", False, "str"),
     "telephony.default_timeout_seconds": SettingSpec(
         "telephony.default_timeout_seconds", 30, False, "int"
     ),

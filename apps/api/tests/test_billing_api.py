@@ -204,6 +204,12 @@ def test_duplicate_stripe_webhook_settles_once() -> None:
     payments = ctx["platform"].get("/api/v1/platform/payments")
     assert payments.status_code == 200
     assert len(payments.json()["data"]) == 1
+    inbox = ctx["customer_client"].get("/api/v1/customer/notifications")
+    assert inbox.status_code == 200
+    assert (
+        sum(1 for item in inbox.json()["data"] if item["event_type"] == "payment.success")
+        == 1
+    )
 
 
 @pytest.mark.django_db
@@ -748,3 +754,93 @@ def test_payment_due_false_when_plan_paid_and_topup_open() -> None:
     assert after.json()["data"]["payment_due"] is False
     listed = ctx["platform"].get("/api/v1/platform/customers?payment_due=true")
     assert all(row["id"] != str(ctx["customer_id"]) for row in listed.json()["data"])
+
+
+@pytest.mark.django_db
+def test_uncaptured_webhook_notifies_failure_once() -> None:
+    ctx = _bootstrap_paid_ready()
+    _user(
+        "agency-bill@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        tenant_id=ctx["agency_id"],
+    )
+    agency_client = _client()
+    _login(agency_client, "agency-bill@vokit.test")
+    payload = {
+        "event_id": "evt_fail_1",
+        "invoice_id": ctx["invoice_id"],
+        "amount_minor": ctx["amount_minor"],
+        "currency": "USD",
+        "status": "failed",
+    }
+    first = _webhook("stripe", payload, secret_ref=STRIPE_REF)
+    assert first.status_code == 409
+    assert first.json()["error"]["code"] == "payment_not_captured"
+    second = _webhook("stripe", payload, secret_ref=STRIPE_REF)
+    assert second.status_code == 200
+    assert second.json()["data"]["duplicate"] is True
+    assert (
+        sum(
+            1
+            for item in ctx["customer_client"].get("/api/v1/customer/notifications").json()["data"]
+            if item["event_type"] == "payment.failure"
+        )
+        == 1
+    )
+    assert (
+        sum(
+            1
+            for item in agency_client.get("/api/v1/agency/notifications").json()["data"]
+            if item["event_type"] == "payment.failure"
+        )
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_minutes_low_notifies_once_on_threshold_cross() -> None:
+    ctx = _bootstrap_paid_ready()
+    _user(
+        "agency-mins@vokit.test",
+        PrincipalType.AGENCY,
+        "agency_owner",
+        tenant_id=ctx["agency_id"],
+    )
+    agency_client = _client()
+    _login(agency_client, "agency-mins@vokit.test")
+    credited = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/minutes-adjustment",
+        {"minutes": 12, "reason": "seed"},
+    )
+    assert credited.status_code == 201
+    first = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/minutes-adjustment",
+        {"minutes": -5, "reason": "usage"},
+    )
+    assert first.status_code == 201
+    assert first.json()["data"]["remaining_minutes"] == 7
+    assert (
+        sum(
+            1
+            for item in agency_client.get("/api/v1/agency/notifications").json()["data"]
+            if item["event_type"] == "minutes.low"
+        )
+        == 1
+    )
+    second = _post(
+        ctx["platform"],
+        f"/api/v1/platform/customers/{ctx['customer_id']}/minutes-adjustment",
+        {"minutes": -2, "reason": "more usage"},
+    )
+    assert second.status_code == 201
+    assert (
+        sum(
+            1
+            for item in agency_client.get("/api/v1/agency/notifications").json()["data"]
+            if item["event_type"] == "minutes.low"
+        )
+        == 1
+    )

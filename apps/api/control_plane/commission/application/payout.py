@@ -25,6 +25,11 @@ from control_plane.commission.domain.types import LedgerKind, PayoutStatus
 from control_plane.commission.domain.wallet import LedgerView, available_money, project_wallet
 from control_plane.kyc.application.ports import KycCaseRepository
 from control_plane.kyc.domain.policies import assert_payout_eligible
+from control_plane.notifications.application.hooks import billing_notify
+from control_plane.notifications.infrastructure.recipients import (
+    recipients_for_platform_perm,
+    recipients_for_scope,
+)
 from control_plane.tenancy.application.ports import Clock, TenantRepository
 from shared_kernel.errors import DomainError
 from shared_kernel.ids import new_uuid7
@@ -131,6 +136,15 @@ class RequestAgencyPayout:
                 )
             )
             self._keys.create(command.actor_id, key, payout_id)
+        billing_notify(
+            event_type="payout.requested",
+            recipients=(
+                *recipients_for_scope(tenant_id=command.tenant_id),
+                *recipients_for_platform_perm("payout.approve"),
+            ),
+            variables={"payout_id": str(payout_id), "amount": str(amount.minor_units)},
+            tenant_id=command.tenant_id,
+        )
         log_event(
             logger,
             "payout.requested",
@@ -156,11 +170,13 @@ class DecidePayout:
         payouts: PayoutRepository,
         proofs: PayoutProofRepository,
         clock: Clock,
+        proof_required: bool = True,
     ) -> None:
         self._ledger = ledger
         self._payouts = payouts
         self._proofs = proofs
         self._clock = clock
+        self._proof_required = proof_required
 
     def execute(self, command: DecidePayoutCommand) -> PayoutRecord:
         payout = self._payouts.get(command.payout_id)
@@ -174,7 +190,7 @@ class DecidePayout:
         if command.action == "reject" and payout.status is not PayoutStatus.REJECTED:
             self._release(payout, command.actor_id, now)
         if command.action == "mark_paid":
-            if self._proofs.get(payout.id) is None:
+            if self._proof_required and self._proofs.get(payout.id) is None:
                 raise DomainError(
                     "payout_proof_required",
                     "Private payout proof is required before marking paid.",
@@ -209,6 +225,20 @@ class DecidePayout:
             paid_at=paid_at,
         )
         self._payouts.update_status(updated)
+        if command.action == "reject":
+            billing_notify(
+                event_type="payout.rejected",
+                recipients=recipients_for_scope(tenant_id=payout.tenant_id),
+                variables={"payout_id": str(payout.id), "amount": str(payout.amount_minor)},
+                tenant_id=payout.tenant_id,
+            )
+        elif command.action == "mark_paid":
+            billing_notify(
+                event_type="payout.paid",
+                recipients=recipients_for_scope(tenant_id=payout.tenant_id),
+                variables={"payout_id": str(payout.id), "amount": str(payout.amount_minor)},
+                tenant_id=payout.tenant_id,
+            )
         log_event(
             logger,
             "payout.decided",

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
+
 from control_plane.audit.application.record import RecordAuditCommand
 from control_plane.audit.infrastructure.container import record_audit
 from control_plane.identity.domain.types import PrincipalType
+from control_plane.notifications.application.ports import Recipient
 from control_plane.notifications.application.service import DispatchCommand
 from control_plane.notifications.infrastructure.container import notifications
 from control_plane.notifications.infrastructure.invite_links import invitation_accept_url
@@ -10,6 +13,9 @@ from control_plane.notifications.infrastructure.recipients import (
     invitation_recipient,
     recipients_for_scope,
 )
+from shared_kernel.logging import log_event
+
+logger = logging.getLogger("vokit.notifications")
 
 
 def deliver_invitation(
@@ -87,3 +93,40 @@ def kyc_notify(*, tenant_id, status: str) -> None:
             tenant_id=tenant_id,
         )
     )
+
+
+def billing_notify(
+    *,
+    event_type: str,
+    recipients: list[Recipient] | tuple[Recipient, ...],
+    variables: dict[str, str],
+    tenant_id=None,
+    customer_id=None,
+) -> None:
+    unique: list[Recipient] = []
+    seen: set[tuple[object, str]] = set()
+    for row in recipients:
+        key = (row.user_id, row.email)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(row)
+    if not unique:
+        return
+    try:
+        notifications().dispatch(
+            DispatchCommand(
+                event_type=event_type,
+                recipients=tuple(unique),
+                variables=variables,
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+            )
+        )
+    except Exception:
+        log_event(
+            logger,
+            "notification.dispatched",
+            outcome="error",
+            event_type=event_type,
+        )

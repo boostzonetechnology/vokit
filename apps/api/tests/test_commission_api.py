@@ -204,6 +204,25 @@ def _ready_paid_agency(*, hold_days: int | None = None):
     return platform, agency_id, agency_client
 
 
+def _request_payout(agency_client: Client, *, key: str = "po-1", amount_minor: int = 3000):
+    _verify_kyc(agency_client)
+    ReleaseHolds(ledger(), tenant_repo(), _Clock(datetime.now(UTC) + timedelta(days=16))).execute()
+    requested = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": amount_minor, "method_label": "bank ****1111"},
+        HTTP_IDEMPOTENCY_KEY=key,
+    )
+    assert requested.status_code == 201
+    return requested.json()["data"]["id"]
+
+
+def _event_count(client: Client, path: str, event_type: str) -> int:
+    inbox = client.get(path)
+    assert inbox.status_code == 200
+    return sum(1 for item in inbox.json()["data"] if item["event_type"] == event_type)
+
+
 @pytest.mark.django_db
 def test_duplicate_payment_creates_one_commission() -> None:
     _ready_paid_agency()
@@ -257,7 +276,14 @@ def test_agency_cannot_fetch_payout_proof() -> None:
     assert paid.json()["data"]["status"] == "paid"
     receipt = agency_client.get(f"/api/v1/agency/payouts/{payout_id}/receipt")
     assert receipt.status_code == 200
-    assert receipt.json()["data"]["receipt_number"].startswith("VKT-PO-")
+    data = receipt.json()["data"]
+    assert data["receipt_number"].startswith("VKT-PO-")
+    assert data["agency_display_name"] == "Comm A"
+    assert data["issuer"] == "Vokit"
+    assert data["method_label"] == "bank ****1111"
+    assert data["transaction_ref"] == "*ch-1"
+    assert "banking proof" in data["disclaimer"]
+    assert _event_count(agency_client, "/api/v1/agency/notifications", "payout.paid") == 1
 
 
 @pytest.mark.django_db
@@ -325,3 +351,87 @@ def test_payout_blocked_while_commission_on_hold() -> None:
     )
     assert denied.status_code == 409
     assert denied.json()["error"]["code"] == "payout_insufficient"
+
+
+@pytest.mark.django_db
+def test_platform_payout_detail_includes_compliance() -> None:
+    platform, _agency_id, agency_client = _ready_paid_agency()
+    payout_id = _request_payout(agency_client, key="po-detail")
+    detail = platform.get(f"/api/v1/platform/payouts/{payout_id}")
+    assert detail.status_code == 200
+    body = detail.json()["data"]
+    assert body["status"] == "requested"
+    assert body["requested_at"]
+    compliance = body["compliance"]
+    assert compliance["agency_status"] == "active"
+    assert compliance["kyc_status"] == "verified"
+    assert compliance["kyc_frozen"] is False
+    assert compliance["payout_eligible"] is True
+    assert compliance["wallet_frozen"] is False
+    queued = platform.get("/api/v1/platform/payouts?status=requested")
+    assert queued.status_code == 200
+    assert any(row["id"] == payout_id for row in queued.json()["data"])
+
+
+@pytest.mark.django_db
+def test_payout_reject_notifies_once_and_replay_does_not_duplicate_request() -> None:
+    platform, _agency_id, agency_client = _ready_paid_agency()
+    payout_id = _request_payout(agency_client, key="po-reject")
+    replay = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 3000, "method_label": "bank ****1111"},
+        HTTP_IDEMPOTENCY_KEY="po-reject",
+    )
+    assert replay.status_code == 201
+    assert replay.json()["data"]["id"] == payout_id
+    assert _event_count(agency_client, "/api/v1/agency/notifications", "payout.requested") == 1
+    rejected = _post(
+        platform, f"/api/v1/platform/payouts/{payout_id}/action", {"action": "reject"}
+    )
+    assert rejected.status_code == 200
+    assert rejected.json()["data"]["status"] == "rejected"
+    assert _event_count(agency_client, "/api/v1/agency/notifications", "payout.rejected") == 1
+
+
+@pytest.mark.django_db
+def test_mark_paid_without_proof_when_setting_disabled() -> None:
+    platform, _agency_id, agency_client = _ready_paid_agency()
+    payout_id = _request_payout(agency_client, key="po-noproof-ok")
+    changed = _patch(
+        platform,
+        "/api/v1/platform/settings",
+        {"key": "payout.proof_required", "value": False, "reason": "lab"},
+    )
+    assert changed.status_code == 200
+    _post(platform, f"/api/v1/platform/payouts/{payout_id}/action", {"action": "approve"})
+    paid = _post(
+        platform,
+        f"/api/v1/platform/payouts/{payout_id}/mark-paid",
+        {"transaction_ref": "ach-2"},
+    )
+    assert paid.status_code == 200
+    assert paid.json()["data"]["status"] == "paid"
+
+
+@pytest.mark.django_db
+def test_payout_request_succeeds_when_notify_fails(monkeypatch) -> None:
+    _platform, _agency_id, agency_client = _ready_paid_agency()
+    _verify_kyc(agency_client)
+    ReleaseHolds(ledger(), tenant_repo(), _Clock(datetime.now(UTC) + timedelta(days=16))).execute()
+
+    class Boom:
+        def dispatch(self, command):
+            raise RuntimeError("mail down")
+
+    monkeypatch.setattr(
+        "control_plane.notifications.application.hooks.notifications",
+        lambda: Boom(),
+    )
+    requested = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 3000, "method_label": "bank ****1111"},
+        HTTP_IDEMPOTENCY_KEY="po-notify-fail",
+    )
+    assert requested.status_code == 201

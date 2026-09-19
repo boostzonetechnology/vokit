@@ -26,6 +26,8 @@ class ReleaseHolds:
         now = self._clock.now()
         released = 0
         for tenant in self._tenants.list():
+            tenant_amount = 0
+            tenant_released = 0
             for row in self._ledger.list_for_tenant(tenant.id):
                 if row.kind is not LedgerKind.COMMISSION_EARNED:
                     continue
@@ -55,6 +57,20 @@ class ReleaseHolds:
                     )
                 )
                 released += 1
+                tenant_released += 1
+                tenant_amount += row.amount_minor
+            if tenant_released:
+                from control_plane.notifications.application.hooks import billing_notify
+                from control_plane.notifications.infrastructure.recipients import (
+                    recipients_for_scope,
+                )
+
+                billing_notify(
+                    event_type="commission.available",
+                    recipients=recipients_for_scope(tenant_id=tenant.id),
+                    variables={"amount": str(tenant_amount)},
+                    tenant_id=tenant.id,
+                )
         if released:
             log_event(
                 logger,

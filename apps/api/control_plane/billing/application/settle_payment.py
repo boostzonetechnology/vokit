@@ -92,6 +92,34 @@ class SettlePayment:
             return SettlementResult(True, existing.status.value, invoice_id)
         assert_billing_live()
         if not event.captured:
+            self._events.create(
+                ProcessorEventRecord(
+                    processor=event.processor,
+                    event_id=event.event_id,
+                    invoice_id=event.invoice_id,
+                    status=ProcessorEventStatus.REJECTED,
+                )
+            )
+            indexed = self._invoices.get(event.invoice_id)
+            if indexed is not None:
+                from control_plane.notifications.application.hooks import billing_notify
+                from control_plane.notifications.infrastructure.recipients import (
+                    recipients_for_scope,
+                )
+
+                billing_notify(
+                    event_type="payment.failure",
+                    recipients=(
+                        *recipients_for_scope(customer_id=indexed.customer_id),
+                        *recipients_for_scope(tenant_id=indexed.tenant_id),
+                    ),
+                    variables={
+                        "invoice_id": str(event.invoice_id),
+                        "amount": str(event.amount.minor_units),
+                    },
+                    tenant_id=indexed.tenant_id,
+                    customer_id=indexed.customer_id,
+                )
             raise DomainError(
                 "payment_not_captured",
                 "Payment was not captured.",
@@ -203,6 +231,24 @@ class SettlePayment:
             self._accrual.on_captured_payment(
                 payment=payment, invoice=paid, settled_at=now
             )
+        from control_plane.notifications.application.hooks import billing_notify
+        from control_plane.notifications.infrastructure.recipients import (
+            recipients_for_scope,
+        )
+
+        billing_notify(
+            event_type="payment.success",
+            recipients=(
+                *recipients_for_scope(customer_id=paid.customer_id),
+                *recipients_for_scope(tenant_id=paid.tenant_id),
+            ),
+            variables={
+                "invoice_id": str(paid.invoice_id),
+                "amount": str(paid.total_minor),
+            },
+            tenant_id=paid.tenant_id,
+            customer_id=paid.customer_id,
+        )
         log_event(
             logger,
             "billing.invoice.settled",

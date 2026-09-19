@@ -9,6 +9,7 @@ from control_plane.commission.api.views import (
     AgencyWalletView,
     PlatformPayoutActionView,
     PlatformPayoutCollectionView,
+    PlatformPayoutDetailView,
     PlatformPayoutMarkPaidView,
     PlatformPayoutProofView,
     PlatformReverseCommissionView,
@@ -46,6 +47,11 @@ urlpatterns = [
         name="platform-wallet-freeze",
     ),
     path("platform/payouts", PlatformPayoutCollectionView.as_view(), name="platform-payouts"),
+    path(
+        "platform/payouts/<str:payout_id>",
+        PlatformPayoutDetailView.as_view(),
+        name="platform-payout-detail",
+    ),
     path(
         "platform/payouts/<str:payout_id>/action",
         PlatformPayoutActionView.as_view(),

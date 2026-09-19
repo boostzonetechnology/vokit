@@ -46,4 +46,22 @@ def refresh_minutes_projection(
         )
         for lot in lots
     )
-    customers.project(customer_id, remaining_minutes=remaining_minutes(balances))
+    remaining = remaining_minutes(balances)
+    before = customers.get(customer_id)
+    customers.project(customer_id, remaining_minutes=remaining)
+    if before is not None and before.remaining_minutes >= 10 and remaining < 10:
+        from control_plane.notifications.application.hooks import billing_notify
+        from control_plane.notifications.infrastructure.recipients import (
+            recipients_for_scope,
+        )
+
+        billing_notify(
+            event_type="minutes.low",
+            recipients=(
+                *recipients_for_scope(customer_id=customer_id),
+                *recipients_for_scope(tenant_id=tenant_id),
+            ),
+            variables={"customer_id": str(customer_id), "remaining": str(remaining)},
+            tenant_id=tenant_id,
+            customer_id=customer_id,
+        )
