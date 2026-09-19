@@ -5,6 +5,7 @@ import {
   assignAgencySubscription,
   changeAgencySubscription,
   getAgencyCustomer,
+  getAgencyCustomerUsage,
   listAgencyPlanVersions,
   safeListRows,
   setAgencyCustomerStatus,
@@ -13,6 +14,7 @@ import {
   mapCustomerError,
   type CustomerRecord,
   type CustomerResourceBundle,
+  type CustomerUsage,
   type PlanVersionOption,
   type SubscriptionChangeResult,
 } from "@/features/customers/types";
@@ -28,6 +30,7 @@ const EMPTY_RESOURCES: CustomerResourceBundle = {
 
 export function useAgencyCustomerDetail(customerId: string) {
   const [detail, setDetail] = useState<CustomerRecord | null>(null);
+  const [usage, setUsage] = useState<CustomerUsage | null>(null);
   const [planVersions, setPlanVersions] = useState<PlanVersionOption[]>([]);
   const [resources, setResources] = useState<CustomerResourceBundle>(EMPTY_RESOURCES);
   const [error, setError] = useState("");
@@ -48,6 +51,7 @@ export function useAgencyCustomerDetail(customerId: string) {
     try {
       const [
         customer,
+        usageRes,
         versions,
         agentRows,
         numberRows,
@@ -57,6 +61,7 @@ export function useAgencyCustomerDetail(customerId: string) {
         invoiceRows,
       ] = await Promise.all([
         getAgencyCustomer(id),
+        getAgencyCustomerUsage(id),
         listAgencyPlanVersions(),
         safeListRows<{ id: string; display_name?: string; status?: string; customer_id?: string }>(
           `/api/v1/agency/agents?customer_id=${encodeURIComponent(id)}`,
@@ -91,6 +96,12 @@ export function useAgencyCustomerDetail(customerId: string) {
       ]);
 
       setDetail(customer);
+      setUsage(
+        usageRes ?? {
+          remaining_minutes: customer.remaining_minutes,
+          lots: [],
+        },
+      );
       setPlanVersions(versions);
       setResources({
         agents: agentRows,
@@ -104,6 +115,7 @@ export function useAgencyCustomerDetail(customerId: string) {
       });
     } catch (cause) {
       setDetail(null);
+      setUsage(null);
       setResources(EMPTY_RESOURCES);
       setError(mapCustomerError(cause, "Failed to load customer detail."));
     } finally {
@@ -192,6 +204,7 @@ export function useAgencyCustomerDetail(customerId: string) {
 
   return {
     detail,
+    usage,
     planVersions,
     resources,
     error,

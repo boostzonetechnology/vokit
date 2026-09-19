@@ -6,6 +6,7 @@ import type {
   CreateCustomerInput,
   CustomerRecord,
   CustomerUsage,
+  PlanOption,
   PlanVersionOption,
   SubscriptionChangeResult,
 } from "@/features/customers/types";
@@ -14,14 +15,38 @@ export async function listPlatformCustomers(filters: {
   agencyId?: string;
   status?: string;
   query?: string;
+  planId?: string;
+  paymentDue?: "" | "true" | "false";
+  remainingMinutesMax?: string;
 }): Promise<CustomerRecord[]> {
   const params = new URLSearchParams();
   if (filters.agencyId) params.set("agency_id", filters.agencyId);
   if (filters.status) params.set("status", filters.status);
   if (filters.query?.trim()) params.set("q", filters.query.trim());
+  if (filters.planId) params.set("plan_id", filters.planId);
+  if (filters.paymentDue === "true" || filters.paymentDue === "false") {
+    params.set("payment_due", filters.paymentDue);
+  }
+  if (filters.remainingMinutesMax?.trim()) {
+    params.set("remaining_minutes_max", filters.remainingMinutesMax.trim());
+  }
   const qs = params.toString();
   const path = qs ? `/api/v1/platform/customers?${qs}` : "/api/v1/platform/customers";
   return asList<CustomerRecord>(await apiGet<unknown>(path));
+}
+
+export async function listPlatformPlanOptions(): Promise<PlanOption[]> {
+  try {
+    const rows = asList<Record<string, unknown>>(await apiGet<unknown>("/api/v1/platform/plans"));
+    return rows
+      .filter((row) => row.id)
+      .map((row) => ({
+        id: String(row.id),
+        name: String(row.name || row.id),
+      }));
+  } catch {
+    return [];
+  }
 }
 
 export async function listAgencyOptions(): Promise<AgencyOption[]> {
@@ -69,6 +94,14 @@ export async function setAgencyCustomerStatus(
 export async function getPlatformCustomerUsage(customerId: string): Promise<CustomerUsage | null> {
   try {
     return await apiGet<CustomerUsage>(`/api/v1/platform/customers/${customerId}/usage`);
+  } catch {
+    return null;
+  }
+}
+
+export async function getAgencyCustomerUsage(customerId: string): Promise<CustomerUsage | null> {
+  try {
+    return await apiGet<CustomerUsage>(`/api/v1/agency/customers/${customerId}/usage`);
   } catch {
     return null;
   }
