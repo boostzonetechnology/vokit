@@ -13,6 +13,9 @@ export function PlatformCustomersScreen() {
   const navigate = useNavigate();
   const [agencyFilter, setAgencyFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
+  const [paymentDueFilter, setPaymentDueFilter] = useState<"" | "true" | "false">("");
+  const [minutesMaxFilter, setMinutesMaxFilter] = useState("");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -21,11 +24,16 @@ export function PlatformCustomersScreen() {
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  const { customers, agencies, agencyName, error, loading } = usePlatformCustomerList({
+  const { customers, agencies, plans, agencyName, error, loading } = usePlatformCustomerList({
     agencyId: agencyFilter,
     status: statusFilter,
     query: debouncedQuery,
+    planId: planFilter,
+    paymentDue: paymentDueFilter,
+    remainingMinutesMax: minutesMaxFilter,
   });
+
+  const headers = ["Customer", "Agency", "Status", "Plan", "Minutes", "Payment", "Updated"];
 
   return (
     <section className="mx-auto max-w-[1200px]">
@@ -48,7 +56,7 @@ export function PlatformCustomersScreen() {
       ) : null}
 
       <article className="rounded-xl border border-border-default bg-surface p-5 shadow-subtle">
-        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <label className="m-0 grid gap-1.5 font-normal">
             <span className="text-body-sm text-text-muted">Search</span>
             <input
@@ -88,6 +96,46 @@ export function PlatformCustomersScreen() {
               ))}
             </select>
           </label>
+          <label className="m-0 grid gap-1.5 font-normal">
+            <span className="text-body-sm text-text-muted">Plan</span>
+            <select
+              value={planFilter}
+              onChange={(event) => setPlanFilter(event.target.value)}
+              className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+            >
+              <option value="">All plans</option>
+              {plans.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name || row.id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="m-0 grid gap-1.5 font-normal">
+            <span className="text-body-sm text-text-muted">Payment due</span>
+            <select
+              value={paymentDueFilter}
+              onChange={(event) =>
+                setPaymentDueFilter(event.target.value as "" | "true" | "false")
+              }
+              className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+            >
+              <option value="">Any</option>
+              <option value="true">Due</option>
+              <option value="false">Not due</option>
+            </select>
+          </label>
+          <label className="m-0 grid gap-1.5 font-normal">
+            <span className="text-body-sm text-text-muted">Minutes ≤</span>
+            <input
+              type="number"
+              min={0}
+              value={minutesMaxFilter}
+              onChange={(event) => setMinutesMaxFilter(event.target.value)}
+              placeholder="e.g. 12"
+              className="rounded-xl border border-border-default bg-surface px-3 py-2.5 text-body"
+            />
+          </label>
         </div>
 
         <h2 className="m-0 mb-3 text-section text-text-primary">
@@ -96,10 +144,7 @@ export function PlatformCustomersScreen() {
         </h2>
 
         {loading && customers.length === 0 ? (
-          <TableSkeleton
-            headers={["Customer", "Agency", "Status", "Plan", "Minutes", "Updated"]}
-            rows={8}
-          />
+          <TableSkeleton headers={headers} rows={8} />
         ) : customers.length === 0 ? (
           <div className="grid gap-3 py-12 text-center">
             <p className="m-0 text-body text-text-muted">No customers match this view.</p>
@@ -114,12 +159,11 @@ export function PlatformCustomersScreen() {
             <table className="min-w-full">
               <thead>
                 <tr className="text-label uppercase text-text-muted">
-                  <th className="border-0 px-2 py-2 text-left">Customer</th>
-                  <th className="border-0 px-2 py-2 text-left">Agency</th>
-                  <th className="border-0 px-2 py-2 text-left">Status</th>
-                  <th className="border-0 px-2 py-2 text-left">Plan</th>
-                  <th className="border-0 px-2 py-2 text-left">Minutes</th>
-                  <th className="border-0 px-2 py-2 text-left">Updated</th>
+                  {headers.map((header) => (
+                    <th key={header} className="border-0 px-2 py-2 text-left">
+                      {header}
+                    </th>
+                  ))}
                   <th className="border-0 px-2 py-2 text-left">
                     <span className="sr-only">Open</span>
                   </th>
@@ -148,6 +192,13 @@ export function PlatformCustomersScreen() {
                     </td>
                     <td className="px-2 py-3 text-text-secondary">
                       {typeof row.remaining_minutes === "number" ? row.remaining_minutes : "—"}
+                    </td>
+                    <td className="px-2 py-3">
+                      {row.payment_due ? (
+                        <StatusBadge tone="warning">due</StatusBadge>
+                      ) : (
+                        <span className="text-text-muted">—</span>
+                      )}
                     </td>
                     <td className="px-2 py-3 text-text-secondary">
                       {row.updated_at || row.created_at

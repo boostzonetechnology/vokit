@@ -39,10 +39,17 @@ export type CustomerRecord = {
   created_at?: string | null;
   updated_at?: string | null;
   remaining_minutes?: number;
+  plan_id?: string | null;
   plan_name?: string | null;
   plan_version?: number | null;
   subscription_status?: string | null;
+  payment_due?: boolean;
   subscription?: CustomerSubscription | null;
+};
+
+export type PlanOption = {
+  id: string;
+  name?: string;
 };
 
 export type CreateCustomerInput = {

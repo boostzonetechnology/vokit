@@ -215,7 +215,11 @@ Yeh **poora happy path** hai. Is ko pehle ek dafa full chalao. Phir neeche negat
 | 37.2 | Search | Name type | Debounce ke baad filter | |
 | 37.3 | Agency filter | Ek agency select | Sirf us agency ke rows | |
 | 37.4 | Status filter | active / suspended… | Match | |
+| 37.4b | Plan filter | Plan dropdown | Sirf us plan_id ke rows | |
+| 37.4c | Payment due | Due / Not due | Match `payment_due` | |
+| 37.4d | Minutes ≤ | e.g. 12 | remaining_minutes_max | |
 | 37.5 | Plan column | Subscribed customer | Plan name (+ version) | |
+| 37.5b | Payment column | Open plan invoice | `due` badge | |
 | 37.6 | Minutes column | After usage | Number, not always — | |
 | 37.7 | Open detail | Row click / Open → | `/customers/{id}` | |
 

@@ -6,6 +6,7 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { FormField } from "@/components/forms/FormField";
 import { FormSelect } from "@/components/forms/FormSelect";
 import { FormSectionSkeleton } from "@/components/ui/FormSectionSkeleton";
+import { MetricCard } from "@/components/ui/MetricCard";
 import { MetricGridSkeleton } from "@/components/ui/MetricCardSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -14,13 +15,13 @@ import { customersListHref } from "@/features/customers/lib/routes";
 import { customerStatusTone } from "@/features/customers/lib/status";
 import { CUSTOMER_STATUS_ACTIONS } from "@/features/customers/types";
 import { formatMoneyMinor } from "@/features/dashboard/lib/format";
-import { ApiNote } from "@/features/platform/ux/ApiNote";
 
-type Tab = "overview" | "invite" | "plan" | "status" | "resources";
+type Tab = "overview" | "invite" | "plan" | "minutes" | "status" | "resources";
 
 export function AgencyCustomerDetailScreen({ customerId }: { customerId: string }) {
   const {
     detail,
+    usage,
     planVersions,
     resources,
     error,
@@ -79,6 +80,7 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
     { id: "overview", label: "Overview" },
     { id: "invite", label: "Invite" },
     { id: "plan", label: "Plan" },
+    { id: "minutes", label: "Minutes" },
     { id: "status", label: "Status" },
     { id: "resources", label: "Resources" },
   ];
@@ -123,6 +125,9 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
   }
 
   const hasSubscription = Boolean(detail.subscription?.plan_version_id);
+  const remaining =
+    usage?.remaining_minutes ?? detail.remaining_minutes ?? 0;
+  const subscription = detail.subscription;
 
   return (
     <section className="mx-auto max-w-[1200px]">
@@ -141,9 +146,12 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
             </h1>
             <p className="mt-1 mb-0 text-body text-text-muted">Agency customer workspace</p>
           </div>
-          <StatusBadge tone={customerStatusTone(detail.status)}>
-            {detail.status || "unknown"}
-          </StatusBadge>
+          <div className="flex flex-wrap items-center gap-2">
+            {detail.payment_due ? <StatusBadge tone="warning">payment due</StatusBadge> : null}
+            <StatusBadge tone={customerStatusTone(detail.status)}>
+              {detail.status || "unknown"}
+            </StatusBadge>
+          </div>
         </div>
       </div>
 
@@ -186,17 +194,17 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
             <InfoTile label="Timezone" value={detail.timezone || "—"} />
             <InfoTile
               label="Remaining minutes"
-              value={
-                typeof detail.remaining_minutes === "number"
-                  ? String(detail.remaining_minutes)
-                  : "—"
-              }
+              value={String(remaining)}
+            />
+            <InfoTile
+              label="Payment due"
+              value={detail.payment_due ? "Yes — open plan invoice" : "No"}
             />
             <InfoTile
               label="Plan"
               value={
-                detail.subscription
-                  ? `${detail.subscription.plan_name || "Plan"} v${detail.subscription.plan_version ?? "—"}`
+                subscription
+                  ? `${subscription.plan_name || "Plan"} v${subscription.plan_version ?? "—"}`
                   : "None"
               }
             />
@@ -235,13 +243,30 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
                   label="Included minutes"
                   value={String(detail.subscription.included_minutes ?? "—")}
                 />
+                <InfoTile label="Remaining minutes" value={String(remaining)} />
                 <InfoTile
-                  label="Remaining minutes"
+                  label="Period end"
                   value={
-                    typeof detail.remaining_minutes === "number"
-                      ? String(detail.remaining_minutes)
+                    detail.subscription.period_end
+                      ? new Date(detail.subscription.period_end).toLocaleString()
                       : "—"
                   }
+                />
+                <InfoTile
+                  label="Pending change"
+                  value={
+                    detail.subscription.pending_kind
+                      ? `${detail.subscription.pending_kind}${
+                          detail.subscription.pending_effective_at
+                            ? ` · ${new Date(detail.subscription.pending_effective_at).toLocaleDateString()}`
+                            : ""
+                        }`
+                      : "None"
+                  }
+                />
+                <InfoTile
+                  label="Payment due"
+                  value={detail.payment_due ? "Yes — open plan invoice" : "No"}
                 />
               </div>
             ) : (
@@ -310,6 +335,59 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
                 )}
               </p>
             ) : null}
+          </div>
+        ) : null}
+
+        {tab === "minutes" ? (
+          <div className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <MetricCard
+                label="Remaining minutes"
+                value={String(remaining)}
+                hint="Minute lots (Q-003)"
+                accent="brand"
+              />
+              <MetricCard
+                label="Active lots"
+                value={String(usage?.lots?.length ?? 0)}
+                hint="Usage lot count"
+                accent="muted"
+              />
+            </div>
+            <p className="m-0 text-body text-text-muted">
+              Agency portal is view-only for lots. Platform staff can credit/debit from Super Admin
+              customer detail.
+            </p>
+            {(usage?.lots?.length ?? 0) > 0 ? (
+              <div className="overflow-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="text-label uppercase text-text-muted">
+                      <th className="border-0 px-2 py-2 text-left">Kind</th>
+                      <th className="border-0 px-2 py-2 text-left">Granted</th>
+                      <th className="border-0 px-2 py-2 text-left">Remaining</th>
+                      <th className="border-0 px-2 py-2 text-left">Id</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(usage?.lots ?? []).map((lot) => (
+                      <tr key={lot.id}>
+                        <td className="px-2 py-3 text-text-secondary">{lot.kind || "—"}</td>
+                        <td className="px-2 py-3 text-text-secondary">
+                          {lot.granted_minutes ?? "—"}
+                        </td>
+                        <td className="px-2 py-3 text-text-secondary">
+                          {lot.remaining_minutes ?? 0}
+                        </td>
+                        <td className="px-2 py-3 text-text-muted">{lot.id.slice(0, 8)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="m-0 text-body text-text-muted">No minute lots yet.</p>
+            )}
           </div>
         ) : null}
 
@@ -440,10 +518,6 @@ export function AgencyCustomerDetailScreen({ customerId }: { customerId: string 
               ])}
               columns={["Invoice", "Status", "Total"]}
             />
-            <ApiNote>
-              AG2-005 usage/minutes remaining is not available on agency APIs yet. Other resources
-              are composed from sibling agency endpoints.
-            </ApiNote>
           </div>
         ) : null}
       </article>

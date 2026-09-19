@@ -132,16 +132,19 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
           <ArrowLeft className="size-4" aria-hidden />
           Back to customers
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="m-0 text-[1.85rem] font-bold tracking-[-0.02em] text-text-primary">
               {detail.display_name || detail.id.slice(0, 8)}
             </h1>
             <p className="mt-1 mb-0 text-body text-text-muted">{agencyLabel}</p>
           </div>
-          <StatusBadge tone={customerStatusTone(detail.status)}>
-            {detail.status || "unknown"}
-          </StatusBadge>
+          <div className="flex flex-wrap items-center gap-2">
+            {detail.payment_due ? <StatusBadge tone="warning">payment due</StatusBadge> : null}
+            <StatusBadge tone={customerStatusTone(detail.status)}>
+              {detail.status || "unknown"}
+            </StatusBadge>
+          </div>
         </div>
       </div>
 
@@ -185,6 +188,10 @@ export function PlatformCustomerDetailScreen({ customerId }: { customerId: strin
               <InfoTile label="Country" value={detail.country || "—"} />
               <InfoTile label="Timezone" value={detail.timezone || "—"} />
               <InfoTile label="Remaining minutes" value={String(remaining)} />
+              <InfoTile
+                label="Payment due"
+                value={detail.payment_due ? "Yes — open plan invoice" : "No"}
+              />
               <InfoTile
                 label="Plan"
                 value={

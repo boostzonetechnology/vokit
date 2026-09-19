@@ -121,7 +121,8 @@ export function AgencyCustomerCreateScreen() {
           Create customer
         </h1>
         <p className="mt-1 mb-0 text-body text-text-muted">
-          Creates an invited customer and sends the owner invite (AG2-001 / AG2-002).
+          Creates an Invited customer and emails the owner invite. Accepting the invite activates
+          the account. Plan assignment is done from customer detail (AG2-001 / AG2-002).
         </p>
       </div>
 
