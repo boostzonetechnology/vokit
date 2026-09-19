@@ -514,15 +514,19 @@ class MemoryRuntime:
         return row
 
     def list_knowledge(
-        self, connection: TenantConnection, *, scope: str | None = None
+        self, connection: TenantConnection, *, scope: str | None = None,
+        owner_id: uuid.UUID | None = None,
     ) -> list[KnowledgeSourceRecord]:
         memory = self._as_memory(connection)
         rows = []
         for row in memory.backend.knowledge.values():
             if row.tenant_id != memory.tenant_id:
                 raise isolation_violation()
-            if scope is None or row.scope == scope:
-                rows.append(row)
+            if scope is not None and row.scope != scope:
+                continue
+            if owner_id is not None and row.owner_id != owner_id:
+                continue
+            rows.append(row)
         return rows
 
     def delete_knowledge(self, connection: TenantConnection, source_id: uuid.UUID) -> None:

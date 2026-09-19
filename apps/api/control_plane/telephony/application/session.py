@@ -1017,6 +1017,17 @@ class VoiceControl:
                     created_at=lot.created_at,
                 ),
             )
+        from control_plane.billing.application.customer_projection import (
+            refresh_minutes_projection,
+        )
+        from control_plane.customers.infrastructure.container import customer_index
+
+        refresh_minutes_projection(
+            customer_index(),
+            self._billing,
+            indexed.tenant_id,
+            indexed.customer_id,
+        )
 
     def _training_session(self, session_token: str):
         try:

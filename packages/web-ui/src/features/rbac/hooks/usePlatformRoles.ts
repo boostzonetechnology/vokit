@@ -63,6 +63,7 @@ export function usePlatformRoles(initialNamespace = "") {
     slug: string;
     display_name: string;
     permissions: string[];
+    namespace?: string;
   }) {
     setBusy(true);
     setMessage("");
@@ -70,7 +71,7 @@ export function usePlatformRoles(initialNamespace = "") {
       const created = await createPlatformRole({
         slug: input.slug,
         display_name: input.display_name,
-        namespace: "platform",
+        namespace: input.namespace || "platform",
         permissions: input.permissions,
       });
       setMessage(`Role “${created.slug}” created.`);

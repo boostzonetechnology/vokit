@@ -63,9 +63,14 @@ def test_agency_create_customer_requires_active_for_agency_actor() -> None:
             AgencyStatus.RESTRICTED, caps, privileged=False
         )
     assert_agency_may_create_customer(AgencyStatus.RESTRICTED, caps, privileged=True)
+    assert_agency_may_create_customer(AgencyStatus.SUSPENDED, caps, privileged=True)
     with pytest.raises(DomainError):
         assert_agency_may_create_customer(
-            AgencyStatus.SUSPENDED, caps, privileged=True
+            AgencyStatus.CLOSED, caps, privileged=True
+        )
+    with pytest.raises(DomainError):
+        assert_agency_may_create_customer(
+            AgencyStatus.SUSPENDED, caps, privileged=False
         )
 
 

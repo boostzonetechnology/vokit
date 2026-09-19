@@ -3,6 +3,7 @@ from __future__ import annotations
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from control_plane.customers.infrastructure.container import customer_index
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
     parse_uuid,
@@ -222,7 +223,14 @@ class AgencyNumberCollectionView(CsrfAPIView):
         tenant_id = context.membership.tenant_id
         assert tenant_id is not None
         assigned = numbers().list(status=NumberStatus.ASSIGNED, tenant_id=tenant_id)
-        rows = tenant_numbers().list_assignments(tenant_id)
+        customer_id = parse_optional_uuid(
+            request.query_params.get("customer_id"), field="customer_id"
+        )
+        if customer_id is not None:
+            customer = customer_index().get(customer_id)
+            if customer is None or customer.tenant_id != tenant_id:
+                raise DomainError("not_found", "Resource not found.", http_status=404)
+        rows = tenant_numbers().list_assignments(tenant_id, customer_id=customer_id)
         limit, offset = parse_page(
             request.query_params.get("limit"), request.query_params.get("offset")
         )

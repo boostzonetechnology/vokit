@@ -14,6 +14,7 @@ from control_plane.billing.application.create_plan import CreatePlanCommand
 from control_plane.billing.application.create_topup import CreateTopUpCommand
 from control_plane.billing.application.pay_invoice import PayInvoiceCommand
 from control_plane.billing.domain.lots import LotBalance, remaining_minutes
+from control_plane.billing.domain.policies import assigned_plan_is_payment_due
 from control_plane.billing.domain.types import DRAIN_ORDER, InvoiceStatus, PlanStatus
 from control_plane.billing.infrastructure.container import (
     add_plan_version,
@@ -33,6 +34,7 @@ from control_plane.billing.infrastructure.container import (
     tenant_billing,
     update_plan_version,
 )
+from control_plane.customers.infrastructure.container import customer_index
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
     parse_uuid,
@@ -204,6 +206,10 @@ def _subscription_payload(view) -> dict[str, object]:
         "pending_effective_at": sub.pending_effective_at.isoformat()
         if sub.pending_effective_at
         else None,
+        "payment_due": assigned_plan_is_payment_due(
+            sub.subscription_id,
+            tenant_billing().list_invoices(sub.tenant_id, sub.customer_id),
+        ),
     }
 
 
@@ -409,6 +415,19 @@ class AgencyPlanCollectionView(CsrfAPIView):
 
 
 class AgencyCustomerSubscriptionView(CsrfAPIView):
+    def get(self, request: Request, customer_id: str) -> Response:
+        context = require_agency_perm(request, "customer.view")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        identifier = parse_uuid(customer_id, field="customer_id")
+        indexed = customer_index().get(identifier)
+        if indexed is None or indexed.tenant_id != tenant_id:
+            raise DomainError("not_found", "Resource not found.", http_status=404)
+        view = get_customer_subscription().execute(identifier)
+        if view is None:
+            return success(None)
+        return success(_subscription_payload(view))
+
     def post(self, request: Request, customer_id: str) -> Response:
         context = require_agency_perm(request, "customer.update")
         invoice = assign_subscription().execute(

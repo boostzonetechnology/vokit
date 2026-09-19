@@ -66,6 +66,16 @@ def apply_due_plan_change(
     billing.put_subscription(subscription.tenant_id, switched)
     if target.used_at is None:
         versions.update(replace(target, used_at=now))
+    from control_plane.billing.application.customer_projection import refresh_plan_projection
+    from control_plane.customers.infrastructure.container import customer_index
+
+    refresh_plan_projection(
+        customer_index(),
+        billing,
+        switched.tenant_id,
+        switched.customer_id,
+        switched,
+    )
     return switched
 
 

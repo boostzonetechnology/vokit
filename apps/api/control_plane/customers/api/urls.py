@@ -6,6 +6,7 @@ from control_plane.customers.api.views import (
     AgencyCustomerCollectionView,
     AgencyCustomerDetailView,
     AgencyCustomerStatusView,
+    AgencyCustomerUsageView,
     CustomerAccountView,
     PlatformBanKeyView,
     PlatformCustomerCollectionView,
@@ -60,6 +61,11 @@ urlpatterns = [
         "agency/customers/<str:customer_id>/status",
         AgencyCustomerStatusView.as_view(),
         name="agency-customer-status",
+    ),
+    path(
+        "agency/customers/<str:customer_id>/usage",
+        AgencyCustomerUsageView.as_view(),
+        name="agency-customer-usage",
     ),
     path(
         "customer/account",

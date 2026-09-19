@@ -167,6 +167,19 @@ class SettlePayment:
         self._billing.put_invoice(invoice.tenant_id, paid)
         grant_invoice_lots(self._billing, paid, now)
         self._apply_upgrade(paid, now)
+        from control_plane.billing.application.customer_projection import (
+            refresh_minutes_projection,
+            refresh_plan_projection,
+        )
+        from control_plane.customers.infrastructure.container import customer_index
+
+        index = customer_index()
+        refresh_plan_projection(
+            index, self._billing, paid.tenant_id, paid.customer_id
+        )
+        refresh_minutes_projection(
+            index, self._billing, paid.tenant_id, paid.customer_id
+        )
         self._invoices.update(
             InvoiceIndexRecord(
                 invoice_id=paid.invoice_id,
