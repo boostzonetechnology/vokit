@@ -133,6 +133,13 @@ class AdjustCustomerMinutes:
                     ),
                 )
         after = GetCustomerUsage(self._customers, self._billing).execute(command.customer_id)
+        from control_plane.billing.application.customer_projection import (
+            refresh_minutes_projection,
+        )
+
+        refresh_minutes_projection(
+            self._customers, self._billing, indexed.tenant_id, command.customer_id
+        )
         self._audit.execute(
             RecordAuditCommand(
                 action="customer.minutes.adjusted",

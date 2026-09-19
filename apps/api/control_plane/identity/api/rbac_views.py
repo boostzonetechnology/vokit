@@ -128,11 +128,8 @@ class PlatformRoleCollectionView(CsrfAPIView):
         context = require_platform_perm(request, "role.create")
         data = request.data if isinstance(request.data, dict) else {}
         namespace = str(data.get("namespace") or "platform").strip()
-        if namespace != "platform":
-            raise DomainError(
-                "validation_error",
-                "Only platform roles can be created in V1 (SA18).",
-            )
+        if namespace not in {"platform", "agency", "customer"}:
+            raise DomainError("validation_error", "namespace is invalid.")
         slug = str(data.get("slug") or "").strip()
         display_name = str(data.get("display_name") or slug).strip()
         if not slug:

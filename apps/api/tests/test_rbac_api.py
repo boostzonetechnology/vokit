@@ -192,3 +192,61 @@ def test_create_custom_platform_role_and_use_permission() -> None:
     assert created.status_code == 201
     assert created.json()["data"]["is_system"] is False
     assert "billing.view" in created.json()["data"]["permissions"]
+
+
+@pytest.mark.django_db
+def test_create_custom_customer_role_for_invite_dropdown() -> None:
+    ensure_rbac_seeded()
+    _create_user("sa6@vokit.test", principal=PrincipalType.PLATFORM, role="super_admin")
+    client = _client()
+    _login(client, "sa6@vokit.test")
+    created = _post(
+        client,
+        "/api/v1/platform/roles",
+        {
+            "slug": "customer_ops",
+            "display_name": "Customer Ops",
+            "namespace": "customer",
+            "permissions": ["team.view", "team.create"],
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["data"]["namespace"] == "customer"
+    wrong = _post(
+        client,
+        "/api/v1/platform/roles",
+        {
+            "slug": "customer_bad",
+            "display_name": "Bad",
+            "namespace": "customer",
+            "permissions": ["billing.view"],
+        },
+    )
+    assert wrong.status_code == 400
+    _create_user(
+        "cust-ops@vokit.test",
+        principal=PrincipalType.CUSTOMER,
+        role="customer_owner",
+        tenant_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+        customer_id=uuid.UUID("00000000-0000-0000-0000-000000000002"),
+    )
+    guest = _client()
+    _login(guest, "cust-ops@vokit.test")
+    roles = guest.get("/api/v1/customer/roles")
+    assert roles.status_code == 200
+    slugs = {row["slug"] for row in roles.json()["data"]}
+    assert "customer_ops" in slugs
+    invited = _post(
+        guest,
+        "/api/v1/customer/team",
+        {"email": "ops-invite@vokit.test", "role": "customer_ops"},
+    )
+    assert invited.status_code == 201
+    assert invited.json()["data"]["role"] == "customer_ops"
+    missing = guest.post(
+        "/api/v1/customer/roles",
+        data="{}",
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=_csrf(guest),
+    )
+    assert missing.status_code in {404, 405}

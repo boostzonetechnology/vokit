@@ -48,7 +48,8 @@ class TenantAgentStore(Protocol):
     ) -> KnowledgeSourceRecord | None: ...
 
     def list_knowledge(
-        self, connection: TenantConnection, *, scope: str | None = None
+        self, connection: TenantConnection, *, scope: str | None = None,
+        owner_id: uuid.UUID | None = None,
     ) -> list[KnowledgeSourceRecord]: ...
 
     def delete_knowledge(self, connection: TenantConnection, source_id: uuid.UUID) -> None: ...

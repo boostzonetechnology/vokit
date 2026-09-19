@@ -97,6 +97,13 @@ class AssignSubscription:
         invoice = self._open_invoice(subscription, version, now)
         self._billing.put_subscription(customer.tenant_id, subscription)
         stored = self._billing.put_invoice(customer.tenant_id, invoice)
+        from control_plane.billing.application.customer_projection import (
+            refresh_plan_projection,
+        )
+
+        refresh_plan_projection(
+            self._customers, self._billing, customer.tenant_id, customer.id, subscription
+        )
         self._invoices.create(
             InvoiceIndexRecord(
                 invoice_id=stored.invoice_id,

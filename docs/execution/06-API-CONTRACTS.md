@@ -67,7 +67,8 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | POST | `/platform/agencies/{id}/commission` | SA2-003, BR-001, AUD-004 — `reason` required; optional future `rate_effective_at`; agency users 403 |
 | POST | `/platform/agencies/{id}/capabilities` | SA2-005 — `confirm: true` and `reason`; audits `agency.capabilities.changed` |
 | POST | `/platform/agencies/{id}/reassign-customer` | **Not in initial V1** (Q-016) |
-| GET/POST | `/platform/customers` | SA3-* |
+| GET/PATCH/POST | `/platform/customers` | SA3-* list filters `agency_id`, `status`, `q`, `plan_id`, `payment_due`, `remaining_minutes_max`, `updated_after`/`updated_before`; PATCH profile on `{id}` |
+| GET | `/platform/customers/{id}/usage` | SA3-003 remaining minutes + lots |
 | POST | `/platform/customers/{id}/minutes-adjustment` | SA3-003 |
 | GET | `/platform/kyc/cases` | SA4-* status/aging, not document preview |
 | POST | `/platform/kyc/cases/{id}/override` | KYC-007 freeze/override |
@@ -85,7 +86,7 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | DELETE | `/platform/knowledge/{source_id}` | KB-004 — `confirm=true` required |
 | GET/POST | `/platform/phone-numbers` | SA9-*, Q-002 — list optional `agency_id` (assigned tenant) |
 | GET/POST | `/platform/plans` | SA11-*, PLAN-* |
-| GET/POST | `/platform/customers/{id}/subscription` | SA3-004, PLAN-* first assign; GET includes entitlements/period/pending |
+| GET/POST | `/platform/customers/{id}/subscription` | SA3-004, PLAN-* first assign; GET includes entitlements/period/pending/`payment_due` (open assigned-plan invoice only) |
 | POST | `/platform/customers/{id}/subscription/change` | PLAN-005/007, SA3-004 mid-cycle upgrade/downgrade |
 | GET | `/platform/payments` `/invoices` `/disputes` | SA12-* |
 | GET/POST | `/platform/payouts` | SA13-* |
@@ -100,23 +101,25 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET | `/platform/notification-deliveries` | SA16-002 |
 | POST | `/platform/announcements` | SA16-003 |
 | GET | `/platform/notifications` | NOT-001 in-app inbox |
-| GET/POST | `/platform/users` `/roles` | SA18-* |
+| GET/POST | `/platform/users` `/roles` | SA18-* POST roles accepts `namespace` `platform`/`agency`/`customer` |
 
 ### Agency
 
 | Method | Resource | SRS |
 |---|---|---|
 | GET | `/agency/dashboard` | AG1-* — session tenant only |
-| GET/POST | `/agency/customers` | AG2-* |
+| GET/POST/PATCH | `/agency/customers` | AG2-* PATCH `{id}` profile; GET `{id}` includes plan/`payment_due`/minutes |
+| GET | `/agency/customers/{id}/usage` | AG2-005 remaining minutes |
 | GET/POST | `/agency/agents` | AG3-* |
 | GET/PATCH | `/agency/agents/{id}` | AG3-*, AGT-* builder fields including persona, timers, speaking style/speed, `tool_schema_overrides` |
 | POST | `/agency/agents/{id}/clone` | AG3-005 / ADR-009 — optional `customer_id` in same agency; independent draft |
 | POST | `/agency/agents/{id}/publish` | AGT-002 |
 | GET/DELETE | `/agency/agents/{id}/knowledge` `/{source_id}` | KB-004 attach list + detach (source not deleted) |
-| GET/POST | `/agency/knowledge` | AG7-*, KB-001..003 — text/QA or file upload (`md`, `txt`, `pdf`, `docx`, `html`, `csv`, `json`); `queued` → `processing` → `ready` only after Qdrant/vector upsert, else `failed` |
+| GET/POST | `/agency/knowledge` | AG7-*, KB-001..003 — optional `customer_id` lists that customer's sources only |
 | GET/DELETE | `/agency/knowledge/{source_id}` | KB-004 impact preview; delete requires `confirm=true` when agents are attached |
 | GET/POST | `/agency/instructions` | INS-* — agency layer; `?customer_id=` / POST `customer_id` for customer layer |
 | GET | `/agency/tts/voices` | SA19-003 — active platform TTS voices |
+| GET | `/agency/phone-numbers` | optional `customer_id` filters assignments (404 if foreign) |
 | GET/POST | `/agency/phone-numbers/search` `reservations` `assignments` | AG4-*, Q-002 |
 | GET | `/agency/calls` | AG5-* |
 | GET/POST | `/agency/calls/{id}/artifacts` `/access` `/hold` `/delete` | CALL-003–005, ADR-002 |
@@ -124,7 +127,7 @@ All paths below are `/api/v1/...`. Scope is implied by session, not by client-su
 | GET/POST | `/agency/integrations` | AG8-* — **customer-owned connections only** |
 | GET/POST | `/agency/webhooks` | AG9-* |
 | GET | `/agency/plans` `/customer-invoices` | AG10-* |
-| POST | `/agency/customers/{id}/subscription` | AG10 / SA3-004 first assign |
+| GET/POST | `/agency/customers/{id}/subscription` | AG10 / SA3-004 first assign; GET includes `payment_due` |
 | POST | `/agency/customers/{id}/subscription/change` | PLAN-007 mid-cycle; agency `customer.update` |
 | GET/POST | `/agency/wallet` `/payouts` | AG11-*, WAL-* |
 | GET | `/agency/kyc` | AG12-002 status + payout gate |

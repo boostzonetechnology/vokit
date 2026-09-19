@@ -164,7 +164,15 @@ def assert_agency_may_create_customer(
     *,
     privileged: bool,
 ) -> None:
-    if status in {AgencyStatus.SUSPENDED, AgencyStatus.CLOSED}:
+    if status is AgencyStatus.CLOSED:
+        raise DomainError(
+            "agency_cannot_create_customer",
+            "Customer creation is not available.",
+            http_status=409,
+        )
+    if privileged:
+        return
+    if status is AgencyStatus.SUSPENDED:
         raise DomainError(
             "agency_cannot_create_customer",
             "Customer creation is not available.",
@@ -176,8 +184,6 @@ def assert_agency_may_create_customer(
             "Customer creation is not available.",
             http_status=409,
         )
-    if privileged:
-        return
     if status is not AgencyStatus.ACTIVE:
         raise DomainError(
             "agency_cannot_create_customer",

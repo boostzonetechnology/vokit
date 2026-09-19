@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from control_plane.billing.application.adjust_minutes import AdjustCustomerMinutesCommand
+from control_plane.billing.domain.policies import assigned_plan_is_payment_due
 from control_plane.billing.infrastructure.container import (
     adjust_customer_minutes,
     get_customer_subscription,
     get_customer_usage,
+    tenant_billing,
 )
 from control_plane.customers.application.create_customer import CreateCustomerCommand
 from control_plane.customers.domain.policies import BanKey, customer_not_found
@@ -17,6 +21,7 @@ from control_plane.customers.infrastructure.container import (
     change_customer_status,
     create_customer,
     customer_index,
+    update_customer_profile,
 )
 from control_plane.identity.api.auth import (
     parse_optional_uuid,
@@ -68,8 +73,61 @@ def _index_payload(row) -> dict[str, object]:
         "agency_id": str(row.tenant_id),
         "display_name": row.display_name,
         "status": row.status.value,
+        "plan_id": str(row.plan_id) if row.plan_id else None,
+        "remaining_minutes": row.remaining_minutes,
+        "payment_due": row.payment_due,
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
+
+
+def _parse_time(raw: object, field: str) -> datetime | None:
+    if raw in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise DomainError("validation_error", f"{field} is invalid.") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+def _parse_optional_bool(raw: object, field: str) -> bool | None:
+    if raw in (None, ""):
+        return None
+    value = str(raw).strip().lower()
+    if value in {"true", "1"}:
+        return True
+    if value in {"false", "0"}:
+        return False
+    raise DomainError("validation_error", f"{field} is invalid.")
+
+
+def _parse_optional_int(raw: object, field: str) -> int | None:
+    if raw in (None, ""):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise DomainError("validation_error", f"{field} is invalid.") from exc
+
+
+def _live_payment_due(tenant_id, customer_id, subscription) -> bool:
+    if subscription is None:
+        return False
+    return assigned_plan_is_payment_due(
+        subscription.subscription_id,
+        tenant_billing().list_invoices(tenant_id, customer_id),
+    )
+
+
+def _profile_fields(data: dict) -> dict[str, str | None]:
+    fields: dict[str, str | None] = {}
+    for name in ("display_name", "legal_name", "phone", "country", "timezone"):
+        if name in data:
+            fields[name] = None if data.get(name) is None else str(data.get(name) or "")
+    return fields
 
 
 class PlatformCustomerCollectionView(CsrfAPIView):
@@ -91,6 +149,22 @@ class PlatformCustomerCollectionView(CsrfAPIView):
             tenant_id=agency_id,
             status=status,
             query=str(request.query_params.get("q") or ""),
+            plan_id=parse_optional_uuid(
+                request.query_params.get("plan_id"), field="plan_id"
+            ),
+            payment_due=_parse_optional_bool(
+                request.query_params.get("payment_due"), field="payment_due"
+            ),
+            remaining_minutes_max=_parse_optional_int(
+                request.query_params.get("remaining_minutes_max"),
+                field="remaining_minutes_max",
+            ),
+            updated_after=_parse_time(
+                request.query_params.get("updated_after"), "updated_after"
+            ),
+            updated_before=_parse_time(
+                request.query_params.get("updated_before"), "updated_before"
+            ),
         )
         sliced, page = page_slice(rows, offset, limit)
         return success([_index_payload(row) for row in sliced], page=page)
@@ -133,6 +207,11 @@ class PlatformCustomerDetailView(CsrfAPIView):
         usage = get_customer_usage().execute(identifier)
         payload["remaining_minutes"] = usage.remaining_minutes
         subscription = get_customer_subscription().execute(identifier)
+        payload["payment_due"] = _live_payment_due(
+            indexed.tenant_id,
+            identifier,
+            subscription.subscription if subscription is not None else None,
+        )
         if subscription is not None:
             payload["subscription"] = {
                 "id": str(subscription.subscription.subscription_id),
@@ -146,6 +225,23 @@ class PlatformCustomerDetailView(CsrfAPIView):
         else:
             payload["subscription"] = None
         return success(payload)
+
+    def patch(self, request: Request, customer_id: str) -> Response:
+        context = require_platform_perm(request, "customer.update")
+        identifier = parse_uuid(customer_id, field="customer_id")
+        indexed = customer_index().get(identifier)
+        if indexed is None:
+            raise customer_not_found()
+        data = request.data if isinstance(request.data, dict) else {}
+        row = update_customer_profile().execute(
+            customer_id=identifier,
+            tenant_id=indexed.tenant_id,
+            privileged=True,
+            actor_id=context.user.id,
+            actor_role=context.membership.role,
+            **_profile_fields(data),
+        )
+        return success(_customer_payload(row))
 
 
 class PlatformCustomerStatusView(CsrfAPIView):
@@ -173,6 +269,32 @@ class PlatformCustomerUsageView(CsrfAPIView):
         snapshot = get_customer_usage().execute(
             parse_uuid(customer_id, field="customer_id")
         )
+        return success(
+            {
+                "remaining_minutes": snapshot.remaining_minutes,
+                "lots": [
+                    {
+                        "id": str(lot.lot_id),
+                        "kind": lot.kind.value,
+                        "granted_minutes": lot.granted_minutes,
+                        "remaining_minutes": lot.remaining_minutes,
+                    }
+                    for lot in snapshot.lots
+                ],
+            }
+        )
+
+
+class AgencyCustomerUsageView(CsrfAPIView):
+    def get(self, request: Request, customer_id: str) -> Response:
+        context = require_agency_perm(request, "customer.view")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        identifier = parse_uuid(customer_id, field="customer_id")
+        indexed = customer_index().get(identifier)
+        if indexed is None or indexed.tenant_id != tenant_id:
+            raise customer_not_found()
+        snapshot = get_customer_usage().execute(identifier)
         return success(
             {
                 "remaining_minutes": snapshot.remaining_minutes,
@@ -270,6 +392,43 @@ class AgencyCustomerDetailView(CsrfAPIView):
         )
         if row is None:
             raise customer_not_found()
+        payload = _customer_payload(row)
+        identifier = row.customer_id
+        usage = get_customer_usage().execute(identifier)
+        payload["remaining_minutes"] = usage.remaining_minutes
+        subscription = get_customer_subscription().execute(identifier)
+        payload["payment_due"] = _live_payment_due(
+            tenant_id,
+            identifier,
+            subscription.subscription if subscription is not None else None,
+        )
+        if subscription is not None:
+            payload["subscription"] = {
+                "id": str(subscription.subscription.subscription_id),
+                "plan_id": str(subscription.subscription.plan_id),
+                "plan_version_id": str(subscription.subscription.plan_version_id),
+                "plan_name": subscription.plan_name,
+                "plan_version": subscription.plan_version,
+                "status": subscription.subscription.status.value,
+                "included_minutes": subscription.included_minutes,
+            }
+        else:
+            payload["subscription"] = None
+        return success(payload)
+
+    def patch(self, request: Request, customer_id: str) -> Response:
+        context = require_agency_perm(request, "customer.update")
+        tenant_id = context.membership.tenant_id
+        assert tenant_id is not None
+        data = request.data if isinstance(request.data, dict) else {}
+        row = update_customer_profile().execute(
+            customer_id=parse_uuid(customer_id, field="customer_id"),
+            tenant_id=tenant_id,
+            privileged=False,
+            actor_id=context.user.id,
+            actor_role=context.membership.role,
+            **_profile_fields(data),
+        )
         return success(_customer_payload(row))
 
 

@@ -171,7 +171,7 @@ def test_two_agencies_cannot_see_each_others_customers() -> None:
 
 
 @pytest.mark.django_db
-def test_suspended_agency_cannot_create_customer() -> None:
+def test_platform_creates_under_suspended_agency() -> None:
     _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
     platform = _client()
     _login(platform, "platform@vokit.test")
@@ -185,16 +185,17 @@ def test_suspended_agency_cannot_create_customer() -> None:
     assert status.status_code == 200
     assert status.json()["data"]["status"] == "suspended"
     assert status.json()["data"]["capabilities"]["create_customers"] is False
-    denied = _post(
+    created = _post(
         platform,
         "/api/v1/platform/customers",
         platform_customer_body(agency_id, "Nope"),
     )
-    assert denied.status_code == 409
+    assert created.status_code == 201
+    assert created.json()["data"]["agency_id"] == agency_id
     _user("agency-h@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
     agency_client = _client()
     _login(agency_client, "agency-h@vokit.test")
-    also_denied = _post(
+    denied = _post(
         agency_client,
         "/api/v1/agency/customers",
         {
@@ -202,7 +203,7 @@ def test_suspended_agency_cannot_create_customer() -> None:
             "owner_email": platform_customer_body(agency_id, "Nope")["owner_email"],
         },
     )
-    assert also_denied.status_code == 409
+    assert denied.status_code == 409
 
 
 @pytest.mark.django_db
@@ -324,3 +325,92 @@ def test_customer_account_ignores_forged_customer_id() -> None:
     assert ok.json()["data"]["id"] == str(customer_id)
     forged = client.get(f"/api/v1/customer/account?customer_id={other_id}")
     assert forged.status_code == 404
+
+
+@pytest.mark.django_db
+def test_platform_creates_under_restricted_agency() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "Restrict", "life_restrict", "or@vokit.test")
+    agency_id = agency.json()["data"]["id"]
+    restricted = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "restrict", "confirm": True, "reason": "manual review"},
+    )
+    assert restricted.status_code == 200
+    created = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(agency_id, "Still Ok"),
+    )
+    assert created.status_code == 201
+    _user("agency-r@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
+    agency_client = _client()
+    _login(agency_client, "agency-r@vokit.test")
+    denied = _post(
+        agency_client,
+        "/api/v1/agency/customers",
+        {
+            "display_name": "Agency Blocked",
+            "owner_email": platform_customer_body(agency_id, "Agency Blocked")["owner_email"],
+        },
+    )
+    assert denied.status_code == 409
+
+
+@pytest.mark.django_db
+def test_closed_agency_blocks_platform_customer_create() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "Closed", "life_closed", "ocl@vokit.test")
+    agency_id = agency.json()["data"]["id"]
+    closed = _post(
+        platform,
+        f"/api/v1/platform/agencies/{agency_id}/status",
+        {"action": "close", "confirm": True, "reason": "wound down"},
+    )
+    assert closed.status_code == 200
+    denied = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(agency_id, "Too Late"),
+    )
+    assert denied.status_code == 409
+
+
+@pytest.mark.django_db
+def test_agency_patch_profile_and_usage() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    agency = _create_agency(platform, "Patch", "life_patch", "opatch@vokit.test")
+    agency_id = agency.json()["data"]["id"]
+    created = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(agency_id, "Before"),
+    )
+    customer_id = created.json()["data"]["id"]
+    _user("agency-p@vokit.test", PrincipalType.AGENCY, "agency_owner", uuid.UUID(agency_id))
+    agency_client = _client()
+    _login(agency_client, "agency-p@vokit.test")
+    patched = agency_client.patch(
+        f"/api/v1/agency/customers/{customer_id}",
+        data=json.dumps({"display_name": "After", "phone": "+15550001"}),
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=_csrf(agency_client),
+    )
+    assert patched.status_code == 200
+    assert patched.json()["data"]["display_name"] == "After"
+    assert patched.json()["data"]["phone"] == "+15550001"
+    usage = agency_client.get(f"/api/v1/agency/customers/{customer_id}/usage")
+    assert usage.status_code == 200
+    assert usage.json()["data"]["remaining_minutes"] == 0
+    empty_sub = agency_client.get(f"/api/v1/agency/customers/{customer_id}/subscription")
+    assert empty_sub.status_code == 200
+    assert empty_sub.json()["data"] is None
+    foreign = agency_client.get(f"/api/v1/agency/customers/{new_uuid7()}/usage")
+    assert foreign.status_code == 404

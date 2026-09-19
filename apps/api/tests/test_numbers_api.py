@@ -243,6 +243,48 @@ def test_assign_bills_customer_and_release_needs_confirm() -> None:
 
 
 @pytest.mark.django_db
+def test_agency_numbers_filter_by_customer_id() -> None:
+    _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
+    platform = _client()
+    _login(platform, "platform@vokit.test")
+    ctx = _ready_agency(platform, "filt")
+    number_id = _stock(platform, "+14155550400")
+    reserved = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/phone-numbers/reservations",
+        {"number_id": number_id, "agent_id": ctx["agent_id"]},
+    )
+    assert reserved.status_code == 201
+    assigned = _post(
+        ctx["agency_client"],
+        "/api/v1/agency/phone-numbers/assignments",
+        {"reservation_id": reserved.json()["data"]["id"], "confirm": True},
+        HTTP_IDEMPOTENCY_KEY="assign-filter",
+    )
+    assert assigned.status_code == 201
+    listed = ctx["agency_client"].get(
+        f"/api/v1/agency/phone-numbers?customer_id={ctx['customer_id']}"
+    )
+    assert listed.status_code == 200
+    rows = listed.json()["data"]["assignments"]
+    assert any(row["customer_id"] == str(ctx["customer_id"]) for row in rows)
+    other = _post(
+        platform,
+        "/api/v1/platform/customers",
+        platform_customer_body(ctx["agency_id"], "No Number"),
+    )
+    empty = ctx["agency_client"].get(
+        f"/api/v1/agency/phone-numbers?customer_id={other.json()['data']['id']}"
+    )
+    assert empty.status_code == 200
+    assert empty.json()["data"]["assignments"] == []
+    hidden = ctx["agency_client"].get(
+        f"/api/v1/agency/phone-numbers?customer_id={new_uuid7()}"
+    )
+    assert hidden.status_code == 404
+
+
+@pytest.mark.django_db
 def test_expired_reservation_can_be_taken_by_second_agency() -> None:
     _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
     platform = _client()

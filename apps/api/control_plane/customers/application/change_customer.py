@@ -122,6 +122,98 @@ class ChangeCustomerStatus:
         return stored
 
 
+class UpdateCustomerProfile:
+    def __init__(
+        self,
+        tenants: TenantRepository,
+        index: CustomerIndexRepository,
+        lifecycle: TenantLifecycleService,
+        clock: Clock,
+        audit: RecordAudit,
+    ) -> None:
+        self._tenants = tenants
+        self._index = index
+        self._lifecycle = lifecycle
+        self._clock = clock
+        self._audit = audit
+
+    def execute(
+        self,
+        *,
+        customer_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+        privileged: bool,
+        display_name: str | None = None,
+        legal_name: str | None = None,
+        phone: str | None = None,
+        country: str | None = None,
+        timezone: str | None = None,
+        actor_id: uuid.UUID | None = None,
+        actor_role: str = "",
+    ) -> TenantCustomer:
+        indexed = self._index.get(customer_id)
+        if indexed is None or indexed.tenant_id != tenant_id:
+            raise customer_not_found()
+        tenant = self._tenants.get(tenant_id)
+        if tenant is None:
+            raise customer_not_found()
+        assert_agency_may_mutate_customer(
+            tenant.agency_status,
+            tenant.capabilities,
+            privileged=privileged,
+        )
+        current = self._lifecycle.get_customer(tenant_id, customer_id)
+        if current is None:
+            raise customer_not_found()
+        name = current.display_name if display_name is None else display_name.strip()
+        if not name:
+            raise DomainError("validation_error", "display_name is required.")
+        updated = TenantCustomer(
+            customer_id=current.customer_id,
+            tenant_id=current.tenant_id,
+            display_name=name,
+            status=current.status,
+            legal_name=current.legal_name if legal_name is None else legal_name.strip(),
+            owner_email=current.owner_email,
+            phone=current.phone if phone is None else phone.strip(),
+            country=current.country if country is None else country.strip(),
+            timezone=current.timezone if timezone is None else timezone.strip(),
+            created_at=current.created_at,
+            updated_at=self._clock.now(),
+        )
+        stored = self._lifecycle.put_customer(tenant_id, updated)
+        self._index.update(
+            CustomerIndexRecord(
+                id=indexed.id,
+                tenant_id=indexed.tenant_id,
+                display_name=stored.display_name,
+                status=indexed.status,
+                created_at=indexed.created_at,
+            )
+        )
+        self._audit.execute(
+            RecordAuditCommand(
+                action="customer.profile.changed",
+                entity_type="customer",
+                entity_id=str(customer_id),
+                actor_id=actor_id,
+                actor_role=actor_role,
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+                before_summary=current.display_name,
+                after_summary=stored.display_name,
+            )
+        )
+        log_event(
+            logger,
+            "customer.profile.changed",
+            outcome="success",
+            tenant_id=str(tenant_id),
+            customer_id=str(customer_id),
+        )
+        return stored
+
+
 class ActivateCustomerOnInviteAccept:
     """Promotes Invited → Active when a customer-owner invitation is accepted."""
 
