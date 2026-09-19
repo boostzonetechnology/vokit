@@ -53,6 +53,15 @@ def _post(client: Client, path: str, payload: dict, **headers):
     )
 
 
+def _patch(client: Client, path: str, payload: dict):
+    return client.patch(
+        path,
+        data=json.dumps(payload),
+        content_type="application/json",
+        HTTP_X_CSRFTOKEN=_csrf(client),
+    )
+
+
 def _user(
     email: str,
     principal: PrincipalType,
@@ -141,7 +150,7 @@ def _verify_kyc(agency_client: Client) -> None:
     assert hook.status_code == 200
 
 
-def _ready_paid_agency():
+def _ready_paid_agency(*, hold_days: int | None = None):
     _user("platform@vokit.test", PrincipalType.PLATFORM, "super_admin")
     platform = _client()
     _login(platform, "platform@vokit.test")
@@ -183,6 +192,13 @@ def _ready_paid_agency():
     )
     agency_client = _client()
     _login(agency_client, "agency-comm@vokit.test")
+    if hold_days is not None:
+        changed = _patch(
+            platform,
+            "/api/v1/platform/settings",
+            {"key": "payout.hold_days", "value": hold_days, "reason": "hold policy"},
+        )
+        assert changed.status_code == 200
     paid = _pay_invoice(invoice_id, 10000, "evt-comm-1")
     assert paid.status_code == 200
     return platform, agency_id, agency_client
@@ -286,3 +302,26 @@ def test_mark_paid_is_blocked_without_proof() -> None:
     )
     assert paid.status_code == 409
     assert paid.json()["error"]["code"] == "payout_proof_required"
+
+
+@pytest.mark.django_db
+def test_settlement_uses_configured_hold_days() -> None:
+    _ready_paid_agency(hold_days=21)
+    row = LedgerEntry.objects.get(kind=LedgerKind.COMMISSION_EARNED.value)
+    assert row.earned_at is not None
+    assert row.available_at is not None
+    assert row.available_at - row.earned_at == timedelta(days=21)
+
+
+@pytest.mark.django_db
+def test_payout_blocked_while_commission_on_hold() -> None:
+    _platform, _agency_id, agency_client = _ready_paid_agency()
+    _verify_kyc(agency_client)
+    denied = _post(
+        agency_client,
+        "/api/v1/agency/payouts",
+        {"amount_minor": 3000, "method_label": "bank ****1111"},
+        HTTP_IDEMPOTENCY_KEY="po-hold",
+    )
+    assert denied.status_code == 409
+    assert denied.json()["error"]["code"] == "payout_insufficient"
